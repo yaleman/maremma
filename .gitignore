@@ -1,0 +1,18 @@
+#rust things
+target/
+docs/book/
+
+# IDE
+.vscode/
+
+# macos, why
+.DS_Store
+
+# no secrets for you
+.env
+.envrc
+
+# coverage things
+*.profraw
+tarpaulin-report.html
+config.json
