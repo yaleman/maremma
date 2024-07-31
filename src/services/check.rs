@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tokio::sync::RwLock;
+
 use crate::prelude::*;
 
-pub type ServiceChecks = HashMap<String, ServiceCheck>;
+pub type ServiceChecks = Arc<RwLock<HashMap<String, ServiceCheck>>>;
 
 #[derive(Debug)]
 pub struct ServiceCheck {
@@ -27,6 +29,23 @@ impl ServiceCheck {
             last_updated: chrono::Utc::now(),
             check_id,
         }
+    }
+
+    /// Is this due to be run?
+    pub fn is_due(
+        &self,
+        config: &Configuration,
+        now: Option<DateTime<Utc>>,
+    ) -> Result<bool, Error> {
+        let cron = self.get_cron(config)?;
+        let next_runtime = cron
+            .find_next_occurrence(&self.last_check, true)
+            .map_err(|err| Error::Generic(format!("{:?}", err)))?;
+        Ok(next_runtime < now.unwrap_or(chrono::Utc::now()))
+    }
+
+    pub fn urgent(&mut self) {
+        self.status = ServiceStatus::Urgent;
     }
 
     pub fn checkout(&mut self) {

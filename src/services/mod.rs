@@ -19,6 +19,8 @@ pub enum ServiceStatus {
     Warning,
     Error,
     Unknown,
+    /// Run this as soon as possible
+    Urgent,
 }
 impl Display for ServiceStatus {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
