@@ -6,8 +6,9 @@ use clap::*;
 pub struct SharedOpts {
     #[clap(short, long,action = clap::ArgAction::SetTrue)]
     pub debug: Option<bool>,
-    #[clap(short, long)]
-    config: Option<PathBuf>,
+    #[clap(short, long, help=format!("Path to the configuration file. Defaults to {}", crate::DEFAULT_CONFIG_FILE))]
+    /// Defaults to [crate::DEFAULT_CONFIG_FILE]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Parser, Clone, Default)]
