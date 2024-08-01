@@ -811,9 +811,9 @@ dependencies = [
  "env_logger",
  "k8s-openapi",
  "kube",
+ "log",
  "serde",
  "serde_json",
- "serde_test",
  "sha256",
  "tokio",
  "tracing",
@@ -1195,15 +1195,6 @@ dependencies = [
  "itoa",
  "memchr",
  "ryu",
- "serde",
-]
-
-[[package]]
-name = "serde_test"
-version = "1.0.176"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a2f49ace1498612d14f7e0b8245519584db8299541dfe31a06374a828d620ab"
-dependencies = [
  "serde",
 ]
 
