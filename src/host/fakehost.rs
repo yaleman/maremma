@@ -3,9 +3,7 @@ use crate::prelude::*;
 #[allow(dead_code)]
 #[derive(Deserialize, Default, Serialize, Debug)]
 pub struct FakeHost {
-    // #[serde(default)]
-    // pub host_groups: Vec<String>,
-    services: Vec<String>,
+    pub services: Vec<String>,
 }
 
 #[async_trait]

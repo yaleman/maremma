@@ -14,7 +14,7 @@
     },
     "services": [
         {
-            "name": "ls -lah /tmp",
+            "name": "local_lslah",
             "type": "cli",
             "host_groups": ["local_lslah"],
             "command_line": "ls -lah /tmp",

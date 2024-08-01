@@ -65,7 +65,7 @@ impl Host {
     }
 }
 
-fn generate_host_id(name: impl ToString, check: &HostCheck) -> String {
+pub fn generate_host_id(name: impl ToString, check: &HostCheck) -> String {
     sha256::digest(&format!("{}:{:?}", name.to_string(), check))
 }
 

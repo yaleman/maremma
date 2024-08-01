@@ -19,7 +19,7 @@ pub struct ServiceCheck {
 
 impl ServiceCheck {
     pub fn new(host_id: Arc<String>, service_id: String) -> Self {
-        let check_id = service_check_id(&host_id, &service_id);
+        let check_id = generate_service_check_id(&host_id, &service_id);
         Self {
             host_id,
             service_id,
@@ -39,7 +39,7 @@ impl ServiceCheck {
     ) -> Result<bool, Error> {
         let cron = self.get_cron(config)?;
         let next_runtime = cron
-            .find_next_occurrence(&self.last_check, true)
+            .find_next_occurrence(&self.last_check, false)
             .map_err(|err| Error::Generic(format!("{:?}", err)))?;
         Ok(next_runtime < now.unwrap_or(chrono::Utc::now()))
     }
@@ -75,6 +75,6 @@ impl ServiceCheck {
     }
 }
 
-pub fn service_check_id(host_id: impl ToString, service_id: &str) -> String {
+pub fn generate_service_check_id(host_id: impl ToString, service_id: &str) -> String {
     sha256::digest(&format!("{}-{}", host_id.to_string(), service_id))
 }

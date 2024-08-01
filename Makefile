@@ -68,4 +68,4 @@ prep:
 coverage: ## Run coverage
 coverage:
 	cargo tarpaulin --out Html
-	echo "Coverage file at file://$(PWD)/tarpaulin-report.html"
+	@echo "Coverage file at file://$(PWD)/tarpaulin-report.html"

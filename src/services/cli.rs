@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use std::os::unix::process::ExitStatusExt;
+use std::process::Stdio;
 
 #[derive(Debug, Deserialize)]
 pub struct CliService {
@@ -25,7 +26,8 @@ impl ServiceTrait for CliService {
         let child = tokio::process::Command::new(cmd)
             .args(args)
             .kill_on_drop(true)
-            // .stdout(stdout)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|err| Error::Generic(err.to_string()))?;
 
@@ -58,6 +60,22 @@ mod tests {
         let res = service
             .run(&Host::new("hello", crate::host::HostCheck::Ping))
             .await;
+        assert_eq!(service.name, "test".to_string());
         assert_eq!(res.is_ok(), true);
+    }
+
+    #[test]
+    fn test_parse_cliservice() {
+        let service: super::CliService = serde_json::from_str(
+            r#" {
+            "name": "local_lslah",
+            "type": "cli",
+            "host_groups": ["local_lslah"],
+            "command_line": "ls -lah /tmp",
+            "cron_schedule": "* * * * *"
+        }"#,
+        )
+        .expect("Failed to parse!");
+        assert_eq!(service.name, "local_lslah".to_string());
     }
 }

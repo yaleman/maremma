@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 
 use crate::errors::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum ServiceStatus {
     Ok,
     Pending,
@@ -21,10 +21,25 @@ pub enum ServiceStatus {
     Unknown,
     /// Run this as soon as possible
     Urgent,
+    Disabled,
 }
 impl Display for ServiceStatus {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+impl ServiceStatus {
+    pub fn log(self, msg: &str) {
+        match self {
+            ServiceStatus::Ok | ServiceStatus::Checking => info!("{}", msg),
+            ServiceStatus::Disabled
+            | ServiceStatus::Unknown
+            | ServiceStatus::Urgent
+            | ServiceStatus::Pending
+            | ServiceStatus::Warning => warn!("{}", msg),
+            ServiceStatus::Critical | ServiceStatus::Error => error!("{}", msg),
+        }
     }
 }
 
@@ -61,7 +76,7 @@ pub struct Service {
 
 impl Service {
     pub fn id(&self) -> String {
-        sha256::digest(&format!("{}:{}", self.name, self.type_))
+        generate_service_id(&self.name, &self.type_)
     }
 }
 
@@ -83,6 +98,10 @@ impl TryFrom<&Value> for Service {
         res.config = Some(service_config);
         Ok(res)
     }
+}
+
+pub fn generate_service_id(name: &str, service_type: &ServiceType) -> String {
+    sha256::digest(&format!("{}:{}", name, service_type))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
