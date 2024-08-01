@@ -8,6 +8,8 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 
 [dependencies]
 async-trait = "0.1.81"
+axum = { version = "0.7.5", features = ["http2", "macros"] }
+axum-server = { version = "0.7.1", features = ["rustls"] }
 croner = "2.0.5"
 chrono = "0.4.38"
 clap = { version = "4.5.11", features = ["derive", "env"] }
@@ -27,3 +29,5 @@ tokio = { version = "1.39.2", features = [
 ] }
 tracing = { version = "0.1.40", features = ["release_max_level_debug"] }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
+askama = { version = "0.12.1", features = ["with-axum"] }
+askama_axum = "0.4.0"

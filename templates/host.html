@@ -1,0 +1,11 @@
+{% extends "base_template.html" %}
+
+{% block content %}
+
+<p>hostname: {{hostname}}</p>
+<!-- <p>host_id: {{host_id}}</p> -->
+<p>host check: {{check}}</p>
+<p>host_groups: {% for host_group in host_groups %}{{host_group }} {% endfor
+    %}</p>
+<p>checks: {% for check in checks %}{{check.ordervalue }}{% endfor %}</p>
+{% endblock content %}

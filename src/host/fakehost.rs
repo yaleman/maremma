@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Deserialize, Default, Serialize, Debug)]
+#[derive(Deserialize, Default, Serialize, Debug, Clone)]
 pub struct FakeHost {
     pub services: Vec<String>,
 }

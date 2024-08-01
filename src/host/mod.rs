@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::sync::Arc;
 
 use crate::prelude::*;
@@ -6,7 +7,7 @@ pub mod fakehost;
 pub mod kube;
 pub mod ssh;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Host {
     pub name: String,
     #[serde(default = "Default::default")]
@@ -65,7 +66,7 @@ pub fn generate_host_id(name: &str, check: &HostCheck) -> String {
     sha256::digest(&format!("{}:{:?}", name, check))
 }
 
-#[derive(Deserialize, Debug, Serialize, Default)]
+#[derive(Deserialize, Debug, Serialize, Default, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum HostCheck {
     /// No checks done
@@ -81,6 +82,22 @@ pub enum HostCheck {
         #[serde(default = "kube::kube_port_default")]
         api_port: u16,
     },
+}
+
+impl Display for HostCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HostCheck::None => write!(f, "None"),
+            HostCheck::Ping => write!(f, "Ping"),
+            HostCheck::SshHost => write!(f, "SSH"),
+            HostCheck::KubeHost {
+                api_hostname,
+                api_port,
+            } => {
+                write!(f, "KubeHost: {}:{}", api_hostname, api_port)
+            }
+        }
+    }
 }
 
 #[async_trait]

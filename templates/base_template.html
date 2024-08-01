@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>{{ title }} - Maremma</title>
+        {% include "style.html" %}
+        {% block header %}{% endblock %}
+    </head>
+    <body>
+        <header>
+            <h1>{{ title }}</h1>
+        </header>
+        <nav>
+            <ul class="nav">
+                <li><a href="/">Home</a></li>
+                <li><a href="/">Login</a></li>
+                <li><a href="/">Logout</a></li>
+            </ul>
+        </nav>
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+        <footer>
+            Powered by <a href="https://github.com/yaleman/maremma/">Maremma</a>
+        </footer>
+    </html>

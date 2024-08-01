@@ -13,7 +13,7 @@ pub struct ServiceCheck {
     pub service_id: String,
     pub status: ServiceStatus,
     pub last_check: DateTime<Utc>,
-    last_updated: DateTime<Utc>,
+    pub last_updated: DateTime<Utc>,
     check_id: String,
 }
 
