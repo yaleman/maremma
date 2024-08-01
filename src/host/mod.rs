@@ -22,12 +22,8 @@ pub struct Host {
 }
 
 impl Host {
-    pub fn new(name: impl ToString, check: HostCheck) -> Self {
-        let host_id = Arc::new(sha256::digest(&format!(
-            "{}:{:?}",
-            name.to_string(),
-            &check
-        )));
+    pub fn new(name: &str, check: HostCheck) -> Self {
+        let host_id = Arc::new(sha256::digest(&format!("{}:{:?}", name, &check)));
         debug!("Creating host: {} with id: {}", name.to_string(), host_id);
         Self {
             name: name.to_string(),
@@ -38,7 +34,7 @@ impl Host {
         }
     }
 
-    pub fn with_hostname(self, hostname: impl ToString) -> Self {
+    pub fn with_hostname(self, hostname: &str) -> Self {
         Self {
             hostname: Some(hostname.to_string()),
             ..self
@@ -65,8 +61,8 @@ impl Host {
     }
 }
 
-pub fn generate_host_id(name: impl ToString, check: &HostCheck) -> String {
-    sha256::digest(&format!("{}:{:?}", name.to_string(), check))
+pub fn generate_host_id(name: &str, check: &HostCheck) -> String {
+    sha256::digest(&format!("{}:{:?}", name, check))
 }
 
 #[derive(Deserialize, Debug, Serialize, Default)]

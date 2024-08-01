@@ -46,7 +46,7 @@ pub struct SshHost {
 }
 
 impl SshHost {
-    pub fn from_hostname(hostname: impl ToString) -> Self {
+    pub fn from_hostname(hostname: &str) -> Self {
         Self {
             hostname: hostname.to_string(),
             ..Default::default()
@@ -84,11 +84,14 @@ impl GenericHost for SshHost {
                 Some(sock) => sock,
                 None => return Err(Error::DNSFailed),
             },
-            None => format!("{}:{}", self.hostname, self.port)
+            None => match format!("{}:{}", self.hostname, self.port)
                 .to_socket_addrs()
-                .expect("Failed to resolve hostname")
+                .map_err(|_err| Error::DNSFailed)?
                 .next()
-                .expect("Failed to resolve hostname"),
+            {
+                Some(val) => val,
+                None => return Err(Error::DNSFailed),
+            },
         };
         let result = std::net::TcpStream::connect_timeout(
             &socket_address,

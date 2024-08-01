@@ -164,7 +164,7 @@ impl Configuration {
                     .cloned()
                     .unwrap_or(vec![])
                 {
-                    let service_check_id = generate_service_check_id(host_id.clone(), service_id);
+                    let service_check_id = generate_service_check_id(&host_id, service_id);
                     // check if the servicecheck exists already
 
                     if let std::collections::hash_map::Entry::Vacant(e) = self
@@ -255,11 +255,10 @@ impl Configuration {
         }
     }
 
+    /// find the next time we need to wake up
     pub async fn find_next_wakeup(&self) -> DateTime<Utc> {
         let mut next_wakeup: Option<DateTime<Utc>> = None;
 
-        // find the next time we need to wake up
-        let one_sec = TimeDelta::new(1, 0).expect("Failed to get a 1 second TimeDelta");
         for (_id, check) in self.service_checks.read().await.iter() {
             if let Ok(cron) = check.get_cron(self) {
                 if let Ok(next_runtime) = cron.find_next_occurrence(&check.last_check, false) {
@@ -276,7 +275,7 @@ impl Configuration {
                 }
             }
         }
-        next_wakeup.unwrap_or(chrono::Utc::now() + one_sec)
+        next_wakeup.unwrap_or(chrono::Utc::now() + TimeDelta::seconds(1))
     }
 
     pub fn get_host(&self, host_id: &str) -> Option<&Host> {
@@ -311,13 +310,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_example_config() {
+        #[allow(clippy::expect_used)]
         let config = Configuration::new(Some(PathBuf::from("maremma.example.json")))
             .await
             .expect("Failed to load example config");
 
         assert!(config.get_next_service_check().await.is_some());
 
-        let expected_host = generate_host_id("example.com", &HostCheck::default());
+        let expected_host = generate_host_id(&"example.com", &HostCheck::default());
 
         assert!(config.get_host(&expected_host).is_some());
 

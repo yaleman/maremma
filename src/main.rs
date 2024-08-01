@@ -25,7 +25,10 @@ async fn main() -> Result<(), ExitCode> {
     // Logging startup things
 
     let cli = CliOpts::parse();
-    setup_logging(cli.debug()).expect("Failed to start logging!");
+    if let Err(err) = setup_logging(cli.debug()) {
+        println!("Failed to setup logging: {:?}", err);
+        return Err(ExitCode::from(1));
+    };
 
     // parse the config file
     let config = Configuration::new(cli.config()).await.map_err(|err| {
@@ -39,7 +42,8 @@ async fn main() -> Result<(), ExitCode> {
             if show_config.json {
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&config).expect("Failed to serialize config!")
+                    serde_json::to_string_pretty(&config)
+                        .unwrap_or(format!("Failed to serialize config: {:?}", &config))
                 );
             } else {
                 println!("{:#?}", config);
@@ -59,10 +63,21 @@ async fn run_check_loop(config: Configuration) {
                 match config.run_check(&next_check_id).await {
                     Ok((hostname, status)) => {
                         let service_id_reader = config.service_checks.read().await;
-                        let service_id: String = service_id_reader
+                        let service_id: String = match service_id_reader
                             .get(&next_check_id)
                             .map(|s| s.service_id.clone())
-                            .expect("Service not found after doing check?");
+                        {
+                            Some(val) => val,
+                            None => {
+                                error!(
+                                    "Failed to get service_id from next_check_id: {:?}",
+                                    next_check_id
+                                );
+                                drop(service_id_reader);
+                                continue;
+                            }
+                        };
+
                         drop(service_id_reader);
 
                         let service = match config.get_service(&service_id) {

@@ -20,7 +20,7 @@ pub struct KubeHost {
 }
 
 impl KubeHost {
-    pub fn from_hostname(hostname: impl ToString) -> Self {
+    pub fn from_hostname(hostname: &str) -> Self {
         Self {
             api_hostname: hostname.to_string(),
             api_port: kube_port_default(),
@@ -30,7 +30,7 @@ impl KubeHost {
     pub fn with_port(self, api_port: u16) -> Self {
         Self { api_port, ..self }
     }
-    pub fn with_cluster(self, cluster: impl ToString) -> Self {
+    pub fn with_cluster(self, cluster: &str) -> Self {
         Self {
             kube_cluster: Some(cluster.to_string()),
             ..self
@@ -97,7 +97,7 @@ mod tests {
 
         eprintln!("Testing kube host: {}", hostname);
 
-        let host = crate::host::kube::KubeHost::from_hostname(hostname);
+        let host = crate::host::kube::KubeHost::from_hostname(&hostname);
         let result = host.check_up().await;
         assert_eq!(result, Ok(true));
     }

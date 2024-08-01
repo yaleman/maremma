@@ -20,12 +20,14 @@ pub struct ServiceCheck {
 impl ServiceCheck {
     pub fn new(host_id: Arc<String>, service_id: String) -> Self {
         let check_id = generate_service_check_id(&host_id, &service_id);
+        #[allow(clippy::expect_used)]
+        let last_check =
+            DateTime::<Utc>::from_timestamp(0, 0).expect("Failed to create 0 timestamp");
         Self {
             host_id,
             service_id,
             status: ServiceStatus::Pending,
-            last_check: DateTime::<Utc>::from_timestamp(0, 0)
-                .expect("Failed to create 0 timestamp"),
+            last_check,
             last_updated: chrono::Utc::now(),
             check_id,
         }
@@ -75,6 +77,6 @@ impl ServiceCheck {
     }
 }
 
-pub fn generate_service_check_id(host_id: impl ToString, service_id: &str) -> String {
-    sha256::digest(&format!("{}-{}", host_id.to_string(), service_id))
+pub fn generate_service_check_id(host_id: &str, service_id: &str) -> String {
+    sha256::digest(&format!("{}-{}", host_id, service_id))
 }
