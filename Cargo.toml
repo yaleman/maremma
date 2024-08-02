@@ -14,7 +14,7 @@ async-trait = "0.1.81"
 axum = { version = "0.7.5", features = ["http2", "macros"] }
 axum-server = { version = "0.7.1", features = ["rustls"] }
 chrono = "0.4.38"
-clap = { version = "4.5.11", features = ["derive", "env"] }
+clap = { version = "4.5.13", features = ["derive", "env"] }
 croner = "2.0.5"
 env_logger = "0.11.5"
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
