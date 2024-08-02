@@ -6,11 +6,19 @@ use crate::host::fakehost::FakeHost;
 use crate::host::{generate_host_id, HostCheck};
 use crate::prelude::*;
 use crate::services::check::{generate_service_check_id, ServiceCheck};
+// use crate::services::kubernetes::KubernetesService;
 
 pub type ServiceTable = HashMap<String, Service>;
 
+fn default_database_file() -> String {
+    "maremma.sqlite".to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Configuration {
+    #[serde(default = "default_database_file")]
+    pub database_file: String,
+
     pub hosts: Vec<Host>,
 
     #[serde(default)]
@@ -156,6 +164,20 @@ impl Configuration {
     }
 
     pub async fn update_service_checks(&mut self) {
+        // TODO: finish host checks
+        // for host in self.hosts.iter() {
+        //     let _host_check_service = match host.check {
+        //         HostCheck::None => continue,
+        //         HostCheck::Ping => continue,
+        //         HostCheck::SshHost => todo!(),
+        //         HostCheck::KubeHost => KubernetesService {
+        //             name: host.name.to_owned(),
+        //             host: host.clone(),
+        //             cron_schedule: "* * * * * *".parse().unwrap(),
+        //         },
+        //     };
+        // }
+
         for (host_group_id, service_ids) in &self.host_group_services {
             for service_id in service_ids {
                 for host_id in self

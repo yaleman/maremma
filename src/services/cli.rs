@@ -2,13 +2,16 @@ use crate::prelude::*;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct CliService {
     pub name: String,
     pub command_line: String,
     #[serde(default)]
     pub run_in_shell: bool,
-    #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
+    #[serde(
+        deserialize_with = "crate::serde::deserialize_croner_cron",
+        serialize_with = "crate::serde::serialize_croner_cron"
+    )]
     pub cron_schedule: Cron,
 }
 

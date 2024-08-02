@@ -10,6 +10,7 @@ pub enum Error {
     HostNotFound(String),
     ServiceCheckNotFound(String),
     ServiceConfigNotFound(String),
+    SqlError(sea_orm::error::DbErr),
 }
 
 impl From<serde_json::Error> for Error {
@@ -21,6 +22,12 @@ impl From<serde_json::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Error::IoError(err.to_string())
+    }
+}
+
+impl From<sea_orm::error::DbErr> for Error {
+    fn from(err: sea_orm::error::DbErr) -> Self {
+        Error::SqlError(err)
     }
 }
 

@@ -1,0 +1,23 @@
+
+<table width="100%">
+    <thead>
+        <tr>
+            <th><a href="/?ord=asc&field=host">Hostname 🔼</a> /
+                <a href="/?ord=desc&field=host">🔽</a></th>
+            <th><a href="/?ord=desc&field=check">Check 🔽</a> /
+                <a href="/?ord=asc&field=check">🔼</a></th>
+            <th><a href="/?ord=asc&field=status">Status 🔼</a> /
+                <a href="/?ord=desc&field=status">🔽</a></th>
+            <th><a href="/?ord=asc&field=lastupdated">Last Updated 🔼</a> /
+                <a href="/?ord=desc&field=lastupdated">🔽</a></th>
+        </tr>
+    </thead>
+    {% for check in checks %}
+    <tr>
+        <td><a href="/host/{{check.host_id}}">{{ check.hostname }}</a></td>
+        <td>{{ check.name }}</td>
+        <td>{{ check.status }}</td>
+        <td>{{ check.last_updated }}</td>
+    </tr>
+    {% endfor %}
+</table>

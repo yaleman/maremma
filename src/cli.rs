@@ -22,9 +22,8 @@ pub struct Run {
 pub struct ShowConfig {
     #[clap(flatten)]
     pub sharedopts: SharedOpts,
-
-    #[clap(short, long)]
-    pub json: bool,
+    // #[clap(short, long)]
+    // pub json: bool,
 }
 
 #[derive(Subcommand, Clone)]

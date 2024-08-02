@@ -8,7 +8,7 @@ pub(crate) fn kube_port_default() -> u16 {
 
 #[derive(Default, Deserialize, Serialize, Debug)]
 pub struct KubeHost {
-    pub api_hostname: String,
+    pub hostname: String,
     /// Defaults to 6443
     #[serde(default = "kube_port_default")]
     pub api_port: u16,
@@ -22,7 +22,7 @@ pub struct KubeHost {
 impl KubeHost {
     pub fn from_hostname(hostname: &str) -> Self {
         Self {
-            api_hostname: hostname.to_string(),
+            hostname: hostname.to_string(),
             api_port: kube_port_default(),
             ..Default::default()
         }
@@ -37,7 +37,7 @@ impl KubeHost {
         }
     }
     pub fn api_url(&self) -> String {
-        format!("https://{}:{}", self.api_hostname, self.api_port)
+        format!("https://{}:{}", self.hostname, self.api_port)
     }
 }
 
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn test_kube_host_builderd() {
         let host = crate::host::kube::KubeHost::from_hostname("localhost");
-        assert_eq!(host.api_hostname, "localhost");
+        assert_eq!(host.hostname, "localhost");
         assert_eq!(host.api_port, 6443);
         assert_eq!(host.kube_cluster, None);
         assert_eq!(host.api_url(), "https://localhost:6443");

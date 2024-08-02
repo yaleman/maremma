@@ -7,5 +7,7 @@
 <p>host check: {{check}}</p>
 <p>host_groups: {% for host_group in host_groups %}{{host_group }} {% endfor
     %}</p>
-<p>checks: {% for check in checks %}{{check.ordervalue }}{% endfor %}</p>
+
+{% include "table_checks.html" %}
+
 {% endblock content %}

@@ -71,7 +71,7 @@ pub(crate) async fn index(
     }
 
     IndexTemplate {
-        title: "Home".into(),
+        title: "Maremma".to_string(),
         num_checks: state.configuration.service_checks.read().await.len(),
         checks,
         page_refresh: 90,

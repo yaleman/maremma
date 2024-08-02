@@ -1,26 +1,52 @@
 pub mod check;
 pub mod cli;
+pub mod kubernetes;
+pub mod ping;
 pub mod ssh;
 
 use crate::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
 
-use chrono::{DateTime, Utc};
+use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
 use serde::de::DeserializeOwned;
 
 use crate::errors::Error;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(
+    Deserialize,
+    Debug,
+    Serialize,
+    Default,
+    PartialEq,
+    Eq,
+    Copy,
+    Clone,
+    DeriveActiveEnum,
+    EnumIter,
+    Iden,
+)]
+#[serde(rename_all = "lowercase")]
+#[sea_orm(rs_type = "String", db_type = "String(Some(1))")]
 pub enum ServiceStatus {
+    #[sea_orm(string_value = "ok")]
     Ok,
+    #[sea_orm(string_value = "pending")]
+    #[default]
     Pending,
+    #[sea_orm(string_value = "critical")]
     Critical,
+    #[sea_orm(string_value = "checking")]
     Checking,
+    #[sea_orm(string_value = "warning")]
     Warning,
+    #[sea_orm(string_value = "error")]
     Error,
+    #[sea_orm(string_value = "unknown")]
     Unknown,
     /// Run this as soon as possible
+    #[sea_orm(string_value = "urgent")]
     Urgent,
+    #[sea_orm(string_value = "disabled")]
     Disabled,
 }
 impl Display for ServiceStatus {
@@ -69,9 +95,6 @@ pub struct Service {
     pub cron_schedule: Cron,
     #[serde(skip)]
     pub config: Option<Box<dyn ServiceTrait>>,
-
-    #[serde(default)]
-    pub last_runtime: DateTime<Utc>,
 }
 
 impl Service {
@@ -104,10 +127,13 @@ pub fn generate_service_id(name: &str, service_type: &ServiceType) -> String {
     sha256::digest(&format!("{}:{}", name, service_type))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Deserialize, Debug, Serialize, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden)]
 #[serde(rename_all = "lowercase")]
+#[sea_orm(rs_type = "String", db_type = "String(Some(1))")]
 pub enum ServiceType {
+    #[sea_orm(string_value = "cli")]
     Cli,
+    #[sea_orm(string_value = "ssh")]
     Ssh,
 }
 

@@ -1,3 +1,5 @@
+use sea_orm::entity::prelude::*;
+use sea_orm::sea_query;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -8,6 +10,7 @@ pub mod kube;
 pub mod ssh;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+
 pub struct Host {
     pub name: String,
     #[serde(default = "Default::default")]
@@ -20,6 +23,10 @@ pub struct Host {
 
     #[serde(skip)]
     host_id: Arc<String>,
+
+    // Capture all the other config fields
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Host {
@@ -32,6 +39,7 @@ impl Host {
             check,
             host_groups: vec![],
             host_id,
+            extra: HashMap::new(),
         }
     }
 
@@ -66,22 +74,25 @@ pub fn generate_host_id(name: &str, check: &HostCheck) -> String {
     sha256::digest(&format!("{}:{:?}", name, check))
 }
 
-#[derive(Deserialize, Debug, Serialize, Default, Clone)]
+#[derive(
+    Deserialize, Debug, Serialize, Default, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden,
+)]
 #[serde(rename_all = "lowercase")]
+#[sea_orm(rs_type = "String", db_type = "String(Some(1))")]
 pub enum HostCheck {
     /// No checks done
+    #[sea_orm(string_value = "n")]
     None,
     /// Checks by pinging the host
     #[default]
+    #[sea_orm(string_value = "p")]
     Ping,
     /// Checks by trying to SSH to the host
+    #[sea_orm(string_value = "s")]
     SshHost,
     /// Checks we can connect to the Kubernetes API
-    KubeHost {
-        api_hostname: String,
-        #[serde(default = "kube::kube_port_default")]
-        api_port: u16,
-    },
+    #[sea_orm(string_value = "k")]
+    KubeHost,
 }
 
 impl Display for HostCheck {
@@ -90,11 +101,8 @@ impl Display for HostCheck {
             HostCheck::None => write!(f, "None"),
             HostCheck::Ping => write!(f, "Ping"),
             HostCheck::SshHost => write!(f, "SSH"),
-            HostCheck::KubeHost {
-                api_hostname,
-                api_port,
-            } => {
-                write!(f, "KubeHost: {}:{}", api_hostname, api_port)
+            HostCheck::KubeHost => {
+                write!(f, "Kubernetes")
             }
         }
     }
