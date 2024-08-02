@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::host::fakehost::FakeHost;
-use crate::host::{generate_host_id, HostCheck};
+use crate::host::{Host, HostCheck};
 use crate::prelude::*;
 use crate::services::check::{generate_service_check_id, ServiceCheck};
 // use crate::services::kubernetes::KubernetesService;
@@ -135,7 +135,7 @@ impl Configuration {
         for service_name in self.local_services.services.iter() {
             if let Some(service) = self.get_service_by_name(service_name) {
                 // self.service_table.insert(service.clone(), service);
-                let host_id = generate_host_id(LOCAL_SERVICE_HOST_NAME, &HostCheck::None);
+                let host_id = Host::generate_host_id(LOCAL_SERVICE_HOST_NAME, &HostCheck::None);
                 self.service_checks.write().await.insert(
                     generate_service_check_id(&host_id, &service.id()),
                     ServiceCheck::new(Arc::new(host_id), service.id()),
@@ -314,7 +314,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::config::Configuration;
-    use crate::host::{generate_host_id, HostCheck};
+    use crate::host::{Host, HostCheck};
     use crate::services::generate_service_id;
 
     #[tokio::test]
@@ -339,7 +339,7 @@ mod tests {
 
         assert!(config.get_next_service_check().await.is_some());
 
-        let expected_host = generate_host_id(&"example.com", &HostCheck::default());
+        let expected_host = Host::generate_host_id(&"example.com", &HostCheck::default());
 
         assert!(config.get_host(&expected_host).is_some());
 

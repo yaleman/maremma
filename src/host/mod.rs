@@ -22,7 +22,7 @@ pub struct Host {
     pub host_groups: Vec<String>,
 
     #[serde(skip)]
-    host_id: Arc<String>,
+    id: Arc<String>,
 
     // Capture all the other config fields
     #[serde(flatten)]
@@ -38,7 +38,7 @@ impl Host {
             hostname: None,
             check,
             host_groups: vec![],
-            host_id,
+            id: host_id,
             extra: HashMap::new(),
         }
     }
@@ -58,20 +58,44 @@ impl Host {
     }
 
     pub fn host_id(&self) -> Arc<String> {
-        if self.host_id.is_empty() {
-            Arc::new(generate_host_id(&self.name, &self.check))
+        if self.id.is_empty() {
+            Arc::new(Host::generate_host_id(&self.name, &self.check))
         } else {
-            self.host_id.clone()
+            self.id.clone()
         }
     }
 
     pub fn hostname(&self) -> String {
         self.hostname.clone().unwrap_or_else(|| self.name.clone())
     }
+
+    pub fn generate_host_id(name: &str, check: &HostCheck) -> String {
+        sha256::digest(&format!("{}:{:?}", name, check))
+    }
 }
 
-pub fn generate_host_id(name: &str, check: &HostCheck) -> String {
-    sha256::digest(&format!("{}:{:?}", name, check))
+impl From<Host> for crate::db::entities::host::Model {
+    fn from(host: Host) -> Self {
+        Self {
+            id: host.host_id().as_ref().to_string(),
+            hostname: host.hostname(),
+            name: host.name,
+            check: host.check,
+        }
+    }
+}
+
+impl From<crate::db::entities::host::Model> for Host {
+    fn from(model: crate::db::entities::host::Model) -> Self {
+        Self {
+            name: model.name,
+            check: model.check,
+            hostname: Some(model.hostname),
+            host_groups: vec![],
+            id: Arc::new(model.id),
+            extra: HashMap::new(),
+        }
+    }
 }
 
 #[derive(
