@@ -4,6 +4,7 @@ pub mod kubernetes;
 pub mod ping;
 pub mod ssh;
 
+use crate::db::entities;
 use crate::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
 
@@ -121,8 +122,36 @@ impl TryFrom<&Value> for Service {
     }
 }
 
-pub fn generate_service_id() -> Uuid {
-    Uuid::new_v4()
+impl TryFrom<&entities::service::Model> for Service {
+    type Error = Error;
+
+    fn try_from(value: &entities::service::Model) -> Result<Self, Self::Error> {
+        let host_groups: Vec<String> = serde_json::from_value(value.host_groups.clone())?;
+
+        let mut service = Service {
+            id: value.id,
+            description: value.description.clone(),
+            host_groups,
+            type_: value.type_.clone(),
+            cron_schedule: value.cron_schedule.parse()?,
+            config: None,
+        };
+        if let Some(config) = &value.config {
+            let service_config = match value.type_ {
+                ServiceType::Cli => {
+                    let value = cli::CliService::from_config(config)?;
+                    Box::new(value) as Box<dyn ServiceTrait>
+                }
+                ServiceType::Ssh => {
+                    let value = ssh::SshService::from_config(config)?;
+                    Box::new(value) as Box<dyn ServiceTrait>
+                }
+            };
+            service.config = Some(service_config);
+        }
+
+        Ok(service)
+    }
 }
 
 #[derive(Deserialize, Debug, Serialize, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden)]
@@ -149,4 +178,13 @@ impl TryFrom<&str> for ServiceType {
         }
     }
     type Error = String;
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[tokio::test]
+    async fn test_service_from_model() {
+        println!("TODO: this")
+    }
 }

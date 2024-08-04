@@ -1,3 +1,4 @@
+use croner::errors::CronError;
 use uuid::Uuid;
 
 #[derive(Debug, PartialEq)]
@@ -14,6 +15,7 @@ pub enum Error {
     ServiceCheckNotFound(String),
     ServiceConfigNotFound(String),
     SqlError(sea_orm::error::DbErr),
+    CronParseError(String),
 }
 
 impl From<serde_json::Error> for Error {
@@ -31,6 +33,12 @@ impl From<std::io::Error> for Error {
 impl From<sea_orm::error::DbErr> for Error {
     fn from(err: sea_orm::error::DbErr) -> Self {
         Error::SqlError(err)
+    }
+}
+
+impl From<CronError> for Error {
+    fn from(value: CronError) -> Self {
+        Error::CronParseError(value.to_string())
     }
 }
 
