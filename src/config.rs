@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use sea_orm::{QueryOrder, QuerySelect};
+
+use crate::db::entities;
+use crate::db::entities::service_check::Model;
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
@@ -59,7 +63,7 @@ impl Configuration {
         }
         Ok(res)
     }
-
+    #[cfg(test)]
     pub async fn load_test_config() -> Self {
         let mut res: Configuration = serde_json::from_str(
             &tokio::fs::read_to_string("maremma.example.json")
@@ -75,48 +79,6 @@ impl Configuration {
             );
         }
         res
-    }
-
-    /// Get the next service check to run
-    pub async fn get_next_service_check(&self) -> Option<String> {
-        None
-        // Try and get an urgent one first
-        // if let Some(id) = self
-        //     .service_checks
-        //     .write()
-        //     .await
-        //     .iter_mut()
-        //     .find_map(|(id, check)| {
-        //         if let ServiceStatus::Urgent = check.status {
-        //             check.checkout();
-        //             return Some(id.to_owned());
-        //         }
-        //         None
-        //     })
-        // {
-        //     return Some(id);
-        // }
-        // let now = Some(chrono::Utc::now());
-
-        // self.service_checks
-        //     .write()
-        //     .await
-        //     .iter_mut()
-        //     .find_map(|(id, check)| {
-        //         if let ServiceStatus::Checking = check.status {
-        //             // we're already checking this
-        //             return None;
-        //         }
-
-        //         if check.is_due(self, now).unwrap_or(false) {
-        //             debug!("Returning {}", check.check_id());
-        //             check.checkout();
-        //             Some(id.to_owned())
-        //         } else {
-        //             trace!("No check found");
-        //             None
-        //         }
-        //     })
     }
 
     pub async fn run_check(&self, _next_check_id: &str) -> Result<(String, ServiceStatus), Error> {
@@ -182,11 +144,48 @@ impl Configuration {
     }
 }
 
+/// Get the next service check to run, returns
+pub async fn get_next_service_check(db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+    let urgent = entities::service_check::Entity::find()
+        .filter(entities::service_check::Column::Status.eq(ServiceStatus::Urgent))
+        // oldest-last-updated is the most urgent
+        .order_by_asc(entities::service_check::Column::LastUpdated)
+        .limit(1)
+        .all(db)
+        .await?;
+
+    if let Some(model) = urgent.into_iter().next() {
+        return Ok(Some(model));
+    }
+    // prioritize pending
+
+    if let Some(res) = entities::service_check::Entity::find()
+        .filter(entities::service_check::Column::Status.ne(ServiceStatus::Disabled))
+        .all(db)
+        .await?
+        .into_iter()
+        .next()
+    {
+        return Ok(Some(res));
+    }
+
+    Ok(entities::service_check::Entity::find()
+        .filter(entities::service_check::Column::Status.ne(ServiceStatus::Disabled))
+        .all(db)
+        .await?
+        .into_iter()
+        .next())
+}
+
 #[cfg(test)]
 mod tests {
     // use std::path::PathBuf;
 
-    use crate::config::Configuration;
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    use crate::config::{get_next_service_check, Configuration};
+    use crate::setup_logging;
     // use crate::host::{Host, HostCheck};
 
     #[tokio::test]
@@ -202,26 +201,26 @@ mod tests {
         let config = Configuration::new_from_string(&config).await.unwrap();
         assert_eq!(config.hosts.len(), 1);
     }
+    #[tokio::test]
+    async fn test_next_service_check() {
+        let _ = setup_logging(true);
+        let db = Arc::new(
+            crate::db::test_connect()
+                .await
+                .expect("Failed to connect to database"),
+        );
 
-    // #[tokio::test]
-    // async fn test_example_config() {
-    //     #[allow(clippy::expect_used)]
-    //     let config = Configuration::new(Some(PathBuf::from("maremma.example.json")))
-    //         .await
-    //         .expect("Failed to load example config");
+        let configuration =
+            crate::config::Configuration::new(Some(PathBuf::from("maremma.example.json")))
+                .await
+                .expect("Failed to load config");
 
-    //     assert!(config.get_next_service_check().await.is_some());
+        crate::db::update_db_from_config(db.clone(), &configuration)
+            .await
+            .unwrap();
 
-    //     let expected_host = Host::generate_host_id(&"example.com", &HostCheck::default());
-
-    //     assert!(config.get_host(&expected_host).is_some());
-    //     // TODO
-    //     // let service_id = generate_service_id();
-
-    //     // // check we're parsing services
-    //     // assert!(config.get_service(&service_id).is_some());
-
-    //     // // the example config should have a service check pending on startup
-    //     // assert!(config.find_next_wakeup().await <= chrono::Utc::now());
-    // }
+        let next_check = get_next_service_check(&db).await.unwrap();
+        dbg!(&next_check);
+        assert!(next_check.is_some());
+    }
 }
