@@ -19,12 +19,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Service::Table)
-                    .col(
-                        ColumnDef::new(Service::Id)
-                            .string()
-                            .not_null()
-                            .primary_key(),
-                    )
+                    .col(ColumnDef::new(Service::Id).uuid().not_null().primary_key())
                     .col(ColumnDef::new(Service::Name).string().not_null())
                     .col(ColumnDef::new(Service::Description).string())
                     .col(ColumnDef::new(Service::HostGroups).string().not_null())

@@ -14,6 +14,7 @@
 use std::env;
 
 use env_logger::{Builder, Target};
+
 pub mod check_loop;
 pub mod cli;
 pub mod config;
@@ -38,7 +39,9 @@ pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
     let builder = if debug {
         builder.filter_level(tracing::log::LevelFilter::Debug)
     } else {
-        &mut builder
+        let builder = &mut builder;
+        builder.filter(Some("sqlx::query"), tracing::log::LevelFilter::Warn);
+        builder
     };
     builder.target(Target::Stdout);
     builder.try_init()

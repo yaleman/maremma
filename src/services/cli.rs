@@ -61,7 +61,10 @@ mod tests {
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
         };
         let res = service
-            .run(&Host::new("hello", crate::host::HostCheck::Ping))
+            .run(&Host::new(
+                "hello.example.com".to_string(),
+                crate::host::HostCheck::Ping,
+            ))
             .await;
         assert_eq!(service.name, "test".to_string());
         assert_eq!(res.is_ok(), true);

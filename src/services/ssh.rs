@@ -15,7 +15,11 @@ pub struct SshService {
 impl ServiceTrait for SshService {
     async fn run(&self, host: &Host) -> Result<ServiceStatus, Error> {
         // ssh to the target host and run the command
-        let mut args = vec![host.hostname()];
+        let mut args = vec![host
+            .hostname
+            .clone()
+            .expect("At some point we didn't set the hostname!")];
+
         args.extend(
             self.command_line
                 .split(' ')

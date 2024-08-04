@@ -83,7 +83,9 @@ pub trait ServiceTrait: Debug + Sync + Send {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Service {
-    pub name: String,
+    #[serde(default = "uuid::Uuid::new_v4")]
+    pub id: Uuid,
+    // pub name: String,
     pub description: Option<String>,
     pub host_groups: Vec<String>,
     #[serde(rename = "type")]
@@ -97,11 +99,7 @@ pub struct Service {
     pub config: Option<Box<dyn ServiceTrait>>,
 }
 
-impl Service {
-    pub fn id(&self) -> String {
-        generate_service_id(&self.name, &self.type_)
-    }
-}
+impl Service {}
 
 impl TryFrom<&Value> for Service {
     type Error = Error;
@@ -123,8 +121,8 @@ impl TryFrom<&Value> for Service {
     }
 }
 
-pub fn generate_service_id(name: &str, service_type: &ServiceType) -> String {
-    sha256::digest(&format!("{}:{}", name, service_type))
+pub fn generate_service_id() -> Uuid {
+    Uuid::new_v4()
 }
 
 #[derive(Deserialize, Debug, Serialize, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden)]

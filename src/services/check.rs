@@ -9,27 +9,26 @@ pub type ServiceChecks = Arc<RwLock<HashMap<String, ServiceCheck>>>;
 
 #[derive(Debug)]
 pub struct ServiceCheck {
-    pub host_id: Arc<String>,
-    pub service_id: String,
+    pub id: Uuid,
+    pub host_id: Arc<Uuid>,
+    pub service_id: Arc<Uuid>,
     pub status: ServiceStatus,
     pub last_check: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
-    check_id: String,
 }
 
 impl ServiceCheck {
-    pub fn new(host_id: Arc<String>, service_id: String) -> Self {
-        let check_id = generate_service_check_id(&host_id, &service_id);
+    pub fn new(host_id: Arc<Uuid>, service_id: Arc<Uuid>) -> Self {
         #[allow(clippy::expect_used)]
         let last_check =
             DateTime::<Utc>::from_timestamp(0, 0).expect("Failed to create 0 timestamp");
         Self {
+            id: Uuid::new_v4(),
             host_id,
             service_id,
             status: ServiceStatus::Pending,
             last_check,
             last_updated: chrono::Utc::now(),
-            check_id,
         }
     }
 
@@ -64,19 +63,20 @@ impl ServiceCheck {
     }
 
     /// A hash of the host ID and service ID
-    pub fn check_id(&self) -> &str {
-        self.check_id.as_ref()
+    pub fn check_id(&self) -> &Uuid {
+        self.id.as_ref()
     }
 
-    pub fn get_cron(&self, config: &Configuration) -> Result<Cron, Error> {
-        let service = config
-            .service_table
-            .get(&*self.service_id)
-            .ok_or(Error::ServiceNotFound)?;
-        Ok(service.cron_schedule.clone())
+    pub fn get_cron(&self, _config: &Configuration) -> Result<Cron, Error> {
+        todo!()
+        // let service = config
+        //     .service_table
+        //     .get(&*self.service_id)
+        //     .ok_or(Error::ServiceNotFound)?;
+        // Ok(service.cron_schedule.clone())
     }
 }
 
-pub fn generate_service_check_id(host_id: &str, service_id: &str) -> String {
-    sha256::digest(&format!("{}-{}", host_id, service_id))
+pub fn generate_service_check_id(host_id: &Uuid, service_id: &Uuid) -> String {
+    sha256::digest(&format!("{}-{}", host_id.hyphenated(), service_id))
 }

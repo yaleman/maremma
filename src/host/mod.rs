@@ -1,7 +1,6 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query;
 use std::fmt::Display;
-use std::sync::Arc;
 
 use crate::prelude::*;
 
@@ -12,17 +11,17 @@ pub mod ssh;
 #[derive(Deserialize, Serialize, Debug, Clone)]
 
 pub struct Host {
-    pub name: String,
+    #[serde(skip, default = "Uuid::new_v4")]
+    pub id: Uuid,
+
     #[serde(default = "Default::default")]
     pub check: HostCheck,
 
-    hostname: Option<String>,
+    #[serde(default = "Default::default")]
+    pub hostname: Option<String>,
 
     #[serde(default = "Default::default")]
     pub host_groups: Vec<String>,
-
-    #[serde(skip)]
-    id: Arc<String>,
 
     // Capture all the other config fields
     #[serde(flatten)]
@@ -30,15 +29,15 @@ pub struct Host {
 }
 
 impl Host {
-    pub fn new(name: &str, check: HostCheck) -> Self {
-        let host_id = Arc::new(sha256::digest(&format!("{}:{:?}", name, &check)));
-        debug!("Creating host: {} with id: {}", name.to_string(), host_id);
+    #[must_use]
+    pub fn new(hostname: String, check: HostCheck) -> Self {
+        let id = Uuid::new_v4();
+        debug!("Creating host: with id: {}", id.hyphenated());
         Self {
-            name: name.to_string(),
-            hostname: None,
+            hostname: Some(hostname),
             check,
             host_groups: vec![],
-            id: host_id,
+            id,
             extra: HashMap::new(),
         }
     }
@@ -57,42 +56,30 @@ impl Host {
         }
     }
 
-    pub fn host_id(&self) -> Arc<String> {
-        if self.id.is_empty() {
-            Arc::new(Host::generate_host_id(&self.name, &self.check))
-        } else {
-            self.id.clone()
-        }
-    }
-
-    pub fn hostname(&self) -> String {
-        self.hostname.clone().unwrap_or_else(|| self.name.clone())
-    }
-
     pub fn generate_host_id(name: &str, check: &HostCheck) -> String {
         sha256::digest(&format!("{}:{:?}", name, check))
     }
 }
 
-impl From<Host> for crate::db::entities::host::Model {
-    fn from(host: Host) -> Self {
-        Self {
-            id: host.host_id().as_ref().to_string(),
-            hostname: host.hostname(),
-            name: host.name,
-            check: host.check,
-        }
-    }
-}
+// impl From<Host> for crate::db::entities::host::Model {
+//     fn from(host: Host) -> Self {
+//         let hostname= host.hostname.unwrap_or_else(|| "".to_string())
+//         Self {
+//             id: host.id,
+//             hostname: ,
+//             name: host.name,
+//             check: host.check,
+//         }
+//     }
+// }
 
 impl From<crate::db::entities::host::Model> for Host {
     fn from(model: crate::db::entities::host::Model) -> Self {
         Self {
-            name: model.name,
             check: model.check,
             hostname: Some(model.hostname),
             host_groups: vec![],
-            id: Arc::new(model.id),
+            id: model.id,
             extra: HashMap::new(),
         }
     }

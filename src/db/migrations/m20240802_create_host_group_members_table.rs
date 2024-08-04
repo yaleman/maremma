@@ -1,13 +1,10 @@
-use sea_orm::Iterable;
 use sea_orm_migration::prelude::*;
-
-use crate::host::HostCheck;
 
 pub struct Migration;
 
 impl MigrationName for Migration {
     fn name(&self) -> &str {
-        "m20240802_create_host_table" // Make sure this matches with the file name
+        "m20240802_create_host_group_members_table" // Make sure this matches with the file name
     }
 }
 
@@ -18,15 +15,15 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(Host::Table)
-                    .col(ColumnDef::new(Host::Id).uuid().not_null().primary_key())
-                    .col(ColumnDef::new(Host::Name).string().not_null())
-                    .col(ColumnDef::new(Host::Hostname).string())
+                    .table(HostGroupMembers::Table)
                     .col(
-                        ColumnDef::new(Host::Check)
-                            .enumeration(Alias::new("check"), HostCheck::iter())
-                            .not_null(),
+                        ColumnDef::new(HostGroupMembers::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
                     )
+                    .col(ColumnDef::new(HostGroupMembers::HostId).uuid().not_null())
+                    .col(ColumnDef::new(HostGroupMembers::GroupId).uuid().not_null())
                     .to_owned(),
             )
             .await
@@ -35,16 +32,15 @@ impl MigrationTrait for Migration {
     // Define how to rollback this migration: Drop the table.
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(Host::Table).to_owned())
+            .drop_table(Table::drop().table(HostGroupMembers::Table).to_owned())
             .await
     }
 }
 
 #[derive(Iden)]
-pub enum Host {
+pub enum HostGroupMembers {
     Table,
     Id,
-    Name,
-    Hostname,
-    Check,
+    HostId,
+    GroupId,
 }

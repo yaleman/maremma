@@ -8,6 +8,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(super::migrations::m20240802_create_host_table::Migration),
             Box::new(super::migrations::m20240802_create_host_group_table::Migration),
+            Box::new(super::migrations::m20240802_create_host_group_members_table::Migration),
             Box::new(super::migrations::m20240802_create_service_table::Migration),
             Box::new(super::migrations::m20240802_create_service_check_table::Migration),
         ]

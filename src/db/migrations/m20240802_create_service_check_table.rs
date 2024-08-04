@@ -1,5 +1,4 @@
 use sea_orm::Iterable;
-// use sea_orm::Iterable;
 use sea_orm_migration::prelude::*;
 
 use crate::prelude::ServiceStatus;
@@ -25,7 +24,7 @@ impl MigrationTrait for Migration {
                     .table(ServiceCheck::Table)
                     .col(
                         ColumnDef::new(ServiceCheck::Id)
-                            .string()
+                            .uuid()
                             .not_null()
                             .primary_key(),
                     )
@@ -44,8 +43,8 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(ServiceCheck::HostId).string().not_null())
-                    .col(ColumnDef::new(ServiceCheck::ServiceId).string().not_null())
+                    .col(ColumnDef::new(ServiceCheck::HostId).uuid().not_null())
+                    .col(ColumnDef::new(ServiceCheck::ServiceId).uuid().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("service_check_service_id")
