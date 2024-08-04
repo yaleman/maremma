@@ -1,31 +1,28 @@
 {
-    "hosts": [
-        {
-            "name": "example.com",
+    "hosts": {
+        "example.com": {
             "host_groups": [
                 "check_ntp_time"
             ]
         }
-    ],
+    },
     "local_services": {
         "services": [
             "local_lslah"
         ]
     },
-    "services": [
-        {
-            "name": "local_lslah",
+    "services": {
+        "local_lslah": {
             "type": "cli",
             "host_groups": ["local_lslah"],
             "command_line": "ls -lah /tmp",
             "cron_schedule": "* * * * *"
         },
-        {
-            "name": "check_ntp_time",
+        "check_ntp_time": {
             "type": "ssh",
             "host_groups": ["check_ntp_time"],
             "command_line": "/usr/lib/nagios/plugins/check_ntp_time -H localhost",
             "cron_schedule": "* * * * *"
         }
-    ]
+    }
 }

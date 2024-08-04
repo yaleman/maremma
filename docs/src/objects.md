@@ -8,7 +8,7 @@ Service -- "Applied to" --> Group;
 
 HostCheck["Host Check"] --> Host;
 
-Host -- "Becomes" --> ScheduledCheck
+Host -- "Becomes" --> ServiceCheck
 
 ```
 

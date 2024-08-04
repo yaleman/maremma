@@ -35,7 +35,9 @@ sea-orm = { version = "1.0.0", features = [
     "runtime-tokio-rustls", # this is why we have multiple rustls
     "sqlx-sqlite",
     "macros",
+    "with-chrono",
     "with-json",
+    "with-uuid",
 ] }
 sea-orm-migration = { version = "1.0.0", features = [
     "sqlx-sqlite",
