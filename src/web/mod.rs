@@ -8,15 +8,28 @@ pub(crate) mod views;
 
 #[derive(Clone)]
 pub(crate) struct WebState {
+    #[allow(dead_code)]
     pub configuration: Arc<Configuration>,
+    #[allow(dead_code)]
+    pub db: Arc<DatabaseConnection>,
 }
 
-pub async fn run_web_server(configuration: Arc<Configuration>) -> Result<(), Error> {
+pub async fn run_web_server(
+    configuration: Arc<Configuration>,
+    db: Arc<DatabaseConnection>,
+) -> Result<(), Error> {
+    let addr = format!(
+        "{}:{}",
+        configuration.listen_address,
+        configuration.listen_port.unwrap_or(8888)
+    );
     let app = Router::new()
         .route("/", get(views::index::index))
         .route("/host/:host_id", get(views::host::host))
-        .with_state(WebState { configuration });
-    let addr = "127.0.0.1:8888";
+        .with_state(WebState {
+            configuration: configuration.clone(),
+            db,
+        });
 
     info!("Starting web server on http://{}", &addr);
     bind(

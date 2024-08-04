@@ -1,8 +1,8 @@
-// pub(crate) use axum::debug_handler;
 pub(crate) use axum::extract::{Path, Query, State};
 pub(crate) use chrono::{DateTime, Local};
 pub(crate) use serde::Deserialize;
 
+pub(crate) use crate::db::entities;
 pub(crate) use crate::web::WebState;
 pub(crate) use askama_axum::Template;
 pub(crate) use std::sync::Arc;
@@ -18,6 +18,15 @@ pub(crate) enum Order {
     Desc,
 }
 
+impl From<Order> for sea_orm::Order {
+    fn from(value: Order) -> Self {
+        match value {
+            Order::Asc => sea_orm::Order::Asc,
+            Order::Desc => sea_orm::Order::Desc,
+        }
+    }
+}
+
 #[derive(Default, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum OrderFields {
@@ -28,6 +37,7 @@ pub(crate) enum OrderFields {
     Check,
 }
 
+#[allow(dead_code)]
 #[derive(Eq, PartialEq)]
 pub(crate) struct Check {
     /// Used internally for sorting the checks

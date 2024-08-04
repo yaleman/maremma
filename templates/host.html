@@ -8,6 +8,9 @@
 <p>host_groups: {% for host_group in host_groups %}{{host_group }} {% endfor
     %}</p>
 
-{% include "table_checks.html" %}
+{% for check in checks %}
+{{check.status}}
+
+{% endfor %}
 
 {% endblock content %}

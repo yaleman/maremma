@@ -8,8 +8,25 @@
 
 <p>Welcome!</p>
 
-{% include "table_checks.html" %}
+There are: {{ num_checks }} service checks enabled.
 
-There are: {{ num_checks }} checks in the system.
-
+<table class="checktable">
+    <thead>
+        <tr>
+            <th>Host</th>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Last Check</th>
+        </tr>
+    </thead>
+    {% for check in checks %}
+    <tr>
+        <td><a href="/host/{{check.host_id}}">{{check.host_name}}</a></td>
+        <td><a
+                href="/service_check/{{check.service_check_id}}">{{check.service_name}}</a></td>
+        <td>{{check.status}}</td>
+        <td>{{check.last_check}}</td>
+    </tr>
+    {% endfor %}
+</table>
 {% endblock content %}
