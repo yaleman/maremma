@@ -81,7 +81,7 @@ impl MaremmaEntity for Model {
                 .one(db.as_ref())
                 .await
                 .map_err(Error::from)?
-                .ok_or_else(|| Error::ServiceNotFound)?
+                .ok_or_else(|| Error::ServiceNotFoundByName(service.clone()))?
                 .id;
 
             // if we can't find it, add it.

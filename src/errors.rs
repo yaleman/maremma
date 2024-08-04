@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 #[derive(Debug, PartialEq)]
 pub enum Error {
     DNSFailed,
@@ -6,8 +8,9 @@ pub enum Error {
     Generic(String),
     ConfigParse(String),
     IoError(String),
-    ServiceNotFound,
-    HostNotFound(String),
+    ServiceNotFoundByName(String),
+    ServiceNotFound(Uuid),
+    HostNotFound(Uuid),
     ServiceCheckNotFound(String),
     ServiceConfigNotFound(String),
     SqlError(sea_orm::error::DbErr),
