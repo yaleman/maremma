@@ -35,14 +35,14 @@ impl ServiceCheck {
     /// Is this due to be run?
     pub fn is_due(
         &self,
-        config: &Configuration,
-        now: Option<DateTime<Utc>>,
+        _config: &Configuration,
+        _now: Option<DateTime<Utc>>,
     ) -> Result<bool, Error> {
-        let cron = self.get_cron(config)?;
-        let next_runtime = cron
-            .find_next_occurrence(&self.last_check, false)
-            .map_err(|err| Error::Generic(format!("{:?}", err)))?;
-        Ok(next_runtime < now.unwrap_or(chrono::Utc::now()))
+        // let next_runtime = cron
+        //     .find_next_occurrence(&self.last_check, false)
+        //     .map_err(|err| Error::Generic(format!("{:?}", err)))?;
+        // Ok(next_runtime < now.unwrap_or(chrono::Utc::now()))
+        todo!()
     }
 
     pub fn urgent(&mut self) {
@@ -65,15 +65,6 @@ impl ServiceCheck {
     /// A hash of the host ID and service ID
     pub fn check_id(&self) -> &Uuid {
         self.id.as_ref()
-    }
-
-    pub fn get_cron(&self, _config: &Configuration) -> Result<Cron, Error> {
-        todo!()
-        // let service = config
-        //     .service_table
-        //     .get(&*self.service_id)
-        //     .ok_or(Error::ServiceNotFound)?;
-        // Ok(service.cron_schedule.clone())
     }
 }
 

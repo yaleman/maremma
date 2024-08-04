@@ -57,8 +57,6 @@ impl Configuration {
                 Host::new(LOCAL_SERVICE_HOST_NAME.to_string(), HostCheck::None),
             );
         }
-
-        res.update_service_checks().await;
         Ok(res)
     }
 
@@ -193,14 +191,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_new() {
-        let config = r#"{
-            "hosts": [
-                {
-                    "name" : "foo.bar"
+        let config = serde_json::json! {{
+            "hosts": {
+                "foo.bar" : {
+                    "hostname" : "foo.bar"
                 }
-            ]
-        }"#;
-        let config = Configuration::new_from_string(config).await.unwrap();
+            }
+        }}
+        .to_string();
+        let config = Configuration::new_from_string(&config).await.unwrap();
         assert_eq!(config.hosts.len(), 1);
     }
 

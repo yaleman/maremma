@@ -88,8 +88,8 @@ impl From<crate::db::entities::host::Model> for Host {
 #[derive(
     Deserialize, Debug, Serialize, Default, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden,
 )]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(1))")]
 #[serde(rename_all = "lowercase")]
-#[sea_orm(rs_type = "String", db_type = "String(Some(1))")]
 pub enum HostCheck {
     /// No checks done
     #[sea_orm(string_value = "n")]

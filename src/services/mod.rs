@@ -26,7 +26,7 @@ use crate::errors::Error;
     Iden,
 )]
 #[serde(rename_all = "lowercase")]
-#[sea_orm(rs_type = "String", db_type = "String(Some(1))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
 pub enum ServiceStatus {
     #[sea_orm(string_value = "ok")]
     Ok,
@@ -127,7 +127,7 @@ pub fn generate_service_id() -> Uuid {
 
 #[derive(Deserialize, Debug, Serialize, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden)]
 #[serde(rename_all = "lowercase")]
-#[sea_orm(rs_type = "String", db_type = "String(Some(1))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(5))")]
 pub enum ServiceType {
     #[sea_orm(string_value = "cli")]
     Cli,
