@@ -56,18 +56,11 @@ impl MaremmaEntity for Model {
                             let mut am = ActiveModel::new();
                             let mut service = service.to_owned();
                             let service_id = Uuid::new_v4();
-                            service
-                                .as_object_mut()
-                                .unwrap()
-                                .insert("id".to_string(), json!(Uuid::new_v4()));
-                            service
-                                .as_object_mut()
-                                .unwrap()
-                                .insert("name".to_string(), json!(service_name));
-                            trace!(
-                                "Service json: {:}",
-                                serde_json::to_string(&service).unwrap()
-                            );
+                            if let Some(service_object) = service.as_object_mut() {
+                                service_object.insert("id".to_string(), json!(Uuid::new_v4()));
+                                service_object.insert("name".to_string(), json!(service_name));
+                            }
+
                             am.set_from_json(service)?;
                             am.id = Set(service_id);
                             debug!("Creating service: {:?}", am);

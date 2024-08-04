@@ -40,7 +40,7 @@ pub async fn update_db_from_config(
     config: &Configuration,
 ) -> Result<(), ExitCode> {
     // let's go through and update the DB
-    entities::host::Model::update_db_from_config(db.clone(), &config)
+    entities::host::Model::update_db_from_config(db.clone(), config)
         .await
         .map_err(|err| {
             error!("Failed to update hosts DB from config: {:?}", err);
@@ -48,7 +48,7 @@ pub async fn update_db_from_config(
         })?;
     debug!("Updated hosts");
 
-    entities::host_group::Model::update_db_from_config(db.clone(), &config)
+    entities::host_group::Model::update_db_from_config(db.clone(), config)
         .await
         .map_err(|err| {
             error!("Failed to update host_groups DB from config: {:?}", err);
@@ -56,7 +56,7 @@ pub async fn update_db_from_config(
         })?;
     debug!("Updated host_groups");
 
-    entities::host_group_members::Model::update_db_from_config(db.clone(), &config)
+    entities::host_group_members::Model::update_db_from_config(db.clone(), config)
         .await
         .map_err(|err| {
             error!(
@@ -67,7 +67,7 @@ pub async fn update_db_from_config(
         })?;
     debug!("Updated host_group_members");
 
-    entities::service::Model::update_db_from_config(db.clone(), &config)
+    entities::service::Model::update_db_from_config(db.clone(), config)
         .await
         .map_err(|err| {
             error!("Failed to update services DB from config: {:?}", err);
@@ -75,7 +75,7 @@ pub async fn update_db_from_config(
         })?;
     debug!("Updated services");
 
-    entities::service_check::Model::update_db_from_config(db.clone(), &config)
+    entities::service_check::Model::update_db_from_config(db.clone(), config)
         .await
         .map_err(|err| {
             error!("Failed to update service_checks DB from config: {:?}", err);

@@ -100,10 +100,10 @@ impl MaremmaEntity for Model {
                     match serde_json::from_value::<Service>(service.clone()) {
                         Ok(service) => {
                             for group_name in service.host_groups.iter() {
-                                if known_group_list.contains(&group_name) {
+                                if known_group_list.contains(group_name) {
                                     continue;
                                 }
-                                if Entity::find_by_name(&group_name, db.as_ref())
+                                if Entity::find_by_name(group_name, db.as_ref())
                                     .await?
                                     .is_none()
                                 {

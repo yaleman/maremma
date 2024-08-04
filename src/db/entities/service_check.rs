@@ -85,12 +85,13 @@ impl MaremmaEntity for Model {
                 .id;
 
             // if we can't find it, add it.
-            if let None = Entity::find()
+            if Entity::find()
                 .filter(Column::HostId.eq(local_host_id))
                 .filter(Column::ServiceId.eq(service_id))
                 .one(db.as_ref())
                 .await
                 .map_err(Error::from)?
+                .is_none()
             {
                 debug!("Adding local service check: {}", service);
                 Entity::insert(
@@ -170,18 +171,14 @@ impl MaremmaEntity for Model {
                 };
                 for host in hosts {
                     // check we have the service check
-                    if let None = match Entity::find()
+                    if Entity::find()
                         .filter(Column::HostId.eq(host.host_id))
                         .filter(Column::ServiceId.eq(service.id))
                         .one(db.as_ref())
                         .await
-                        .map_err(Error::from)
+                        .map_err(Error::from)?
+                        .is_none()
                     {
-                        Ok(val) => val,
-                        Err(err) => {
-                            panic!("Error finding service check: {:?}", err);
-                        }
-                    } {
                         debug!(
                             "Adding service check for service {} on host {}",
                             service.id, host.host_id

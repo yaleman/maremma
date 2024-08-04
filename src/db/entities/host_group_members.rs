@@ -49,12 +49,8 @@ impl MaremmaEntity for Model {
         for (_host_name, host) in config.hosts.clone() {
             for group_name in host.host_groups.clone() {
                 // try and get the group otherwise create it
-                if inverted_group_list.contains_key(&group_name) {
-                    inverted_group_list
-                        .get_mut(&group_name)
-                        .unwrap()
-                        .1
-                        .push(host.id);
+                if let Some(group) = inverted_group_list.get_mut(&group_name) {
+                    group.1.push(host.id);
                 } else {
                     let group = match super::host_group::Entity::find()
                         .filter(super::host_group::Column::Name.eq(&group_name))
