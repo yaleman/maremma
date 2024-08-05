@@ -1451,6 +1451,7 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "log",
+ "rand",
  "sea-orm",
  "sea-orm-migration",
  "serde",
