@@ -17,8 +17,10 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::prelude::*;
+    use chrono::Timelike;
     use croner::Cron;
 
     #[test]
@@ -32,15 +34,26 @@ mod tests {
             cronvalue: Cron,
         }
 
-        let test = serde_json::json! {{"cronvalue": "@hourly"}};
+        let test = serde_json::json! {{"cronvalue": "0 * * * *"}};
 
         let res: CronTest = serde_json::from_value(test).unwrap();
+
+        let expected_cron = Cron::new("0 * * * *").parse().unwrap();
+
+        let time = chrono::Local::now().with_minute(59).unwrap();
+
+        assert_eq!(
+            res.cronvalue.find_next_occurrence(&time, false).unwrap(),
+            expected_cron.find_next_occurrence(&time, false).unwrap(),
+        );
 
         let serialized = serde_json::to_string(&res).unwrap();
         eprintln!("{}", &serialized);
 
         assert_eq!(r#"{"cronvalue":"0 * * * *"}"#, serialized);
 
-        // assert_eq!(res.cronvalue, Cron::new("@hourly").parse().unwrap());
+        let failed =
+            serde_json::from_value::<CronTest>(serde_json::json! {{"cronvalue": "invalid"}});
+        assert!(failed.is_err());
     }
 }
