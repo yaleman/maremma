@@ -10,6 +10,8 @@ pub(crate) use std::sync::Arc;
 pub(crate) use axum::http::StatusCode;
 pub(crate) use axum::response::IntoResponse;
 
+pub(crate) use tracing::*;
+
 #[derive(Default, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Order {

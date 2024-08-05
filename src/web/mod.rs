@@ -8,9 +8,6 @@ pub(crate) mod views;
 
 #[derive(Clone)]
 pub(crate) struct WebState {
-    #[allow(dead_code)]
-    pub configuration: Arc<Configuration>,
-    #[allow(dead_code)]
     pub db: Arc<DatabaseConnection>,
 }
 
@@ -26,10 +23,7 @@ pub async fn run_web_server(
     let app = Router::new()
         .route("/", get(views::index::index))
         .route("/host/:host_id", get(views::host::host))
-        .with_state(WebState {
-            configuration: configuration.clone(),
-            db,
-        });
+        .with_state(WebState { db });
 
     info!("Starting web server on http://{}", &addr);
     bind(

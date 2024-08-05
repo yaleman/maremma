@@ -1,10 +1,12 @@
 #![allow(unused_imports)]
 
-use sea_orm::{Database, FromQueryResult, JoinType, QuerySelect, QueryTrait, TryIntoModel};
+use sea_orm::{Database, FromQueryResult, JoinType, QuerySelect, QueryTrait, Set, TryIntoModel};
 
 use crate::prelude::*;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, DeriveEntityModel)]
+use super::host;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
 #[sea_orm(table_name = "service_check")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -39,6 +41,76 @@ impl RelationTrait for Relation {
 
 impl ActiveModelBehavior for ActiveModel {}
 
+async fn update_local_services_from_db(
+    db: Arc<DatabaseConnection>,
+    config: &Configuration,
+) -> Result<(), Error> {
+    let local_host_id = match super::host::Entity::find()
+        .filter(super::host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
+        .one(db.as_ref())
+        .await
+        .map_err(Error::from)?
+        .map(|h| h.id)
+    {
+        Some(val) => val,
+        None => {
+            super::host::Entity::insert(
+                super::host::Model {
+                    id: Uuid::new_v4(),
+                    name: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
+                    hostname: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
+                    check: crate::host::HostCheck::None,
+                }
+                .into_active_model(),
+            )
+            .exec_with_returning(db.as_ref())
+            .await?
+            .id
+        }
+    };
+
+    for service in config.local_services.services.clone() {
+        debug!("Ensuring local service exists: {}", service);
+        // can we find the service?
+
+        let service_id = super::service::Entity::find()
+            .filter(super::service::Column::Name.eq(service.as_str()))
+            .one(db.as_ref())
+            .await
+            .map_err(Error::from)?
+            .ok_or_else(|| Error::ServiceNotFoundByName(service.clone()))?
+            .id;
+
+        // if we can't find it, add it.
+        if Entity::find()
+            .filter(Column::HostId.eq(local_host_id))
+            .filter(Column::ServiceId.eq(service_id))
+            .one(db.as_ref())
+            .await
+            .map_err(Error::from)?
+            .is_none()
+        {
+            debug!("Adding local service check: {}", service);
+            Entity::insert(
+                Model {
+                    id: Uuid::new_v4(),
+                    service_id,
+                    host_id: local_host_id,
+                    status: ServiceStatus::Unknown,
+                    last_check: chrono::Utc::now(),
+                    last_updated: chrono::Utc::now(),
+                }
+                .into_active_model(),
+            )
+            .exec(db.as_ref())
+            .await
+            .map_err(Error::from)?;
+        };
+    }
+
+    Ok(())
+}
+
 #[async_trait]
 impl MaremmaEntity for Model {
     /// This updates all the service checks. It really needs to be run after you've added all the hosts and services and host_groups!
@@ -48,75 +120,16 @@ impl MaremmaEntity for Model {
     ) -> Result<(), Error> {
         debug!("Starting update of service checks");
         // the easy ones are the locals.
-        let local_host_id = match super::host::Entity::find()
-            .filter(super::host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
-            .one(db.as_ref())
-            .await
-            .map_err(Error::from)?
-            .map(|h| h.id)
-        {
-            Some(val) => val,
-            None => {
-                super::host::Entity::insert(
-                    super::host::Model {
-                        id: Uuid::new_v4(),
-                        name: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
-                        hostname: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
-                        check: crate::host::HostCheck::None,
-                    }
-                    .into_active_model(),
-                )
-                .exec_with_returning(db.as_ref())
-                .await?
-                .id
-            }
-        };
+        info!("Starting local updates...");
+        update_local_services_from_db(db.clone(), config).await?;
 
-        for service in config.local_services.services.clone() {
-            info!("Ensuring local service exists: {}", service);
-            // can we find the service?
-
-            let service_id = super::service::Entity::find()
-                .filter(super::service::Column::Name.eq(service.as_str()))
-                .one(db.as_ref())
-                .await
-                .map_err(Error::from)?
-                .ok_or_else(|| Error::ServiceNotFoundByName(service.clone()))?
-                .id;
-
-            // if we can't find it, add it.
-            if Entity::find()
-                .filter(Column::HostId.eq(local_host_id))
-                .filter(Column::ServiceId.eq(service_id))
-                .one(db.as_ref())
-                .await
-                .map_err(Error::from)?
-                .is_none()
-            {
-                debug!("Adding local service check: {}", service);
-                Entity::insert(
-                    Model {
-                        id: Uuid::new_v4(),
-                        service_id,
-                        host_id: local_host_id,
-                        status: ServiceStatus::Unknown,
-                        last_check: chrono::Utc::now(),
-                        last_updated: chrono::Utc::now(),
-                    }
-                    .into_active_model(),
-                )
-                .exec(db.as_ref())
-                .await
-                .map_err(Error::from)?;
-            };
-        }
-
+        info!("Starting remote updates...");
         // now we're doing the other services!
         let services = match super::service::Entity::find().all(db.as_ref()).await {
+            Ok(services) => services,
             Err(DbErr::RecordNotFound(_)) => {
                 vec![]
             }
-            Ok(services) => services,
             Err(err) => return Err(err.into()),
         };
 
@@ -128,6 +141,8 @@ impl MaremmaEntity for Model {
         }
 
         for service in services.into_iter() {
+            let service_id = service.id;
+
             debug!("Checking groups for service: {:?}", service.name);
             let host_groups: Vec<String> = match serde_json::from_value(service.host_groups) {
                 Ok(host_groups) => host_groups,
@@ -140,25 +155,21 @@ impl MaremmaEntity for Model {
                 }
             };
             for host_group in host_groups {
-                debug!("Service {} checking group {}", service.name, host_group);
+                info!("Service {} checking group {}", service.name, host_group);
                 // get the group data
-                let group = match super::host_group::Entity::find()
-                    .filter(super::host_group::Column::Name.eq(&host_group))
-                    .one(db.as_ref())
-                    .await
-                {
+                let group = match super::host_group::find_by_name(&host_group, db.as_ref()).await {
                     Ok(Some(group)) => group,
                     Ok(None) => {
                         error!("Host group {} not found, this should already have been sorted by the update_db_from_config for host_groups", host_group);
                         continue;
                     }
                     Err(err) => {
-                        error!("DB Error finding host group {}: {}", host_group, err);
+                        error!("DB Error finding host group {}: {:?}", host_group, err);
                         continue;
                     }
                 };
 
-                let hosts = match super::host_group_members::Entity::find()
+                let host_group_members = match super::host_group_members::Entity::find()
                     .filter(super::host_group_members::Column::GroupId.eq(group.id))
                     .all(db.as_ref())
                     .await
@@ -169,34 +180,43 @@ impl MaremmaEntity for Model {
                         return Err(err.into());
                     }
                 };
-                for host in hosts {
+                for host_group_member in host_group_members {
+                    // let's just check we should have that member
+                    let host = super::host::Entity::find_by_id(host_group_member.host_id)
+                        .one(db.as_ref())
+                        .await?;
+                    if host.is_none() {
+                        error!(
+                            "Host group member {} not found, this should already have been sorted by the update_db_from_config for host",
+                            host_group_member.host_id
+                        );
+                        continue;
+                    }
+
                     // check we have the service check
                     if Entity::find()
-                        .filter(Column::HostId.eq(host.host_id))
+                        .filter(Column::HostId.eq(host_group_member.host_id))
                         .filter(Column::ServiceId.eq(service.id))
                         .one(db.as_ref())
                         .await
                         .map_err(Error::from)?
                         .is_none()
                     {
-                        debug!(
-                            "Adding service check for service {} on host {}",
-                            service.id, host.host_id
+                        info!(
+                            "Adding service check for service {} on host {:?}",
+                            service.name, host_group_member
                         );
-                        Entity::insert(
-                            Model {
-                                id: Uuid::new_v4(),
-                                service_id: service.id,
-                                host_id: host.host_id,
-                                status: ServiceStatus::Unknown,
-                                last_check: chrono::Utc::now(),
-                                last_updated: chrono::Utc::now(),
-                            }
-                            .into_active_model(),
-                        )
-                        .exec(db.as_ref())
-                        .await
-                        .map_err(Error::from)?;
+                        let model = ActiveModel {
+                            id: Set(Uuid::new_v4()),
+                            service_id: Set(service_id),
+                            host_id: Set(host_group_member.host_id),
+                            status: Set(ServiceStatus::Unknown),
+                            last_check: Set(chrono::Utc::now()),
+                            last_updated: Set(chrono::Utc::now()),
+                        };
+                        debug!("Inserting... {:?}", model);
+                        model.insert(db.as_ref()).await.map_err(Error::from)?;
+                        debug!("Done!");
                     }
                 }
             }

@@ -11,8 +11,8 @@ pub mod ssh;
 #[derive(Deserialize, Serialize, Debug, Clone)]
 
 pub struct Host {
-    #[serde(skip, default = "Uuid::new_v4")]
-    pub id: Uuid,
+    #[serde(skip, skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
 
     #[serde(default = "Default::default")]
     pub check: HostCheck,
@@ -37,7 +37,7 @@ impl Host {
             hostname: Some(hostname),
             check,
             host_groups: vec![],
-            id,
+            id: Some(id),
             extra: HashMap::new(),
         }
     }
@@ -61,25 +61,13 @@ impl Host {
     }
 }
 
-// impl From<Host> for crate::db::entities::host::Model {
-//     fn from(host: Host) -> Self {
-//         let hostname= host.hostname.unwrap_or_else(|| "".to_string())
-//         Self {
-//             id: host.id,
-//             hostname: ,
-//             name: host.name,
-//             check: host.check,
-//         }
-//     }
-// }
-
 impl From<crate::db::entities::host::Model> for Host {
     fn from(model: crate::db::entities::host::Model) -> Self {
         Self {
             check: model.check,
             hostname: Some(model.hostname),
             host_groups: vec![],
-            id: model.id,
+            id: Some(model.id),
             extra: HashMap::new(),
         }
     }

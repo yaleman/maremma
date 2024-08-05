@@ -31,7 +31,8 @@ pub async fn connect(config: &Configuration) -> Result<DatabaseConnection, sea_o
 
     let db = Database::connect(connect_string).await?;
 
-    Migrator::refresh(&db).await?;
+    Migrator::up(&db, None).await?;
+
     Ok(db)
 }
 
@@ -46,7 +47,7 @@ pub async fn update_db_from_config(
             error!("Failed to update hosts DB from config: {:?}", err);
             ExitCode::FAILURE
         })?;
-    debug!("Updated hosts");
+    info!("Updated hosts");
 
     entities::host_group::Model::update_db_from_config(db.clone(), config)
         .await
@@ -54,7 +55,7 @@ pub async fn update_db_from_config(
             error!("Failed to update host_groups DB from config: {:?}", err);
             ExitCode::FAILURE
         })?;
-    debug!("Updated host_groups");
+    info!("Updated host_groups");
 
     entities::host_group_members::Model::update_db_from_config(db.clone(), config)
         .await
@@ -65,7 +66,7 @@ pub async fn update_db_from_config(
             );
             ExitCode::FAILURE
         })?;
-    debug!("Updated host_group_members");
+    info!("Updated host_group_members");
 
     entities::service::Model::update_db_from_config(db.clone(), config)
         .await
@@ -73,7 +74,7 @@ pub async fn update_db_from_config(
             error!("Failed to update services DB from config: {:?}", err);
             ExitCode::FAILURE
         })?;
-    debug!("Updated services");
+    info!("Updated services");
 
     entities::service_check::Model::update_db_from_config(db.clone(), config)
         .await
@@ -81,7 +82,7 @@ pub async fn update_db_from_config(
             error!("Failed to update service_checks DB from config: {:?}", err);
             ExitCode::FAILURE
         })?;
-    debug!("Updated service checks");
+    info!("Updated service checks");
 
     Ok(())
 }

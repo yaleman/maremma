@@ -38,6 +38,7 @@ sea-orm = { version = "1.0.0", features = [
     "with-chrono",
     "with-json",
     "with-uuid",
+    "debug-print",
 ] }
 sea-orm-migration = { version = "1.0.0", features = [
     "sqlx-sqlite",

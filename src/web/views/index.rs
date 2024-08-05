@@ -1,5 +1,5 @@
 use entities::service_check::FullServiceCheck;
-use sea_orm::QueryOrder;
+use sea_orm::{Order, QueryOrder};
 
 use super::prelude::*;
 
@@ -13,22 +13,52 @@ pub struct IndexTemplate {
     pub page_refresh: u64,
 }
 
+#[derive(Deserialize, Default, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum FieldOrder {
+    Asc,
+    #[default]
+    Desc,
+}
+
+impl From<FieldOrder> for Order {
+    fn from(value: FieldOrder) -> Self {
+        match value {
+            FieldOrder::Asc => Order::Asc,
+            FieldOrder::Desc => Order::Desc,
+        }
+    }
+}
+
 #[allow(dead_code)]
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub(crate) struct IndexQueries {
-    pub ord: Option<Order>,
+    pub ord: Option<FieldOrder>,
     pub field: Option<OrderFields>,
 }
 
-// #[debug_handler]
+#[instrument(level = "info", skip(state))]
 pub(crate) async fn index(
     Query(queries): Query<IndexQueries>,
     State(state): State<WebState>,
 ) -> Result<IndexTemplate, (StatusCode, String)> {
-    let order_by_field = entities::service_check::Column::LastUpdated;
+    let sort_order: Order = queries.ord.unwrap_or_default().into();
+    let order_field = queries.field.unwrap_or(OrderFields::LastUpdated);
+    info!("Sorting home page by: {:?} {:?}", order_field, sort_order);
 
-    let checks: Vec<FullServiceCheck> = FullServiceCheck::all_query()
-        .order_by(order_by_field, queries.ord.unwrap_or(Order::Desc).into())
+    let mut checks = FullServiceCheck::all_query();
+    checks = match order_field {
+        OrderFields::LastUpdated => {
+            checks.order_by(entities::service_check::Column::LastUpdated, sort_order)
+        }
+        OrderFields::Host => checks.order_by(entities::host::Column::Name, sort_order),
+        OrderFields::Status => {
+            checks.order_by(entities::service_check::Column::LastUpdated, sort_order)
+        }
+        OrderFields::Check => checks.order_by(entities::service::Column::Name, sort_order),
+    };
+
+    let checks = checks
         .into_model()
         .all(state.db.as_ref())
         .await

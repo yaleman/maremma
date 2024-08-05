@@ -1,6 +1,8 @@
+#![allow(unused_imports)]
+
 use crate::prelude::*;
 use sea_orm::entity::prelude::*;
-use sea_orm::{IntoActiveModel, Set};
+use sea_orm::{ColIdx, IntoActiveModel, QuerySelect, QueryTrait, Set};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "host")]
@@ -13,38 +15,40 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::host_group::Entity")]
+    HostGroup,
+}
 
 impl Related<super::service::Entity> for Entity {
-    // The final relation is Host -> ServiceCheck -> Service
     fn to() -> RelationDef {
         super::service_check::Relation::Service.def()
     }
 
     fn via() -> Option<RelationDef> {
-        // The original relation is CakeFilling -> Cake,
-        // after `rev` it becomes Cake -> CakeFilling
         Some(super::service_check::Relation::Service.def().rev())
+    }
+}
+
+impl Related<super::host_group::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::host_group::Relation::Host.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        Some(super::host_group::Relation::Host.def().rev())
     }
 }
 
 impl ActiveModelBehavior for ActiveModel {}
 
-impl Entity {
-    pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        match Self::find().filter(Column::Name.eq(name)).one(db).await {
-            Ok(val) => Ok(val),
-            Err(err) => {
-                if let DbErr::RecordNotFound(_) = err {
-                    Ok(None)
-                } else {
-                    error!(
-                        "Query failed while looking up {:?} '{}': {:?}",
-                        Self, name, err
-                    );
-                    Err(err.into())
-                }
-            }
+pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+    match Entity::find().filter(Column::Name.eq(name)).one(db).await {
+        Ok(val) => Ok(val.into_iter().next()),
+        Err(DbErr::RecordNotFound(_)) => Ok(None),
+        Err(err) => {
+            error!("Query failed while looking up host '{}': {:?}", name, err);
+            Err(err.into())
         }
     }
 }
@@ -55,41 +59,33 @@ impl MaremmaEntity for Model {
         db: Arc<DatabaseConnection>,
         config: &Configuration,
     ) -> Result<(), Error> {
-        for (name, host) in config.hosts.iter() {
-            let model = match Entity::find()
-                .filter(Column::Name.eq(name))
-                .one(db.as_ref())
-                .await
-            {
+        for (name, host) in config.hosts.clone().into_iter() {
+            let model = match find_by_name(&name, db.as_ref()).await {
                 Ok(val) => val,
                 Err(err) => {
-                    if let DbErr::RecordNotFound(_) = err {
-                        None
-                    } else {
-                        error!("Oh no");
-                        return Err(err.into());
-                    }
+                    error!("Failed to find host '{}': {:?}", name, err);
+                    return Err(err);
                 }
             };
 
             match model {
                 Some(val) => {
-                    debug!("Updating {:?}", val);
-                    let hostname = match host.hostname.as_ref() {
-                        None => {
-                            error!("Host {:?} has no hostname!", &val);
-                            continue;
-                        }
+                    debug!("Found host '{:?}'", name);
+                    let hostname = match host.hostname {
+                        None => name.clone(),
                         Some(val) => val,
                     };
 
                     let mut existing_host = val.into_active_model();
-                    existing_host.check = Set(host.check.to_owned());
-                    existing_host.hostname = Set(hostname.to_owned());
-                    existing_host.name = Set(name.to_owned());
+
+                    existing_host.check.set_if_not_equals(host.check);
+                    existing_host
+                        .hostname
+                        .set_if_not_equals(hostname.to_owned());
+                    existing_host.name.set_if_not_equals(name.to_owned());
 
                     if existing_host.is_changed() {
-                        debug!("Updating {:?}", &existing_host);
+                        warn!("Updating {:?}", &existing_host);
                         existing_host.save(db.as_ref()).await?;
                     } else {
                         debug!("No changes to {:?}", &existing_host);
@@ -97,17 +93,13 @@ impl MaremmaEntity for Model {
                 }
                 None => {
                     let new_host = Model {
-                        id: host.id,
+                        id: host.id.unwrap_or(Uuid::new_v4()),
                         name: name.to_owned(),
                         hostname: host.hostname.clone().unwrap_or(name.to_string()),
                         check: host.check.clone(),
-                    };
-                    info!(
-                        "Creating Host {:?}",
-                        &Entity::insert(new_host.into_active_model())
-                            .exec_with_returning(db.as_ref())
-                            .await?
-                    );
+                    }
+                    .into_active_model();
+                    warn!("Creating Host {:?}", new_host.insert(db.as_ref()).await?);
                 }
             };
         }
@@ -115,7 +107,7 @@ impl MaremmaEntity for Model {
     }
 }
 
-#[cfg(test)]
+// #[cfg(test)]
 pub fn test_host() -> Model {
     Model {
         id: Uuid::new_v4(),
@@ -187,5 +179,28 @@ mod tests {
         super::Model::update_db_from_config(db, &configuration)
             .await
             .expect("Failed to load config");
+    }
+    #[tokio::test]
+    async fn test_create_then_search() {
+        let _ = setup_logging(true);
+
+        let db = Arc::new(
+            crate::db::test_connect()
+                .await
+                .expect("Failed to connect to database"),
+        );
+
+        let inserted_host = super::Entity::insert(super::test_host().into_active_model())
+            .exec_with_returning(db.as_ref())
+            .await
+            .expect("Failed to insert host");
+
+        let found_host = super::find_by_name(&super::test_host().name, db.as_ref())
+            .await
+            .expect("Failed to query host");
+
+        assert!(found_host.is_some());
+
+        assert_eq!(found_host.unwrap().name, inserted_host.name);
     }
 }

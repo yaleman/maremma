@@ -4,6 +4,7 @@ use sea_orm_migration::prelude::*;
 use crate::prelude::ServiceStatus;
 
 use super::m20240802_create_host_table::Host;
+
 use super::m20240802_create_service_table::Service;
 
 pub struct Migration;
@@ -28,6 +29,8 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .primary_key(),
                     )
+                    .col(ColumnDef::new(ServiceCheck::ServiceId).uuid().not_null())
+                    .col(ColumnDef::new(ServiceCheck::HostId).uuid().not_null())
                     .col(
                         ColumnDef::new(ServiceCheck::Status)
                             .enumeration(Alias::new("status"), ServiceStatus::iter())
@@ -43,8 +46,6 @@ impl MigrationTrait for Migration {
                             .timestamp()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(ServiceCheck::HostId).uuid().not_null())
-                    .col(ColumnDef::new(ServiceCheck::ServiceId).uuid().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("service_check_service_id")
