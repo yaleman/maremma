@@ -36,13 +36,12 @@ pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
         env::set_var("RUST_LOG", "info");
     }
     let mut builder = Builder::from_default_env();
-    let builder = if debug {
-        builder.filter_level(tracing::log::LevelFilter::Debug)
-    } else {
-        let builder = &mut builder;
-        builder.filter(Some("sqlx::query"), tracing::log::LevelFilter::Warn);
-        builder
-    };
+    if debug {
+        builder.filter_level(tracing::log::LevelFilter::Debug);
+    }
+
+    #[cfg(not(all(test, debug_assertions)))]
+    builder.filter(Some("sqlx::query"), tracing::log::LevelFilter::Warn);
     builder.target(Target::Stdout);
     builder.try_init()
 }

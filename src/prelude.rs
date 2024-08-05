@@ -9,7 +9,7 @@ pub use async_trait::async_trait;
 pub use serde::{Deserialize, Serialize};
 pub use serde_json::{json, Value};
 
-pub use tracing::{debug, error, info, trace, warn};
+pub use tracing::{debug, error, info, instrument, trace, warn};
 pub use uuid::Uuid;
 
 pub use crate::{DEFAULT_CONFIG_FILE, LOCAL_SERVICE_HOST_NAME};

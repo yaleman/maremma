@@ -30,6 +30,12 @@ impl Related<super::service::Entity> for Entity {
     }
 }
 
+impl Related<super::service_check::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::service_check::Relation::Host.def()
+    }
+}
+
 impl Related<super::host_group::Entity> for Entity {
     fn to() -> RelationDef {
         super::host_group::Relation::Host.def()

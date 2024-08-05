@@ -10,6 +10,7 @@ use std::process::ExitCode;
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), ExitCode> {
+    use maremma::check_loop::run_check_loop;
     use maremma::db::update_db_from_config;
 
     let cli = CliOpts::parse();
@@ -36,11 +37,11 @@ async fn main() -> Result<(), ExitCode> {
             update_db_from_config(db.clone(), &config).await?;
 
             tokio::select! {
-                // _ = run_check_loop(config.clone(), db) => {
-                //     info!("Check loop Finished.");
-                // },
-                _ = run_web_server(config.clone(), db.clone()) => {
-                    info!("Web server finished.");
+                check_loop_result = run_check_loop(config.clone(), db.clone()) => {
+                    error!("Check loop bailed: {:?}", check_loop_result);
+                },
+                web_server_result = run_web_server(config.clone(), db.clone()) => {
+                    info!("Web server bailed: {:?}", web_server_result);
                 }
 
             }

@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 use crate::prelude::*;
 use migrator::Migrator;
-use sea_orm::{Database, DatabaseConnection, QueryOrder, QuerySelect};
+use sea_orm::{Database, DatabaseConnection, QueryOrder};
 use sea_orm_migration::prelude::*;
 use tracing::{info, instrument};
 
@@ -116,34 +116,48 @@ pub async fn find_next_wakeup(_db: &DatabaseConnection) -> DateTime<Utc> {
 /// Get the next service check to run, returns
 pub async fn get_next_service_check(
     db: &DatabaseConnection,
-) -> Result<Option<entities::service_check::Model>, Error> {
-    let urgent = entities::service_check::Entity::find()
+) -> Result<
+    Option<(
+        entities::service_check::Model,
+        Option<entities::service::Model>,
+    )>,
+    Error,
+> {
+    let base_query =
+        entities::service_check::Entity::find().find_also_related(entities::service::Entity);
+
+    let urgent = base_query
+        .clone()
         .filter(entities::service_check::Column::Status.eq(ServiceStatus::Urgent))
         // oldest-last-updated is the most urgent
         .order_by_asc(entities::service_check::Column::LastUpdated)
-        .limit(1)
-        .all(db)
+        .one(db)
         .await?;
 
-    if let Some(model) = urgent.into_iter().next() {
-        return Ok(Some(model));
+    if let Some(val) = urgent {
+        return Ok(Some(val));
     }
-    // prioritize pending
 
-    if let Some(res) = entities::service_check::Entity::find()
-        .filter(entities::service_check::Column::Status.ne(ServiceStatus::Disabled))
-        .all(db)
+    // all others we just care about:
+    // - the last_check time
+    // - the next_check time
+    let base_query = base_query
+        .order_by_asc(entities::service_check::Column::LastUpdated)
+        .filter(
+            entities::service_check::Column::Status
+                .ne(ServiceStatus::Disabled)
+                .and(entities::service_check::Column::NextCheck.lte(chrono::Utc::now())),
+        );
+
+    // prioritize pending
+    if let Some(res) = base_query
+        .clone()
+        .filter(entities::service_check::Column::Status.eq(ServiceStatus::Pending))
+        .one(db)
         .await?
-        .into_iter()
-        .next()
     {
         return Ok(Some(res));
     }
 
-    Ok(entities::service_check::Entity::find()
-        .filter(entities::service_check::Column::Status.ne(ServiceStatus::Disabled))
-        .all(db)
-        .await?
-        .into_iter()
-        .next())
+    Ok(base_query.one(db).await?.into_iter().next())
 }

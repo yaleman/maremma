@@ -4,7 +4,7 @@ use sea_orm::{Database, FromQueryResult, JoinType, QuerySelect, QueryTrait, Set,
 
 use crate::prelude::*;
 
-use super::host;
+use super::{host, host_group, host_group_members, service};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
 #[sea_orm(table_name = "service_check")]
@@ -15,7 +15,55 @@ pub struct Model {
     pub host_id: Uuid,
     pub status: ServiceStatus,
     pub last_check: chrono::DateTime<chrono::Utc>,
+    pub next_check: chrono::DateTime<chrono::Utc>,
     pub last_updated: chrono::DateTime<chrono::Utc>,
+}
+
+impl Model {
+    #[instrument(skip(self, db), fields(service_check_id = self.id.hyphenated().to_string(), host_id=self.host_id.hyphenated().to_string()))]
+    pub async fn set_status(
+        &self,
+        status: ServiceStatus,
+        db: &DatabaseConnection,
+    ) -> Result<(), Error> {
+        let mut model = self.clone().into_active_model();
+        model.status = Set(status);
+        model.save(db).await.map_err(Error::from)?;
+        Ok(())
+    }
+
+    #[instrument(skip(self, db), fields(service_check_id = self.id.to_string()))]
+    pub async fn set_last_check(
+        &self,
+        last_check: chrono::DateTime<chrono::Utc>,
+        status: ServiceStatus,
+        db: &DatabaseConnection,
+    ) -> Result<(), Error> {
+        let mut model = self.clone().into_active_model();
+        model.last_check.set_if_not_equals(last_check);
+        model.status.set_if_not_equals(status);
+        if model.is_changed() {
+            model.save(db).await.map_err(Error::from)?;
+        }
+        Ok(())
+    }
+
+    #[instrument(skip(self, db), fields(service_check_id = self.id.to_string()))]
+    pub async fn set_next_check(
+        &self,
+        service: &service::Model,
+        db: &DatabaseConnection,
+    ) -> Result<(), Error> {
+        let mut model = self.clone().into_active_model();
+        let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
+        let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
+        model.next_check.set_if_not_equals(next_check);
+        info!("{} next check: {}", self.id, next_check.to_rfc3339());
+        if model.is_changed() {
+            model.save(db).await.map_err(Error::from)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
@@ -27,15 +75,27 @@ pub enum Relation {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Service => Entity::belongs_to(super::service::Entity)
+            Self::Service => Entity::belongs_to(service::Entity)
                 .from(Column::ServiceId)
-                .to(super::service::Column::Id)
+                .to(service::Column::Id)
                 .into(),
-            Self::Host => Entity::belongs_to(super::host::Entity)
+            Self::Host => Entity::belongs_to(host::Entity)
                 .from(Column::HostId)
-                .to(super::host::Column::Id)
+                .to(host::Column::Id)
                 .into(),
         }
+    }
+}
+
+impl Related<service::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Service.def()
+    }
+}
+
+impl Related<host::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Host.def()
     }
 }
 
@@ -45,8 +105,8 @@ async fn update_local_services_from_db(
     db: Arc<DatabaseConnection>,
     config: &Configuration,
 ) -> Result<(), Error> {
-    let local_host_id = match super::host::Entity::find()
-        .filter(super::host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
+    let local_host_id = match host::Entity::find()
+        .filter(host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
         .one(db.as_ref())
         .await
         .map_err(Error::from)?
@@ -54,8 +114,8 @@ async fn update_local_services_from_db(
     {
         Some(val) => val,
         None => {
-            super::host::Entity::insert(
-                super::host::Model {
+            host::Entity::insert(
+                host::Model {
                     id: Uuid::new_v4(),
                     name: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
                     hostname: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
@@ -73,8 +133,8 @@ async fn update_local_services_from_db(
         debug!("Ensuring local service exists: {}", service);
         // can we find the service?
 
-        let service_id = super::service::Entity::find()
-            .filter(super::service::Column::Name.eq(service.as_str()))
+        let service_id = service::Entity::find()
+            .filter(service::Column::Name.eq(service.as_str()))
             .one(db.as_ref())
             .await
             .map_err(Error::from)?
@@ -98,6 +158,7 @@ async fn update_local_services_from_db(
                     host_id: local_host_id,
                     status: ServiceStatus::Unknown,
                     last_check: chrono::Utc::now(),
+                    next_check: chrono::Utc::now(),
                     last_updated: chrono::Utc::now(),
                 }
                 .into_active_model(),
@@ -125,7 +186,7 @@ impl MaremmaEntity for Model {
 
         info!("Starting remote updates...");
         // now we're doing the other services!
-        let services = match super::service::Entity::find().all(db.as_ref()).await {
+        let services = match service::Entity::find().all(db.as_ref()).await {
             Ok(services) => services,
             Err(DbErr::RecordNotFound(_)) => {
                 vec![]
@@ -157,7 +218,7 @@ impl MaremmaEntity for Model {
             for host_group in host_groups {
                 info!("Service {} checking group {}", service.name, host_group);
                 // get the group data
-                let group = match super::host_group::find_by_name(&host_group, db.as_ref()).await {
+                let group = match host_group::find_by_name(&host_group, db.as_ref()).await {
                     Ok(Some(group)) => group,
                     Ok(None) => {
                         error!("Host group {} not found, this should already have been sorted by the update_db_from_config for host_groups", host_group);
@@ -169,8 +230,8 @@ impl MaremmaEntity for Model {
                     }
                 };
 
-                let host_group_members = match super::host_group_members::Entity::find()
-                    .filter(super::host_group_members::Column::GroupId.eq(group.id))
+                let host_group_members = match host_group_members::Entity::find()
+                    .filter(host_group_members::Column::GroupId.eq(group.id))
                     .all(db.as_ref())
                     .await
                 {
@@ -182,7 +243,7 @@ impl MaremmaEntity for Model {
                 };
                 for host_group_member in host_group_members {
                     // let's just check we should have that member
-                    let host = super::host::Entity::find_by_id(host_group_member.host_id)
+                    let host = host::Entity::find_by_id(host_group_member.host_id)
                         .one(db.as_ref())
                         .await?;
                     if host.is_none() {
@@ -212,6 +273,7 @@ impl MaremmaEntity for Model {
                             host_id: Set(host_group_member.host_id),
                             status: Set(ServiceStatus::Unknown),
                             last_check: Set(chrono::Utc::now()),
+                            next_check: Set(chrono::Utc::now()),
                             last_updated: Set(chrono::Utc::now()),
                         };
                         debug!("Inserting... {:?}", model);
@@ -252,10 +314,10 @@ impl FullServiceCheck {
 
     pub fn all_query() -> Select<Entity> {
         Entity::find()
-            .column_as(super::service::Column::Name, "service_name")
-            .column_as(super::host::Column::Id, "host_id")
-            .column_as(super::host::Column::Hostname, "host_name")
-            .column_as(super::service::Column::Type, "service_type")
+            .column_as(service::Column::Name, "service_name")
+            .column_as(host::Column::Id, "host_id")
+            .column_as(host::Column::Hostname, "host_name")
+            .column_as(service::Column::Type, "service_type")
             .join(JoinType::LeftJoin, Relation::Service.def())
             .join(JoinType::LeftJoin, Relation::Host.def())
             .column_as(Column::Id, "service_check_id")
@@ -279,13 +341,13 @@ impl FullServiceCheck {
 
 #[cfg(test)]
 mod tests {
+    use super::super::{host, service};
+    use super::*;
     use crate::prelude::*;
-
-    use core::panic;
-    use std::path::PathBuf;
-
     use crate::setup_logging;
+    use core::panic;
     use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait};
+    use std::path::PathBuf;
 
     #[tokio::test]
     async fn test_service_check_entity() {
@@ -295,22 +357,22 @@ mod tests {
             .await
             .expect("Failed to connect to database");
 
-        let service = super::super::service::test_service();
-        let host = super::super::host::test_host();
+        let service = service::test_service();
+        let host = host::test_host();
         info!("saving service...");
 
         let service_am = service.into_active_model();
-        let _service = super::super::service::Entity::insert(service_am.to_owned())
+        let _service = service::Entity::insert(service_am.to_owned())
             .exec(&db)
             .await
             .unwrap();
         let host_am = host.into_active_model();
-        let _host = super::super::host::Entity::insert(host_am.to_owned())
+        let _host = host::Entity::insert(host_am.to_owned())
             .exec(&db)
             .await
             .unwrap();
 
-        let service_check = super::Model {
+        let service_check = Model {
             id: Uuid::new_v4(),
             service_id: service_am.id.clone().unwrap(),
             host_id: host_am.id.clone().unwrap(),
@@ -321,12 +383,12 @@ mod tests {
 
         let am = service_check.into_active_model();
 
-        if let Err(err) = super::Entity::insert(am).exec(&db).await {
+        if let Err(err) = Entity::insert(am).exec(&db).await {
             panic!("Failed to insert service check: {:?}", err);
         };
 
-        let service_check = super::Entity::find()
-            .filter(super::Column::Id.eq(service_check_id))
+        let service_check = Entity::find()
+            .filter(Column::Id.eq(service_check_id))
             .one(&db)
             .await
             .unwrap()
@@ -334,23 +396,21 @@ mod tests {
 
         info!("found it: {:?}", service_check);
 
-        super::Entity::delete_by_id(service_check_id)
+        Entity::delete_by_id(service_check_id)
             .exec(&db)
             .await
             .unwrap();
         // Check we didn't delete the host when deleting the service check
-        assert!(super::super::host::Entity::find_by_id(host_am.id.unwrap())
+        assert!(host::Entity::find_by_id(host_am.id.unwrap())
             .one(&db)
             .await
             .unwrap()
             .is_some());
-        assert!(
-            super::super::service::Entity::find_by_id(service_am.id.unwrap())
-                .one(&db)
-                .await
-                .unwrap()
-                .is_some()
-        );
+        assert!(service::Entity::find_by_id(service_am.id.unwrap())
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some());
 
         // TODO: test creating a service + host + service check, then deleting a service - which should delete the service_check
     }
@@ -364,23 +424,23 @@ mod tests {
             .await
             .expect("Failed to connect to database");
 
-        let service = super::super::service::test_service();
-        let host = super::super::host::test_host();
+        let service = service::test_service();
+        let host = host::test_host();
         info!("saving service...");
 
         let service_am = service.into_active_model();
-        let _service = super::super::service::Entity::insert(service_am.to_owned())
+        let _service = service::Entity::insert(service_am.to_owned())
             .exec(&db)
             .await
             .unwrap();
         let host_am_id = host.id;
         let host_am = host.into_active_model();
-        let _host = super::super::host::Entity::insert(host_am.to_owned())
+        let _host = host::Entity::insert(host_am.to_owned())
             .exec(&db)
             .await
             .unwrap();
 
-        let service_check = super::Model {
+        let service_check = Model {
             id: Uuid::new_v4(),
             service_id: service_am.id.unwrap(),
             host_id: host_am.id.unwrap(),
@@ -389,24 +449,21 @@ mod tests {
         let service_check_am_id = service_check.id;
         let service_check_am = service_check.into_active_model();
         dbg!(&service_check_am);
-        if let Err(err) = super::Entity::insert(service_check_am.to_owned())
-            .exec(&db)
-            .await
-        {
+        if let Err(err) = Entity::insert(service_check_am.to_owned()).exec(&db).await {
             panic!("Failed to insert service check: {:?}", err);
         };
 
-        assert!(super::Entity::find_by_id(service_check_am.id.unwrap())
+        assert!(Entity::find_by_id(service_check_am.id.unwrap())
             .one(&db)
             .await
             .unwrap()
             .is_some());
-        super::super::host::Entity::delete_by_id(host_am_id)
+        host::Entity::delete_by_id(host_am_id)
             .exec(&db)
             .await
             .unwrap();
         // Check we delete the service check when deleting the host
-        assert!(super::Entity::find_by_id(service_check_am_id)
+        assert!(Entity::find_by_id(service_check_am_id)
             .one(&db)
             .await
             .unwrap()
@@ -421,22 +478,22 @@ mod tests {
             .await
             .expect("Failed to connect to database");
 
-        let service = super::super::service::test_service();
-        let host = super::super::host::test_host();
+        let service = service::test_service();
+        let host = host::test_host();
         info!("saving service...");
 
         let service_am = service.clone().into_active_model();
-        let _service = super::super::service::Entity::insert(service_am.to_owned())
+        let _service = service::Entity::insert(service_am.to_owned())
             .exec(&db)
             .await
             .unwrap();
         let host_am = host.into_active_model();
-        let _host = super::super::host::Entity::insert(host_am.clone())
+        let _host = host::Entity::insert(host_am.clone())
             .exec(&db)
             .await
             .unwrap();
 
-        let service_check = super::Model {
+        let service_check = Model {
             id: Uuid::new_v4(),
             service_id: service_am.id.unwrap(),
             host_id: host_am.id.unwrap(),
@@ -444,26 +501,21 @@ mod tests {
         };
         let service_check_am = service_check.into_active_model();
         dbg!(&service_check_am);
-        if let Err(err) = super::Entity::insert(service_check_am.to_owned())
-            .exec(&db)
-            .await
-        {
+        if let Err(err) = Entity::insert(service_check_am.to_owned()).exec(&db).await {
             panic!("Failed to insert service check: {:?}", err);
         };
 
-        assert!(
-            super::Entity::find_by_id(service_check_am.id.clone().unwrap())
-                .one(&db)
-                .await
-                .unwrap()
-                .is_some()
-        );
-        super::super::service::Entity::delete_by_id(service.id)
+        assert!(Entity::find_by_id(service_check_am.id.clone().unwrap())
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some());
+        service::Entity::delete_by_id(service.id)
             .exec(&db)
             .await
             .unwrap();
         // Check we delete the service check when deleting the service
-        assert!(super::Entity::find_by_id(service_check_am.id.unwrap())
+        assert!(Entity::find_by_id(service_check_am.id.unwrap())
             .one(&db)
             .await
             .unwrap()
@@ -488,7 +540,7 @@ mod tests {
             .await
             .unwrap();
 
-        let known_service_check_service_id = super::Entity::find()
+        let known_service_check_service_id = Entity::find()
             .all(db.as_ref())
             .await
             .unwrap()
@@ -502,13 +554,12 @@ mod tests {
             known_service_check_service_id
         );
 
-        let query =
-            super::FullServiceCheck::get_by_service_id_query(known_service_check_service_id)
-                .build((*db).get_database_backend());
+        let query = FullServiceCheck::get_by_service_id_query(known_service_check_service_id)
+            .build((*db).get_database_backend());
         info!("Query: {}", query);
 
         let service_check =
-            super::FullServiceCheck::get_by_service_id(known_service_check_service_id, &db)
+            FullServiceCheck::get_by_service_id(known_service_check_service_id, &db)
                 .await
                 .expect("Failed to get service_check");
 

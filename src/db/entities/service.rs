@@ -25,11 +25,17 @@ pub enum Relation {}
 
 impl Related<super::host::Entity> for Entity {
     fn to() -> RelationDef {
-        super::service_check::Relation::Service.def()
+        super::service_check::Relation::Host.def().rev()
     }
 
     fn via() -> Option<RelationDef> {
-        Some(super::service_check::Relation::Host.def().rev())
+        Some(super::service_check::Relation::Service.def())
+    }
+}
+
+impl Related<super::service_check::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::service_check::Relation::Service.def()
     }
 }
 

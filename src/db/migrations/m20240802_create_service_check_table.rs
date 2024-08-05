@@ -42,6 +42,11 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
+                        ColumnDef::new(ServiceCheck::NextCheck)
+                            .timestamp()
+                            .not_null(),
+                    )
+                    .col(
                         ColumnDef::new(ServiceCheck::LastCheck)
                             .timestamp()
                             .not_null(),
@@ -84,4 +89,5 @@ pub enum ServiceCheck {
     Status,
     LastUpdated,
     LastCheck,
+    NextCheck,
 }
