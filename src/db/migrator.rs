@@ -14,3 +14,19 @@ impl MigratorTrait for Migrator {
         ]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sea_orm_migration::MigratorTrait;
+
+    #[tokio::test]
+    async fn test_migrator() {
+        let db = crate::db::test_connect()
+            .await
+            .expect("Failed to connect to test DB");
+
+        super::Migrator::refresh(&db)
+            .await
+            .expect("Failed to run migrations");
+    }
+}
