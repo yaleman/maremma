@@ -14,8 +14,8 @@ pub use uuid::Uuid;
 
 pub use crate::{DEFAULT_CONFIG_FILE, LOCAL_SERVICE_HOST_NAME};
 
-pub use crate::config::{Configuration, ServiceTable};
-pub(crate) use crate::db::entities::MaremmaEntity;
+pub use crate::config::Configuration;
+pub(crate) use crate::db::entities::{self, MaremmaEntity};
 pub use crate::errors::Error;
 pub use crate::host::GenericHost;
 pub use crate::host::Host;

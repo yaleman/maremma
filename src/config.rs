@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::db::entities;
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
-
-pub type ServiceTable = HashMap<Uuid, Service>;
 
 fn default_database_file() -> String {
     "maremma.sqlite".to_string()
@@ -79,37 +76,16 @@ impl Configuration {
     }
 }
 
-pub async fn run_check(
-    db: &DatabaseConnection,
-    check: &entities::service_check::Model,
-) -> Result<(String, ServiceStatus), Error> {
-    let _host = match entities::host::Entity::find()
-        .filter(entities::host::Column::Id.eq(check.host_id))
-        .one(db)
-        .await?
-    {
-        Some(host) => host,
-        None => return Err(Error::HostNotFound(check.host_id)),
-    };
-
-    let _service = match entities::service::Entity::find()
-        .filter(entities::service::Column::Id.eq(check.service_id))
-        .one(db)
-        .await?
-    {
-        Some(service) => service,
-        None => return Err(Error::ServiceNotFound(check.service_id)),
-    };
-
-    todo!()
-}
-
 #[cfg(test)]
 mod tests {
     use crate::config::Configuration;
 
     #[tokio::test]
     async fn test_config_new() {
+        assert!(Configuration::new("asdfsdafdsf.asdfsadfdf".parse().ok())
+            .await
+            .is_err());
+
         let config = serde_json::json! {{
             "hosts": {
                 "foo.bar" : {
