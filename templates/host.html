@@ -8,9 +8,21 @@
 <p>host_groups: {% for host_group in host_groups %}{{host_group }} {% endfor
     %}</p>
 
-{% for check in checks %}
-{{check.status}}
+<table class="checktable">
+    <thead>
+        <th>Service</th>
+        <th>Status</th>
+        <th>Last Check</th>
+    </thead>
+    {% for check in checks %}
+    <tr>
+        <td><a
+                href="/service/{{check.service_check_id}}">{{check.service_name}}</a></td>
+        <td>{{check.status}}</td>
+        <td>{{check.last_check}}</td>
+    </tr>
 
-{% endfor %}
+    {% endfor %}
+</table>
 
 {% endblock content %}

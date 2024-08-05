@@ -1,4 +1,4 @@
-use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 use tracing::error;
 use uuid::Uuid;
 
@@ -11,7 +11,7 @@ use crate::host::HostCheck;
                                 // to the `templates` dir in the crate root
 pub(crate) struct HostTemplate {
     title: String,
-    checks: Vec<entities::service_check::Model>,
+    checks: Vec<entities::service_check::FullServiceCheck>,
     hostname: String,
     check: HostCheck,
     host_groups: Vec<Uuid>,
@@ -56,9 +56,14 @@ pub(crate) async fn host(
         Some(host) => host,
         None => return Err((StatusCode::NOT_FOUND, "Host not found")),
     };
-
-    let checks = entities::service_check::Entity::find()
+    use crate::db::entities::service_check::FullServiceCheck;
+    let checks = FullServiceCheck::all_query()
         .filter(entities::service_check::Column::HostId.eq(host.id))
+        .order_by(
+            entities::service_check::Column::LastUpdated,
+            sea_orm::Order::Desc, // TODO: make this configurable
+        )
+        .into_model::<FullServiceCheck>()
         .all(state.db.as_ref())
         .await
         .map_err(|err| {
