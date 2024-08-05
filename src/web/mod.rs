@@ -94,5 +94,6 @@ mod tests {
         let _result = tokio::spawn(run_web_server(Arc::new(configuration), db));
 
         let _ = tokio::time::sleep(tokio::time::Duration::from_micros(500)).await;
+        drop(_result);
     }
 }
