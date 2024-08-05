@@ -13,13 +13,10 @@ pub struct SshService {
 
 #[async_trait]
 impl ServiceTrait for SshService {
-    async fn run(&self, host: &Host) -> Result<ServiceStatus, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<ServiceStatus, Error> {
         // ssh to the target host and run the command
 
-        let mut args = vec![host
-            .hostname
-            .clone()
-            .unwrap_or("At some point we didn't set the hostname!".to_string())];
+        let mut args = vec![host.hostname.clone()];
 
         args.extend(
             self.command_line

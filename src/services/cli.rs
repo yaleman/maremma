@@ -17,7 +17,7 @@ pub struct CliService {
 
 #[async_trait]
 impl ServiceTrait for CliService {
-    async fn run(&self, _host: &Host) -> Result<ServiceStatus, Error> {
+    async fn run(&self, _host: &entities::host::Model) -> Result<ServiceStatus, Error> {
         // run the command line and capture the exit code and stdout
         let mut cmd_split = self.command_line.split(" ");
         let cmd = match cmd_split.next() {
@@ -49,8 +49,7 @@ impl ServiceTrait for CliService {
 
 #[cfg(test)]
 mod tests {
-    use crate::host::Host;
-    use crate::services::ServiceTrait;
+    use crate::prelude::*;
 
     #[tokio::test]
     async fn test_cliservice() {
@@ -60,12 +59,14 @@ mod tests {
             run_in_shell: false,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
         };
-        let res = service
-            .run(&Host::new(
-                "hello.example.com".to_string(),
-                crate::host::HostCheck::Ping,
-            ))
-            .await;
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: "localhost".to_string(),
+            check: crate::host::HostCheck::None,
+        };
+
+        let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
         assert_eq!(res.is_ok(), true);
     }

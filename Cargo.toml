@@ -47,6 +47,7 @@ sea-orm-migration = { version = "1.0.0", features = [
     "with-uuid",
 ] }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
+surge-ping = "0.8.1"
 
 [dev-dependencies]
 rand = "0.8.5"
