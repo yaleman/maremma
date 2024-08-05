@@ -62,4 +62,22 @@ mod tests {
             crate::errors::Error::from(err)
         );
     }
+
+    #[test]
+    fn test_error_from_sea_orm_error() {
+        assert_eq!(
+            crate::errors::Error::SqlError(sea_orm::error::DbErr::Json("test".to_string())),
+            crate::errors::Error::from(sea_orm::error::DbErr::Json("test".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_error_from_cronerror() {
+        assert_eq!(
+            crate::errors::Error::CronParseError(
+                "CronPattern cannot be an empty string.".to_string()
+            ),
+            crate::errors::Error::from(croner::errors::CronError::EmptyPattern)
+        );
+    }
 }
