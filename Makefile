@@ -69,3 +69,8 @@ coverage: ## Run coverage
 coverage:
 	cargo tarpaulin --out Html
 	@echo "Coverage file at file://$(PWD)/tarpaulin-report.html"
+
+.PHONY: coverage/coveralls
+coverage/coveralls: ## Run coverage and upload to coveralls
+coverage/coveralls:
+	cargo tarpaulin --coveralls $(COVERALLS_REPO_TOKEN)

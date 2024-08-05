@@ -37,3 +37,8 @@ jobs:
         run: cargo clippy
       - name: "Build the workspace"
         run: cargo build --workspace
+
+      - name: "Cargo coverage"
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --coveralls ${{ secrets.COVERALLS_REPO_TOKEN }}
