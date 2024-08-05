@@ -21,14 +21,38 @@ impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
             Self::Host => Entity::belongs_to(super::host::Entity)
-                .from(Column::Id)
+                .from(Column::HostId)
                 .to(super::host::Column::Id)
                 .into(),
             Self::HostGroup => Entity::belongs_to(super::host_group::Entity)
-                .from(Column::HostId)
+                .from(Column::GroupId)
                 .to(super::host_group::Column::Id)
                 .into(),
         }
+    }
+}
+
+// This lets you find related groups for a host
+pub struct HostToGroups;
+
+impl Linked for HostToGroups {
+    type FromEntity = entities::host::Entity;
+    type ToEntity = entities::host_group::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![Relation::Host.def().rev(), Relation::HostGroup.def()]
+    }
+}
+
+// This lets you find related hosts for a group
+pub struct GroupToHosts;
+
+impl Linked for GroupToHosts {
+    type ToEntity = entities::host::Entity;
+    type FromEntity = entities::host_group::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![Relation::Host.def().rev(), Relation::HostGroup.def()]
     }
 }
 

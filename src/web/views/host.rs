@@ -1,4 +1,5 @@
-use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
+use entities::host_group;
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use tracing::error;
 use uuid::Uuid;
 
@@ -14,7 +15,7 @@ pub(crate) struct HostTemplate {
     checks: Vec<entities::service_check::FullServiceCheck>,
     hostname: String,
     check: HostCheck,
-    host_groups: Vec<Uuid>,
+    host_groups: Vec<host_group::Model>,
     host_id: Uuid,
 }
 
@@ -44,18 +45,30 @@ pub(crate) async fn host(
         .one(state.db.as_ref())
         .await
     {
-        Ok(val) => val,
-        Err(DbErr::RecordNotFound(_)) => None,
+        Ok(val) => match val {
+            Some(host) => host,
+            None => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    format!("Host with id={} not found", host_id),
+                ))
+            }
+        },
+        Err(DbErr::RecordNotFound(_)) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                format!("Host with id={} not found", host_id),
+            ))
+        }
         Err(err) => {
             error!("Failed to search for host: {:?}", err);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Database error"));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Database error".to_string(),
+            ));
         }
     };
 
-    let host = match host {
-        Some(host) => host,
-        None => return Err((StatusCode::NOT_FOUND, "Host not found")),
-    };
     use crate::db::entities::service_check::FullServiceCheck;
     let checks = FullServiceCheck::all_query()
         .filter(entities::service_check::Column::HostId.eq(host.id))
@@ -68,21 +81,23 @@ pub(crate) async fn host(
         .await
         .map_err(|err| {
             error!("Failed to look up service checks for host={host_id} error={err:?}");
-            (StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Database error".to_string(),
+            )
         })?;
 
-    // TODO: change this from the UUIDs to the host group models
-    let host_groups = entities::host_group_members::Entity::find()
-        .filter(entities::host_group_members::Column::HostId.eq(host.id))
+    let host_groups = host
+        .find_linked(entities::host_group_members::HostToGroups)
         .all(state.db.as_ref())
         .await
         .map_err(|err| {
-            error!("Failed to look up host_groups for host={host_id} error={err:?}");
-            (StatusCode::INTERNAL_SERVER_ERROR, "Database error")
-        })?
-        .into_iter()
-        .map(|hgm| hgm.group_id)
-        .collect();
+            error!("Failed to find linked: {:?}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to complete request".to_string(),
+            )
+        })?;
 
     Ok(HostTemplate {
         title: host.hostname.clone(),

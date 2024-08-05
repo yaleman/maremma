@@ -5,8 +5,9 @@
 <p>hostname: {{hostname}}</p>
 <!-- <p>host_id: {{host_id}}</p> -->
 <p>host check: {{check}}</p>
-<p>host_groups: {% for host_group in host_groups %}{{host_group }} {% endfor
-    %}</p>
+<p>host_groups: {% for host_group in host_groups %}<a
+        href="/host_group/{{host_group.id}}">{{ host_group.name }}</a>
+    {% endfor %}</p>
 
 <table class="checktable">
     <thead>

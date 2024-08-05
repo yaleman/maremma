@@ -11,6 +11,8 @@ use crate::config::Configuration;
 pub mod entities;
 pub(crate) mod migrations;
 pub(crate) mod migrator;
+#[cfg(test)]
+pub(crate) mod tests;
 
 pub async fn test_connect() -> Result<DatabaseConnection, sea_orm::error::DbErr> {
     let config = Configuration {
@@ -144,36 +146,4 @@ pub async fn get_next_service_check(
         .await?
         .into_iter()
         .next())
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use crate::setup_logging;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_next_service_check() {
-        let _ = setup_logging(true);
-        let db = Arc::new(
-            crate::db::test_connect()
-                .await
-                .expect("Failed to connect to database"),
-        );
-
-        let configuration =
-            crate::config::Configuration::new(Some(PathBuf::from("maremma.example.json")))
-                .await
-                .expect("Failed to load config");
-
-        crate::db::update_db_from_config(db.clone(), &configuration)
-            .await
-            .unwrap();
-
-        let next_check = get_next_service_check(&db).await.unwrap();
-        dbg!(&next_check);
-        assert!(next_check.is_some());
-    }
 }
