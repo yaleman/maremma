@@ -62,7 +62,7 @@ impl Configuration {
         let mut res: Configuration = serde_json::from_str(
             &tokio::fs::read_to_string("maremma.example.json")
                 .await
-                .expect("Failed to load exampleconfig"),
+                .expect("Failed to read example config"),
         )
         .expect("Failed to parse example config");
 
