@@ -55,3 +55,44 @@ impl CliOpts {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_cliopts() {
+        let test_list = vec![
+            ("maremma run --debug", true),
+            ("maremma run", false),
+            ("maremma show-config --debug", true),
+            ("maremma show-config", false),
+        ];
+
+        for (args, debug) in test_list {
+            let args = args.split_whitespace().collect::<Vec<&str>>();
+            let opts = CliOpts::parse_from(args);
+
+            assert_eq!(opts.debug(), debug);
+        }
+
+        let test_list = vec![
+            (
+                "maremma run --config /tmp/config.toml",
+                Some(PathBuf::from("/tmp/config.toml")),
+            ),
+            (
+                "maremma show-config --config /tmp/config.toml",
+                Some(PathBuf::from("/tmp/config.toml")),
+            ),
+            ("maremma run", None),
+            ("maremma show-config", None),
+        ];
+
+        for (args, expected_config) in test_list {
+            let args = args.split_whitespace().collect::<Vec<&str>>();
+            let opts = CliOpts::parse_from(args);
+
+            assert_eq!(opts.config(), expected_config);
+        }
+    }
+}
