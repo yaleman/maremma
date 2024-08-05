@@ -5,6 +5,9 @@ where
     D: serde::Deserializer<'de>,
 {
     let s: String = serde::Deserialize::deserialize(deserializer)?;
+
+    // ignore for code coverage because for some reason it doesn't pick it up?
+    #[cfg(not(tarpaulin_include))]
     Cron::new(&s).parse().map_err(serde::de::Error::custom)
 }
 
@@ -33,6 +36,8 @@ mod tests {
             )]
             cronvalue: Cron,
         }
+
+        assert!(serde_json::from_str::<CronTest>("[[[").is_err());
 
         let test = serde_json::json! {{"cronvalue": "0 * * * *"}};
 

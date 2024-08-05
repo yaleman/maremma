@@ -47,6 +47,8 @@ mod tests {
 
         let mut configuration = Configuration::load_test_config().await;
         configuration.listen_port = Some(rand::random::<u16>());
+
+        let mut attempts = 0;
         loop {
             // don't test on the standard port
             if configuration.listen_port == Some(8888) {
@@ -68,6 +70,10 @@ mod tests {
                 break;
             }
             configuration.listen_port = Some(rand::random::<u16>());
+            attempts += 1;
+            if attempts > 5 {
+                panic!("Failed to find a port to bind to");
+            }
         }
         debug!("Using port: {:?}", configuration.listen_port);
         let db = Arc::new(crate::db::test_connect().await.unwrap());
