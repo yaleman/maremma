@@ -1,5 +1,8 @@
 use crate::prelude::*;
 
+use askama_axum::IntoResponse;
+use axum::extract::State;
+use axum::http::StatusCode;
 use axum::routing::get;
 use axum::Router;
 use axum_server::bind;
@@ -11,6 +14,20 @@ pub(crate) struct WebState {
     pub db: Arc<DatabaseConnection>,
 }
 
+async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {
+    Err((StatusCode::NOT_FOUND, "Not Implemented yet!"))
+}
+
+pub(crate) fn build_app(state: WebState) -> Router {
+    Router::new()
+        .route("/", get(views::index::index))
+        .route("/host/:host_id", get(views::host::host))
+        .route("/service_check/:service_check_id", get(notimplemented))
+        .route("/service/:service_id", get(notimplemented))
+        .route("/host_group/:group_id", get(notimplemented))
+        .with_state(state)
+}
+
 pub async fn run_web_server(
     configuration: Arc<Configuration>,
     db: Arc<DatabaseConnection>,
@@ -20,10 +37,7 @@ pub async fn run_web_server(
         configuration.listen_address,
         configuration.listen_port.unwrap_or(8888)
     );
-    let app = Router::new()
-        .route("/", get(views::index::index))
-        .route("/host/:host_id", get(views::host::host))
-        .with_state(WebState { db });
+    let app = build_app(WebState { db });
 
     info!("Starting web server on http://{}", &addr);
     bind(
