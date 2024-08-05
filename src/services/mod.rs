@@ -162,6 +162,8 @@ pub enum ServiceType {
     Cli,
     #[sea_orm(string_value = "ssh")]
     Ssh,
+    // #[sea_orm(string_value = "ping")]
+    // Ping,
 }
 
 impl Display for ServiceType {

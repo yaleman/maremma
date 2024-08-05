@@ -12,7 +12,7 @@ pub enum Error {
     ServiceNotFoundByName(String),
     ServiceNotFound(Uuid),
     HostNotFound(Uuid),
-    ServiceCheckNotFound(String),
+    ServiceCheckNotFound(Uuid),
     ServiceConfigNotFound(String),
     SqlError(sea_orm::error::DbErr),
     CronParseError(String),

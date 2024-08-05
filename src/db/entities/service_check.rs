@@ -232,6 +232,7 @@ impl MaremmaEntity for Model {
 pub struct FullServiceCheck {
     pub service_check_id: Uuid,
     pub service_name: String,
+    pub service_type: ServiceType,
 
     pub host_id: Uuid,
     pub host_name: String,
@@ -254,6 +255,7 @@ impl FullServiceCheck {
             .column_as(super::service::Column::Name, "service_name")
             .column_as(super::host::Column::Id, "host_id")
             .column_as(super::host::Column::Hostname, "host_name")
+            .column_as(super::service::Column::Type, "service_type")
             .join(JoinType::LeftJoin, Relation::Service.def())
             .join(JoinType::LeftJoin, Relation::Host.def())
             .column_as(Column::Id, "service_check_id")
