@@ -3,7 +3,7 @@ use crate::prelude::*;
 use askama_axum::IntoResponse;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use axum_server::bind;
 
@@ -23,6 +23,14 @@ pub(crate) fn build_app(state: WebState) -> Router {
         .route("/", get(views::index::index))
         .route("/host/:host_id", get(views::host::host))
         .route("/service_check/:service_check_id", get(notimplemented))
+        .route(
+            "/service_check/:service_check_id/set_urgent",
+            post(notimplemented),
+        )
+        .route(
+            "/service_check/:service_check_id/disable",
+            post(notimplemented),
+        )
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(notimplemented))
         .with_state(state)
