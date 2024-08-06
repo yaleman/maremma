@@ -13,6 +13,7 @@ pub struct KubernetesService {
 #[async_trait]
 impl ServiceTrait for KubernetesService {
     async fn run(&self, _host: &entities::host::Model) -> Result<CheckResult, Error> {
+        let start_time = chrono::Utc::now();
         // match client.apiserver_version().await {
         //     Ok(_) => Ok(true),
         //     Err(err) => Err(Error::Generic(err.to_string())),
@@ -45,7 +46,7 @@ impl ServiceTrait for KubernetesService {
         Ok(CheckResult {
             result_text: "Ok".to_string(),
             status: ServiceStatus::Ok,
-            time_elapsed: Duration::seconds(0), // TODO: do this proper
+            time_elapsed: chrono::Utc::now() - start_time,
         })
     }
 }
