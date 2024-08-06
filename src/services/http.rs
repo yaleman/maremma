@@ -1,6 +1,7 @@
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, Default, Copy, Clone)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum HttpMethod {
     #[default]
     Get,
@@ -24,7 +25,6 @@ impl From<HttpMethod> for reqwest::Method {
 #[derive(Debug, Deserialize)]
 pub struct HttpService {
     pub name: String,
-    pub command_line: String,
     #[serde(default)]
     pub run_in_shell: bool,
     #[serde(
@@ -100,13 +100,12 @@ mod tests {
     use crate::prelude::*;
 
     #[tokio::test]
-    async fn test_cliservice() {
+    async fn test_httpservice() {
         let service = super::HttpService {
             name: "test".to_string(),
-            command_line: "ls -lah .".to_string(),
             run_in_shell: false,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
-            http_method: Default::default(),
+            http_method: crate::services::http::HttpMethod::Post,
             http_uri: None,
             http_status: None,
         };
@@ -120,6 +119,15 @@ mod tests {
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
         assert_eq!(res.is_ok(), true);
+
+        assert!(Service::try_from(&json! {
+            {
+                "name": "test",
+                "run_in_shell": false,
+                "type": "http",
+            }
+        })
+        .is_err());
     }
 
     #[test]
@@ -137,5 +145,19 @@ mod tests {
             Ok(val) => val,
         };
         assert_eq!(service.name, "local_lslah".to_string());
+
+        // test parsing broken service
+        assert!(Service {
+            name: Some("test".to_string()),
+            type_: ServiceType::Cli,
+            id: Default::default(),
+            description: None,
+            host_groups: vec![],
+            cron_schedule: Cron::new("@hourly").parse().expect("Failed to parse cron"),
+            extra_config: HashMap::from_iter([("hello".to_string(), json!("world"))]),
+            config: None
+        }
+        .parse_config()
+        .is_err());
     }
 }

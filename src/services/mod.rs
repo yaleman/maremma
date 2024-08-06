@@ -51,8 +51,16 @@ pub enum ServiceStatus {
     Disabled,
 }
 impl Display for ServiceStatus {
+    #[allow(clippy::expect_used)]
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(
+            f,
+            "{}",
+            format!("{:?}", self)
+                .split(':')
+                .last()
+                .expect("This should be impossible to fail")
+        )
     }
 }
 
@@ -119,19 +127,22 @@ pub struct Service {
 }
 
 impl Service {
+    /// because services are stored in the database as a json field, we need to parse the config and store the type internally
     pub fn parse_config(self) -> Result<Self, Error> {
         let value = serde_json::to_value(&self)?;
-
-        if value.is_null() {
-            return Ok(self);
-        }
-
+        let service_identifier = self
+            .name
+            .clone()
+            .unwrap_or(self.id.hyphenated().to_string());
         let config = match self.type_ {
             ServiceType::Cli => {
                 let value = match cli::CliService::from_config(&value) {
                     Ok(value) => value,
                     Err(e) => {
-                        error!("Failed to parse cli service {:?}: {:?}", value, e);
+                        error!(
+                            "Failed to parse cli service {} {:?}: {:?}",
+                            service_identifier, value, e
+                        );
                         return Err(e);
                     }
                 };
@@ -141,7 +152,10 @@ impl Service {
                 let value = match ssh::SshService::from_config(&value) {
                     Ok(value) => value,
                     Err(e) => {
-                        error!("Failed to parse ssh service {:?}: {:?}", value, e);
+                        error!(
+                            "Failed to parse ssh service {} {:?}: {:?}",
+                            service_identifier, value, e
+                        );
                         return Err(e);
                     }
                 };
@@ -151,7 +165,10 @@ impl Service {
                 let value = match ping::PingService::from_config(&value) {
                     Ok(value) => value,
                     Err(e) => {
-                        error!("Failed to parse ping service {:?}: {:?}", value, e);
+                        error!(
+                            "Failed to parse ping service {} {:?}: {:?}",
+                            service_identifier, value, e
+                        );
                         return Err(e);
                     }
                 };
@@ -161,7 +178,10 @@ impl Service {
                 let value = match http::HttpService::from_config(&value) {
                     Ok(value) => value,
                     Err(e) => {
-                        error!("Failed to parse http service {:?}: {:?}", value, e);
+                        error!(
+                            "Failed to parse http service {} {:?}: {:?}",
+                            service_identifier, value, e
+                        );
                         return Err(e);
                     }
                 };
@@ -242,11 +262,97 @@ impl Display for ServiceType {
 
 #[cfg(test)]
 mod tests {
+    use sea_orm::Iterable;
+
+    use crate::db::tests::test_setup;
+    use crate::prelude::*;
+
     use super::*;
 
+    #[test]
+    fn test_servicestatus_display() {
+        for status in ServiceStatus::iter() {
+            assert_eq!(
+                format!("{}", status),
+                format!("{:?}", status)
+                    .split(':')
+                    .last()
+                    .expect("This should be impossible to fail")
+            );
+        }
+    }
+
+    #[test]
+    fn test_servicestatus_as_html_class_background() {
+        assert_eq!(ServiceStatus::Ok.as_html_class_background(), "success");
+        assert_eq!(ServiceStatus::Critical.as_html_class_background(), "danger");
+        assert_eq!(
+            ServiceStatus::Checking.as_html_class_background(),
+            "warning"
+        );
+        assert_eq!(
+            ServiceStatus::Pending.as_html_class_background(),
+            "secondary"
+        );
+        assert_eq!(
+            ServiceStatus::Disabled.as_html_class_background(),
+            "secondary"
+        );
+        assert_eq!(
+            ServiceStatus::Unknown.as_html_class_background(),
+            "secondary"
+        );
+        assert_eq!(ServiceStatus::Urgent.as_html_class_background(), "primary");
+    }
+
+    #[test]
+    fn test_servicestatus_as_html_class_text() {
+        assert_eq!(ServiceStatus::Ok.as_html_class_text(), "light");
+        assert_eq!(ServiceStatus::Critical.as_html_class_text(), "dark");
+        assert_eq!(ServiceStatus::Checking.as_html_class_text(), "light");
+        assert_eq!(ServiceStatus::Pending.as_html_class_text(), "dark");
+        assert_eq!(ServiceStatus::Disabled.as_html_class_text(), "dark");
+        assert_eq!(ServiceStatus::Unknown.as_html_class_text(), "dark");
+        assert_eq!(ServiceStatus::Urgent.as_html_class_text(), "light");
+    }
+
     #[tokio::test]
+    /// iterate through a bunch of different conversions
     async fn test_service_from_model() {
-        println!("TODO: this")
+        let (db, _config) = test_setup()
+            .await
+            .expect("Failed to set up test environment");
+
+        let service = entities::service::Entity::find()
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .unwrap();
+
+        let _service_from_model =
+            Service::try_from(&service).expect("Failed to convert model to service");
+
+        let service_without_host_groups = entities::service::Model {
+            host_groups: Default::default(),
+            type_: ServiceType::Ping,
+            extra_config: None,
+            ..service.clone()
+        };
+
+        let service_without_host_groups_model = Service::try_from(&service_without_host_groups)
+            .expect("Failed to take service without groups from model");
+        assert!(service_without_host_groups_model.host_groups.is_empty());
+
+        let service_as_value =
+            serde_json::to_value(&service).expect("Failed to convert service model to value");
+
+        let service_from_value: Service = (&service_as_value)
+            .try_into()
+            .expect("Failed to convert value to service");
+
+        service_from_value
+            .parse_config()
+            .expect("Failed to parse config");
     }
 
     #[test]
@@ -255,5 +361,104 @@ mod tests {
         assert_eq!(format!("{}", ServiceType::Ssh), "Ssh");
         assert_eq!(format!("{}", ServiceType::Ping), "Ping");
         assert_eq!(format!("{}", ServiceType::Http), "Http");
+    }
+
+    #[test]
+    fn test_parse_http_service_configs() {
+        let config = r#"{
+            "name": "test",
+            "type": "http",
+            "host_groups": ["test"],
+            "http_uri" : "/foo",
+            "http_method" : "POST",
+            "cron_schedule": "@hourly"
+        }"#;
+        let value: Value = serde_json::from_str(config).expect("Failed to parse config");
+        let service = Service::try_from(&value).expect("Failed to parse service");
+        assert_eq!(service.name, Some("test".to_string()));
+        assert_eq!(service.type_, ServiceType::Http);
+        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(
+            service.cron_schedule.pattern.to_string(),
+            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_cli_service_config() {
+        let config = r#"{
+            "name": "test",
+            "type": "cli",
+            "host_groups": ["test"],
+            "command_line": "ls -lah .",
+            "cron_schedule": "@hourly"
+        }"#;
+        let value: Value = serde_json::from_str(config).expect("Failed to parse config");
+        let service = Service::try_from(&value).expect("Failed to parse service");
+        assert_eq!(service.name, Some("test".to_string()));
+        assert_eq!(service.type_, ServiceType::Cli);
+        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(
+            service.cron_schedule.pattern.to_string(),
+            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_ssh_service_config() {
+        let config = r#"{
+            "name": "test",
+            "type": "ssh",
+            "host_groups": ["test"],
+            "command_line": "ls -lah .",
+            "cron_schedule": "@hourly"
+        }"#;
+        let value: Value = serde_json::from_str(config).expect("Failed to parse config");
+        let service = Service::try_from(&value).expect("Failed to parse service");
+        assert_eq!(service.name, Some("test".to_string()));
+        assert_eq!(service.type_, ServiceType::Ssh);
+        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(
+            service.cron_schedule.pattern.to_string(),
+            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_ping_service_config() {
+        let config = r#"{
+            "name": "test",
+            "type": "ping",
+            "host_groups": ["test"],
+            "cron_schedule": "@hourly"
+        }"#;
+        let value: Value = serde_json::from_str(config).expect("Failed to parse config");
+        let service = Service::try_from(&value).expect("Failed to parse service");
+        assert_eq!(service.name, Some("test".to_string()));
+        assert_eq!(service.type_, ServiceType::Ping);
+        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(
+            service.cron_schedule.pattern.to_string(),
+            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_service_from_value() {
+        let config = r#"{
+            "name": "test",
+            "type": "ping",
+            "host_groups": ["test"],
+            "cron_schedule": "@hourly"
+        }"#;
+        let value: Value = serde_json::from_str(config).expect("Failed to parse config");
+        let service = Service::try_from(&value).expect("Failed to parse service");
+        assert_eq!(service.name, Some("test".to_string()));
+        assert_eq!(service.type_, ServiceType::Ping);
+        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(
+            service.cron_schedule.pattern.to_string(),
+            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+        );
     }
 }
