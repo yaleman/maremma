@@ -6,12 +6,13 @@
 
 {% block content %}
 
-There are: {{ num_checks }} service checks enabled.
+There are {{ num_checks }} service checks enabled.
 
 <table class="checktable">
     <thead>
         <tr>
-            <th><a href="/?ord=asc&field=host">Host &nbsp;&nbsp;⬆️</a>&nbsp;<a
+            <th><a href="/?ord=asc&field=host">Host
+                    &nbsp;&nbsp;⬆️</a>&nbsp;<a
                     href="/?ord=desc&field=host">⬇️</a></th>
             <th><a href="/?ord=asc&field=host">Service
                     &nbsp;&nbsp;⬆️</a>&nbsp;<a
@@ -26,7 +27,8 @@ There are: {{ num_checks }} service checks enabled.
     </thead>
     {% for check in checks %}
     <tr>
-        <td><a href="/host/{{check.host_id}}">{{check.host_name}}</a></td>
+        <td><a
+                href="/host/{{check.host_id}}">{{check.host_name}}</a></td>
         <td><a
                 href="/service_check/{{check.service_check_id}}">{{check.service_name}}</a></td>
         <td>{{check.status}}</td>
