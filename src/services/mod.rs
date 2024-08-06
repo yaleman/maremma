@@ -13,7 +13,6 @@ use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
 use serde::de::DeserializeOwned;
 
 use crate::errors::Error;
-
 #[derive(
     Deserialize,
     Debug,
@@ -58,17 +57,6 @@ impl Display for ServiceStatus {
 }
 
 impl ServiceStatus {
-    pub fn log(self, msg: &str) {
-        match self {
-            ServiceStatus::Ok | ServiceStatus::Checking => info!("{}", msg),
-            ServiceStatus::Disabled
-            | ServiceStatus::Unknown
-            | ServiceStatus::Urgent
-            | ServiceStatus::Pending
-            | ServiceStatus::Warning => warn!("{}", msg),
-            ServiceStatus::Critical | ServiceStatus::Error => error!("{}", msg),
-        }
-    }
     // Returns the cell background colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
     pub fn as_html_class_background(self) -> &'static str {
         match self {
@@ -252,21 +240,20 @@ impl Display for ServiceType {
     }
 }
 
-impl TryFrom<&str> for ServiceType {
-    fn try_from(s: &str) -> Result<Self, String> {
-        match s {
-            "cli" => Ok(ServiceType::Cli),
-            _ => Err(format!("Unknown service type: {}", s)),
-        }
-    }
-    type Error = String;
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[tokio::test]
     async fn test_service_from_model() {
         println!("TODO: this")
+    }
+
+    #[test]
+    fn test_display_service_type() {
+        assert_eq!(format!("{}", ServiceType::Cli), "Cli");
+        assert_eq!(format!("{}", ServiceType::Ssh), "Ssh");
+        assert_eq!(format!("{}", ServiceType::Ping), "Ping");
+        assert_eq!(format!("{}", ServiceType::Http), "Http");
     }
 }
