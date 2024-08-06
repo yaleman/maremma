@@ -42,6 +42,17 @@ pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
 
     #[cfg(not(all(test, debug_assertions)))]
     builder.filter(Some("sqlx::query"), tracing::log::LevelFilter::Warn);
+    #[cfg(not(test))]
     builder.target(Target::Stdout);
+    #[cfg(test)]
+    builder.target(Target::Stderr);
     builder.try_init()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_default_config_file() {
+        assert_eq!(super::DEFAULT_CONFIG_FILE, "maremma.json");
+    }
 }
