@@ -1,5 +1,5 @@
-pub mod check;
 pub mod cli;
+pub mod http;
 pub mod kubernetes;
 pub mod ping;
 pub mod ssh;
@@ -159,6 +159,26 @@ impl Service {
                 };
                 Box::new(value) as Box<dyn ServiceTrait>
             }
+            ServiceType::Ping => {
+                let value = match ping::PingService::from_config(&value) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        error!("Failed to parse ping service {:?}: {:?}", value, e);
+                        return Err(e);
+                    }
+                };
+                Box::new(value) as Box<dyn ServiceTrait>
+            }
+            ServiceType::Http => {
+                let value = match http::HttpService::from_config(&value) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        error!("Failed to parse http service {:?}: {:?}", value, e);
+                        return Err(e);
+                    }
+                };
+                Box::new(value) as Box<dyn ServiceTrait>
+            }
         };
         Ok(Self {
             config: Some(config),
@@ -220,8 +240,10 @@ pub enum ServiceType {
     Cli,
     #[sea_orm(string_value = "ssh")]
     Ssh,
-    // #[sea_orm(string_value = "ping")]
-    // Ping,
+    #[sea_orm(string_value = "ping")]
+    Ping,
+    #[sea_orm(string_value = "http")]
+    Http,
 }
 
 impl Display for ServiceType {

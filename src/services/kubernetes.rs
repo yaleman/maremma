@@ -4,8 +4,6 @@ use crate::prelude::*;
 pub struct KubernetesService {
     pub name: String,
     pub host: Host,
-    // pub context: String,
-    // pub api_port: u16,
     #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
     pub cron_schedule: Cron,
 }
