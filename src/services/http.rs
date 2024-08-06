@@ -129,35 +129,4 @@ mod tests {
         })
         .is_err());
     }
-
-    #[test]
-    fn test_parse_cliservice() {
-        let service: super::HttpService = match serde_json::from_str(
-            r#" {
-            "name": "local_lslah",
-            "type": "cli",
-            "host_groups": ["local_lslah"],
-            "command_line": "ls -lah /tmp",
-            "cron_schedule": "* * * * *"
-        }"#,
-        ) {
-            Err(err) => panic!("Failed to parse service: {:?}", err),
-            Ok(val) => val,
-        };
-        assert_eq!(service.name, "local_lslah".to_string());
-
-        // test parsing broken service
-        assert!(Service {
-            name: Some("test".to_string()),
-            type_: ServiceType::Cli,
-            id: Default::default(),
-            description: None,
-            host_groups: vec![],
-            cron_schedule: Cron::new("@hourly").parse().expect("Failed to parse cron"),
-            extra_config: HashMap::from_iter([("hello".to_string(), json!("world"))]),
-            config: None
-        }
-        .parse_config()
-        .is_err());
-    }
 }

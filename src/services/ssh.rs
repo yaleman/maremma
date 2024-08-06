@@ -54,3 +54,67 @@ impl ServiceTrait for SshService {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::prelude::*;
+
+    #[tokio::test]
+    /// This will test the SshService and only run if you have the MAREMMA_TEST_SSH_HOST env var set
+    async fn test_live_ssh_service() {
+        let hostname = match std::env::var("MAREMMA_TEST_SSH_HOST") {
+            Ok(val) => val,
+            Err(_) => {
+                eprintln!("MAREMMA_TEST_SSH_HOST not set, skipping test");
+                return;
+            }
+        };
+
+        let service = super::SshService {
+            name: hostname.clone(),
+            command_line: "ls -lah .".to_string(),
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+        };
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: hostname.clone(),
+            check: crate::host::HostCheck::None,
+        };
+
+        let res = service.run(&host).await;
+        assert_eq!(service.name, hostname);
+        assert_eq!(res.is_ok(), true);
+    }
+
+    #[test]
+    fn test_parse_cliservice() {
+        let service: super::SshService = match serde_json::from_str(
+            r#" {
+            "name": "local_lslah",
+            "type": "ssh",
+            "host_groups": ["local_lslah"],
+            "command_line": "ls -lah /tmp",
+            "cron_schedule": "* * * * *"
+        }"#,
+        ) {
+            Err(err) => panic!("Failed to parse service: {:?}", err),
+            Ok(val) => val,
+        };
+        assert_eq!(service.name, "local_lslah".to_string());
+
+        // test parsing broken service
+        assert!(Service {
+            name: Some("test".to_string()),
+            type_: ServiceType::Ssh,
+            id: Default::default(),
+            description: None,
+            host_groups: vec![],
+            cron_schedule: Cron::new("@hourly").parse().expect("Failed to parse cron"),
+            extra_config: HashMap::from_iter([("hello".to_string(), json!("world"))]),
+            config: None
+        }
+        .parse_config()
+        .is_err());
+    }
+}
