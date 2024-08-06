@@ -12,7 +12,7 @@ pub struct KubernetesService {
 
 #[async_trait]
 impl ServiceTrait for KubernetesService {
-    async fn run(&self, _host: &entities::host::Model) -> Result<(String, ServiceStatus), Error> {
+    async fn run(&self, _host: &entities::host::Model) -> Result<CheckResult, Error> {
         // match client.apiserver_version().await {
         //     Ok(_) => Ok(true),
         //     Err(err) => Err(Error::Generic(err.to_string())),
@@ -42,6 +42,10 @@ impl ServiceTrait for KubernetesService {
         //     return Ok(ServiceStatus::Critical);
         // }
 
-        Ok(("OK".into(), ServiceStatus::Ok))
+        Ok(CheckResult {
+            result_text: "Ok".to_string(),
+            status: ServiceStatus::Ok,
+            time_elapsed: Duration::seconds(0), // TODO: do this proper
+        })
     }
 }

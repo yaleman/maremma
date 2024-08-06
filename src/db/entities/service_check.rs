@@ -48,7 +48,7 @@ impl Model {
         Ok(())
     }
 
-    #[instrument(skip(self, db), fields(service_check_id = self.id.to_string()))]
+    #[instrument(skip_all, fields(service_check_id = self.id.to_string()))]
     pub async fn set_next_check(
         &self,
         service: &service::Model,

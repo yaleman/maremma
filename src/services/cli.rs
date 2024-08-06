@@ -17,7 +17,8 @@ pub struct CliService {
 
 #[async_trait]
 impl ServiceTrait for CliService {
-    async fn run(&self, _host: &entities::host::Model) -> Result<(String, ServiceStatus), Error> {
+    async fn run(&self, _host: &entities::host::Model) -> Result<CheckResult, Error> {
+        let start_time = chrono::Utc::now();
         // run the command line and capture the exit code and stdout
         let mut cmd_split = self.command_line.split(" ");
         let cmd = match cmd_split.next() {
@@ -39,11 +40,21 @@ impl ServiceTrait for CliService {
             .await
             .map_err(|err| Error::Generic(err.to_string()))?;
 
+        let time_elapsed = chrono::Utc::now() - start_time;
+
         if res.status != std::process::ExitStatus::from_raw(0) {
-            return Ok(("Ok".to_string(), ServiceStatus::Ok));
+            return Ok(CheckResult {
+                result_text: "CRITICAL".to_string(),
+                status: ServiceStatus::Critical,
+                time_elapsed,
+            });
         }
 
-        Ok(("Ok".to_string(), ServiceStatus::Ok))
+        Ok(CheckResult {
+            result_text: "Ok".to_string(),
+            status: ServiceStatus::Ok,
+            time_elapsed,
+        })
     }
 }
 

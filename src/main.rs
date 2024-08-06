@@ -1,5 +1,6 @@
 use clap::Parser;
 use maremma::cli::{Actions, CliOpts};
+use maremma::config::Configuration;
 use maremma::prelude::*;
 use maremma::web::run_web_server;
 

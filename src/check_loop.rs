@@ -1,6 +1,15 @@
 use crate::db::get_next_service_check;
 use crate::prelude::*;
+use chrono::Duration;
 use sea_orm::prelude::*;
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)] // 'cause debug
+pub struct CheckResult {
+    pub time_elapsed: Duration,
+    pub status: ServiceStatus,
+    pub result_text: String,
+}
 
 #[cfg(not(tarpaulin_include))] // TODO: un-ignore for code coverage
 pub async fn run_check_loop(
@@ -63,16 +72,16 @@ pub async fn run_check_loop(
                 }
             };
 
-            let (result_text, status) =
-                run_check(db.as_ref(), &service_check, &check, &host).await?;
+            let result = check
+                .config
+                .ok_or_else(|| Error::ServiceConfigNotFound(service.id.hyphenated().to_string()))?
+                .run(&host)
+                .await?;
 
             // TODO: record result text and status and service_check_id etc
-            info!(
-                "id={} result_text=\"{}\", status={}",
-                service_check.id, result_text, status
-            );
+            info!("id={} result={:?}", service_check.id, result);
             service_check
-                .set_last_check(chrono::Utc::now(), status, db.as_ref())
+                .set_last_check(chrono::Utc::now(), result.status, db.as_ref())
                 .await
                 .map_err(|err| {
                     error!(
@@ -93,21 +102,4 @@ pub async fn run_check_loop(
             tokio::time::sleep(backoff).await;
         }
     }
-}
-
-#[instrument(skip_all, fields(service_check_id=service_check.id.hyphenated().to_string(), service_id=service.id.hyphenated().to_string(), hostname=host.hostname))]
-pub async fn run_check(
-    _db: &DatabaseConnection,
-    service_check: &entities::service_check::Model,
-    service: &Service,
-    host: &entities::host::Model,
-) -> Result<(String, ServiceStatus), Error> {
-    info!("Starting Check: {:?} -> ", service_check.id);
-
-    let config = service
-        .config
-        .as_ref()
-        .ok_or_else(|| Error::ServiceConfigNotFound(service.id.hyphenated().to_string()))?;
-
-    config.run(host).await
 }

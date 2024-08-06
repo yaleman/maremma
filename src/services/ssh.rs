@@ -13,9 +13,9 @@ pub struct SshService {
 
 #[async_trait]
 impl ServiceTrait for SshService {
-    async fn run(&self, host: &entities::host::Model) -> Result<(String, ServiceStatus), Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         // ssh to the target host and run the command
-
+        let start_time = chrono::Utc::now();
         let mut args = vec![host.hostname.clone()];
 
         args.extend(
@@ -37,10 +37,20 @@ impl ServiceTrait for SshService {
             .await
             .map_err(|err| Error::Generic(err.to_string()))?;
 
+        let time_elapsed = chrono::Utc::now() - start_time;
+
         if res.status != std::process::ExitStatus::from_raw(0) {
-            return Ok(("OK".into(), ServiceStatus::Critical));
+            return Ok(CheckResult {
+                result_text: "CRITICAL".to_string(),
+                status: ServiceStatus::Critical,
+                time_elapsed,
+            });
         }
 
-        Ok(("OK".into(), ServiceStatus::Ok))
+        Ok(CheckResult {
+            result_text: "Ok".to_string(),
+            status: ServiceStatus::Ok,
+            time_elapsed,
+        })
     }
 }

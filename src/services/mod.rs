@@ -4,6 +4,7 @@ pub mod kubernetes;
 pub mod ping;
 pub mod ssh;
 
+use crate::check_loop::CheckResult;
 use crate::db::entities;
 use crate::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -72,7 +73,7 @@ impl ServiceStatus {
 
 #[async_trait]
 pub trait ServiceTrait: Debug + Sync + Send {
-    async fn run(&self, host: &entities::host::Model) -> Result<(String, ServiceStatus), Error>;
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error>;
 
     fn from_config(config: &Value) -> Result<Self, Error>
     where
@@ -108,7 +109,7 @@ pub struct Service {
 
 impl Service {
     pub fn parse_config(self) -> Result<Self, Error> {
-        let value = serde_json::to_value(&self).expect("Failed to serialize service!");
+        let value = serde_json::to_value(&self)?;
 
         if value.is_null() {
             return Ok(self);
