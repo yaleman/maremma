@@ -5,14 +5,13 @@ use maremma::web::run_web_server;
 
 use maremma::setup_logging;
 
+use maremma::check_loop::run_check_loop;
+use maremma::db::update_db_from_config;
 use std::process::ExitCode;
 
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), ExitCode> {
-    use maremma::check_loop::run_check_loop;
-    use maremma::db::update_db_from_config;
-
     let cli = CliOpts::parse();
     if let Err(err) = setup_logging(cli.debug()) {
         println!("Failed to setup logging: {:?}", err);
@@ -47,15 +46,11 @@ async fn main() -> Result<(), ExitCode> {
             }
         }
         Actions::ShowConfig(_show_config) => {
-            // if show_config.json {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&*config)
                     .unwrap_or(format!("Failed to serialize config: {:?}", &config))
             );
-            // } else {
-            //     println!("{:#?}", config);
-            // }
         }
     }
     Ok(())

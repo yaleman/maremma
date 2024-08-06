@@ -97,14 +97,12 @@ pub async fn run_check_loop(
 
 #[instrument(skip_all, fields(service_check_id=service_check.id.hyphenated().to_string(), service_id=service.id.hyphenated().to_string(), hostname=host.hostname))]
 pub async fn run_check(
-    db: &DatabaseConnection,
+    _db: &DatabaseConnection,
     service_check: &entities::service_check::Model,
     service: &Service,
     host: &entities::host::Model,
 ) -> Result<(String, ServiceStatus), Error> {
     info!("Starting Check: {:?} -> ", service_check.id);
-
-    let _ = db.clone();
 
     Ok(("woo".to_string(), ServiceStatus::Unknown))
 }

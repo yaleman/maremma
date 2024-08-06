@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                             .enumeration(Alias::new("type"), ServiceType::iter())
                             .string(),
                     )
-                    .col(ColumnDef::new(Service::Config).json())
+                    .col(ColumnDef::new(Service::ExtraConfig).json())
                     .to_owned(),
             )
             .await
@@ -52,5 +52,5 @@ pub enum Service {
     HostGroups,
     Type,
     CronSchedule,
-    Config,
+    ExtraConfig,
 }

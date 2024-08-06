@@ -86,39 +86,69 @@ pub trait ServiceTrait: Debug + Sync + Send {
 pub struct Service {
     #[serde(default = "uuid::Uuid::new_v4")]
     pub id: Uuid,
-    // pub name: String,
+    /// This is pulled from the config file's key
+    pub name: Option<String>,
     pub description: Option<String>,
     pub host_groups: Vec<String>,
-    #[serde(rename = "type")]
+    #[serde(alias = "type")]
     pub type_: ServiceType,
     #[serde(
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
     pub cron_schedule: Cron,
+
+    /// Catch-all for the other fields in the config
+    #[serde(flatten)]
+    pub extra_config: HashMap<String, Value>,
+
     #[serde(skip)]
     pub config: Option<Box<dyn ServiceTrait>>,
 }
 
-impl Service {}
+impl Service {
+    pub fn parse_config(self) -> Result<Self, Error> {
+        let value = serde_json::to_value(&self).expect("Failed to serialize service!");
+
+        if value.is_null() {
+            return Ok(self);
+        }
+
+        let config = match self.type_ {
+            ServiceType::Cli => {
+                let value = match cli::CliService::from_config(&value) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        error!("Failed to parse cli service {:?}: {:?}", value, e);
+                        return Err(e);
+                    }
+                };
+                Box::new(value) as Box<dyn ServiceTrait>
+            }
+            ServiceType::Ssh => {
+                let value = match ssh::SshService::from_config(&value) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        error!("Failed to parse ssh service {:?}: {:?}", value, e);
+                        return Err(e);
+                    }
+                };
+                Box::new(value) as Box<dyn ServiceTrait>
+            }
+        };
+        Ok(Self {
+            config: Some(config),
+            ..self
+        })
+    }
+}
 
 impl TryFrom<&Value> for Service {
     type Error = Error;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        let mut res: Service = serde_json::from_value(value.clone())?;
-        let service_config = match res.type_ {
-            ServiceType::Cli => {
-                let value = cli::CliService::from_config(value)?;
-                Box::new(value) as Box<dyn ServiceTrait>
-            }
-            ServiceType::Ssh => {
-                let value = ssh::SshService::from_config(value)?;
-                Box::new(value) as Box<dyn ServiceTrait>
-            }
-        };
-        res.config = Some(service_config);
-        Ok(res)
+        let res: Service = serde_json::from_value(value.clone())?;
+        res.parse_config()
     }
 }
 
@@ -126,29 +156,33 @@ impl TryFrom<&entities::service::Model> for Service {
     type Error = Error;
 
     fn try_from(value: &entities::service::Model) -> Result<Self, Self::Error> {
-        let host_groups: Vec<String> = serde_json::from_value(value.host_groups.clone())?;
+        let host_groups = match &value.host_groups.is_array() {
+            false => {
+                debug!("No host groups in service {}", value.name);
+                vec![]
+            }
+            true => serde_json::from_value(value.host_groups.clone())?,
+        };
+
+        let extra_config = match value.extra_config.clone() {
+            None => {
+                debug!("No extra config in service {}", value.name);
+                HashMap::new()
+            }
+            Some(extra_config) => serde_json::from_value(extra_config)?,
+        };
 
         let mut service = Service {
             id: value.id,
+            name: Some(value.name.clone()),
             description: value.description.clone(),
             host_groups,
             type_: value.type_.clone(),
-            cron_schedule: value.cron_schedule.parse()?,
+            cron_schedule: Cron::new(&value.cron_schedule).parse()?,
+            extra_config,
             config: None,
         };
-        if let Some(config) = &value.config {
-            let service_config = match value.type_ {
-                ServiceType::Cli => {
-                    let value = cli::CliService::from_config(config)?;
-                    Box::new(value) as Box<dyn ServiceTrait>
-                }
-                ServiceType::Ssh => {
-                    let value = ssh::SshService::from_config(config)?;
-                    Box::new(value) as Box<dyn ServiceTrait>
-                }
-            };
-            service.config = Some(service_config);
-        }
+        service = service.parse_config()?;
 
         Ok(service)
     }

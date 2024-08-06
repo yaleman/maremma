@@ -1,5 +1,5 @@
 use sea_orm::entity::prelude::*;
-use sea_orm::Set;
+use sea_orm::{Set, TryIntoModel};
 
 use crate::prelude::*;
 
@@ -10,14 +10,14 @@ pub struct Model {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    /// should be a list of strings
+    /// A list of host group names
     pub host_groups: Json,
     #[sea_orm(name = "type")]
     #[serde(alias = "type")]
     pub type_: ServiceType,
     pub cron_schedule: String,
     #[serde(flatten)]
-    pub config: Option<Json>,
+    pub extra_config: Option<Json>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -50,22 +50,40 @@ impl MaremmaEntity for Model {
         if let Some(services) = config.services.clone() {
             if let Some(services) = services.as_object() {
                 for (service_name, service) in services {
+                    let mut service = service.to_owned();
+
+                    // this is janky but we need to flatten it using serde to get the "extra" fields
+                    let service_parsed: Service = serde_json::from_value(service.clone())?;
+                    let extra_config: Json = serde_json::to_value(service_parsed.extra_config)?;
+
+                    if let Some(service_object) = service.as_object_mut() {
+                        service_object.insert("id".to_string(), json!(Uuid::new_v4()));
+                        service_object.insert("name".to_string(), json!(service_name));
+                        service_object.insert("extra_config".to_string(), json!(extra_config));
+                    }
+
                     // check if we have one and add it if not
                     match Entity::find()
                         .filter(Column::Name.eq(service_name))
                         .one(db.as_ref())
                         .await
                     {
-                        Ok(Some(res)) => res,
+                        Ok(Some(res)) => {
+                            let mut res = res.into_active_model();
+
+                            res.set_from_json(service.clone())?;
+                            if res.is_changed() {
+                                debug!("about to update this: {:?}", res);
+                                debug!("Source: {:?}", service);
+                                res.update(db.as_ref()).await?
+                            } else {
+                                res.try_into_model()?
+                            }
+                        }
                         Ok(None) | Err(DbErr::RecordNotFound(_)) => {
                             // insert the service if we can't find it
                             let mut am = ActiveModel::new();
-                            let mut service = service.to_owned();
                             let service_id = Uuid::new_v4();
-                            if let Some(service_object) = service.as_object_mut() {
-                                service_object.insert("id".to_string(), json!(Uuid::new_v4()));
-                                service_object.insert("name".to_string(), json!(service_name));
-                            }
 
                             am.set_from_json(service)?;
                             am.id = Set(service_id);
@@ -100,7 +118,7 @@ pub(crate) fn test_service() -> Model {
         host_groups: json! {["test".to_string()]},
         type_: crate::prelude::ServiceType::Cli,
         cron_schedule: "* * * * *".to_string(),
-        config: serde_json::json!({ "url": "http://localhost:8080" }).into(),
+        extra_config: serde_json::json!({ "url": "http://localhost:8080" }).into(),
     }
 }
 
