@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::prelude::*;
 
 use askama_axum::IntoResponse;
@@ -6,6 +8,7 @@ use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::Router;
 use axum_server::bind;
+use tower_http::services::ServeDir;
 
 pub(crate) mod views;
 
@@ -19,6 +22,7 @@ async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoR
 }
 
 pub(crate) fn build_app(state: WebState) -> Router {
+    let static_path = PathBuf::from("./static");
     Router::new()
         .route("/", get(views::index::index))
         .route("/host/:host_id", get(views::host::host))
@@ -33,6 +37,7 @@ pub(crate) fn build_app(state: WebState) -> Router {
         )
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(notimplemented))
+        .nest_service("/static", ServeDir::new(static_path).precompressed_br())
         .with_state(state)
 }
 

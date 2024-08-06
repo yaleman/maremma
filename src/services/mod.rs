@@ -69,6 +69,29 @@ impl ServiceStatus {
             ServiceStatus::Critical | ServiceStatus::Error => error!("{}", msg),
         }
     }
+    // Returns the cell background colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
+    pub fn as_html_class_background(self) -> &'static str {
+        match self {
+            ServiceStatus::Ok => "success",
+            ServiceStatus::Critical | ServiceStatus::Error => "danger",
+            ServiceStatus::Checking | ServiceStatus::Warning => "warning",
+            ServiceStatus::Pending | ServiceStatus::Disabled | ServiceStatus::Unknown => {
+                "secondary"
+            }
+            ServiceStatus::Urgent => "primary",
+        }
+    }
+
+    // Returns the text colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
+    pub fn as_html_class_text(self) -> &'static str {
+        match self {
+            ServiceStatus::Ok => "light",
+            ServiceStatus::Critical | ServiceStatus::Error => "dark",
+            ServiceStatus::Checking | ServiceStatus::Warning => "light",
+            ServiceStatus::Pending | ServiceStatus::Disabled | ServiceStatus::Unknown => "dark",
+            ServiceStatus::Urgent => "light",
+        }
+    }
 }
 
 #[async_trait]
