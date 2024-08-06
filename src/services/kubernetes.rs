@@ -1,3 +1,5 @@
+use kube::Client;
+
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize)]
@@ -12,39 +14,69 @@ pub struct KubernetesService {
 impl ServiceTrait for KubernetesService {
     async fn run(&self, _host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
-        // match client.apiserver_version().await {
-        //     Ok(_) => Ok(true),
-        //     Err(err) => Err(Error::Generic(err.to_string())),
-        // }
-        // ssh to the target host and run the command
-        // let mut args = vec![host.hostname()];
-        // args.extend(
-        //     self.command_line
-        //         .split(' ')
-        //         .map(String::from)
-        //         .collect::<Vec<String>>(),
-        // );
-        // let child = tokio::process::Command::new("ssh")
-        //     .args(args)
-        //     .kill_on_drop(true)
-        //     .stdout(Stdio::piped())
-        //     .stderr(Stdio::piped())
-        //     .spawn()
-        //     .map_err(|err| Error::Generic(err.to_string()))?;
 
-        // let res = child
-        //     .wait_with_output()
-        //     .await
-        //     .map_err(|err| Error::Generic(err.to_string()))?;
+        let client = match Client::try_default().await {
+            Ok(val) => val,
+            Err(err) => {
+                return Ok(CheckResult {
+                    result_text: format!("UNKNOWN: Unable to configure Kubernetes client: {}", err),
+                    status: ServiceStatus::Unknown,
+                    time_elapsed: chrono::Utc::now() - start_time,
+                })
+            }
+        };
 
-        // if res.status != std::process::ExitStatus::from_raw(0) {
-        //     return Ok(ServiceStatus::Critical);
-        // }
+        let (result_text, status) = match client.apiserver_version().await {
+            Ok(_) => ("OK".to_string(), ServiceStatus::Ok),
+            Err(err) => (format!("CRITICAL: {}", err), ServiceStatus::Critical),
+        };
 
         Ok(CheckResult {
-            result_text: "Ok".to_string(),
-            status: ServiceStatus::Ok,
+            result_text,
+            status,
             time_elapsed: chrono::Utc::now() - start_time,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_kubernetes_service() {
+        let hostname = match std::env::var("MAREMMA_TEST_KUBE_HOST") {
+            Ok(val) => val,
+            Err(_) => {
+                eprintln!("MAREMMA_TEST_KUBE_HOST not set, skipping test");
+                return;
+            }
+        };
+
+        // TODO: use the kube test host for this test
+        let host = Host {
+            id: None,
+            check: crate::host::HostCheck::None,
+            hostname: Some(hostname.clone()),
+            host_groups: vec![],
+            extra: Default::default(),
+        };
+
+        let service = KubernetesService {
+            name: "kubernetes".to_string(),
+            host,
+            cron_schedule: Cron::new("0 0 * * *").parse().unwrap(),
+        };
+
+        let result = service
+            .run(&entities::host::Model {
+                id: Uuid::new_v4(),
+                name: "test host".to_string(),
+                hostname,
+                check: crate::host::HostCheck::None,
+            })
+            .await
+            .unwrap();
+        assert!(result.status == ServiceStatus::Ok || result.status == ServiceStatus::Critical);
     }
 }
