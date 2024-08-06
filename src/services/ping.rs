@@ -12,7 +12,7 @@ pub struct PingService {
 
 #[async_trait]
 impl ServiceTrait for PingService {
-    async fn run(&self, host: &entities::host::Model) -> Result<ServiceStatus, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<(String, ServiceStatus), Error> {
         let payload = [0; 8];
 
         let hostname = lookup_host(format!("{}:80", host.hostname.clone()))
@@ -24,9 +24,9 @@ impl ServiceTrait for PingService {
             Ok((packet, duration)) => (packet, duration),
             Err(err) => return Err(Error::Generic(err.to_string())),
         };
-        info!("OK: Ping to {} took {}ms", host.name, duration.as_millis());
+        let res = format!("OK: Ping to {} took {}ms", host.name, duration.as_millis());
 
-        Ok(ServiceStatus::Ok)
+        Ok((res, ServiceStatus::Ok))
     }
 }
 

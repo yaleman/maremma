@@ -72,7 +72,7 @@ impl ServiceStatus {
 
 #[async_trait]
 pub trait ServiceTrait: Debug + Sync + Send {
-    async fn run(&self, host: &entities::host::Model) -> Result<ServiceStatus, Error>;
+    async fn run(&self, host: &entities::host::Model) -> Result<(String, ServiceStatus), Error>;
 
     fn from_config(config: &Value) -> Result<Self, Error>
     where

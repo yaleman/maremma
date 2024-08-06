@@ -17,7 +17,7 @@ pub struct CliService {
 
 #[async_trait]
 impl ServiceTrait for CliService {
-    async fn run(&self, _host: &entities::host::Model) -> Result<ServiceStatus, Error> {
+    async fn run(&self, _host: &entities::host::Model) -> Result<(String, ServiceStatus), Error> {
         // run the command line and capture the exit code and stdout
         let mut cmd_split = self.command_line.split(" ");
         let cmd = match cmd_split.next() {
@@ -40,10 +40,10 @@ impl ServiceTrait for CliService {
             .map_err(|err| Error::Generic(err.to_string()))?;
 
         if res.status != std::process::ExitStatus::from_raw(0) {
-            return Ok(ServiceStatus::Critical);
+            return Ok(("Ok".to_string(), ServiceStatus::Ok));
         }
 
-        Ok(ServiceStatus::Ok)
+        Ok(("Ok".to_string(), ServiceStatus::Ok))
     }
 }
 

@@ -104,5 +104,10 @@ pub async fn run_check(
 ) -> Result<(String, ServiceStatus), Error> {
     info!("Starting Check: {:?} -> ", service_check.id);
 
-    Ok(("woo".to_string(), ServiceStatus::Unknown))
+    let config = service
+        .config
+        .as_ref()
+        .ok_or_else(|| Error::ServiceConfigNotFound(service.id.hyphenated().to_string()))?;
+
+    config.run(host).await
 }
