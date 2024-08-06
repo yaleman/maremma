@@ -12,10 +12,7 @@ pub struct CheckResult {
 }
 
 #[cfg(not(tarpaulin_include))] // TODO: un-ignore for code coverage
-pub async fn run_check_loop(
-    _config: Arc<Configuration>,
-    db: Arc<DatabaseConnection>,
-) -> Result<(), Error> {
+pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
     let mut backoff = tokio::time::Duration::from_millis(50);
 
     loop {
