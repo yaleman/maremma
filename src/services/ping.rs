@@ -4,8 +4,6 @@ use crate::prelude::*;
 
 #[derive(Debug, Deserialize)]
 pub struct PingService {
-    pub name: String,
-    pub host: String,
     #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
     pub cron_schedule: Cron,
 }
@@ -45,8 +43,6 @@ mod tests {
     async fn test_ping_service_localhost() {
         let _ = setup_logging(true);
         let test_service = super::PingService {
-            name: "test".to_string(),
-            host: "localhost".to_string(),
             cron_schedule: Cron::new("* * * * *").parse().unwrap(),
         };
         let host = entities::host::Model {
