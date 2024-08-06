@@ -411,8 +411,6 @@ mod tests {
             .await
             .unwrap()
             .is_some());
-
-        // TODO: test creating a service + host + service check, then deleting a service - which should delete the service_check
     }
 
     #[tokio::test]
@@ -446,14 +444,15 @@ mod tests {
             host_id: host_am.id.unwrap(),
             ..Default::default()
         };
-        let service_check_am_id = service_check.id;
-        let service_check_am = service_check.into_active_model();
-        dbg!(&service_check_am);
-        if let Err(err) = Entity::insert(service_check_am.to_owned()).exec(&db).await {
-            panic!("Failed to insert service check: {:?}", err);
-        };
+        let service_check_am = service_check
+            .into_active_model()
+            .save(&db)
+            .await
+            .expect("Failed to save service check")
+            .try_into_model()
+            .expect("Failed to turn activemodel into model");
 
-        assert!(Entity::find_by_id(service_check_am.id.unwrap())
+        assert!(Entity::find_by_id(service_check_am.id)
             .one(&db)
             .await
             .unwrap()
@@ -463,7 +462,7 @@ mod tests {
             .await
             .unwrap();
         // Check we delete the service check when deleting the host
-        assert!(Entity::find_by_id(service_check_am_id)
+        assert!(Entity::find_by_id(service_check_am.id)
             .one(&db)
             .await
             .unwrap()
