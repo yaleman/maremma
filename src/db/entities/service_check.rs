@@ -446,7 +446,7 @@ mod tests {
         };
         let service_check_am = service_check
             .into_active_model()
-            .save(&db)
+            .insert(&db)
             .await
             .expect("Failed to save service check")
             .try_into_model()

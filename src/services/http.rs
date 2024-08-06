@@ -33,6 +33,7 @@ pub struct HttpService {
     )]
     pub cron_schedule: Cron,
 
+    #[serde(default)]
     pub http_method: HttpMethod,
 
     /// Defaults to nothing
@@ -95,6 +96,7 @@ impl ServiceTrait for HttpService {
 
 #[cfg(test)]
 mod tests {
+
     use crate::prelude::*;
 
     #[tokio::test]
@@ -122,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_parse_cliservice() {
-        let service: super::HttpService = serde_json::from_str(
+        let service: super::HttpService = match serde_json::from_str(
             r#" {
             "name": "local_lslah",
             "type": "cli",
@@ -130,8 +132,10 @@ mod tests {
             "command_line": "ls -lah /tmp",
             "cron_schedule": "* * * * *"
         }"#,
-        )
-        .expect("Failed to parse!");
+        ) {
+            Err(err) => panic!("Failed to parse service: {:?}", err),
+            Ok(val) => val,
+        };
         assert_eq!(service.name, "local_lslah".to_string());
     }
 }
