@@ -14,16 +14,12 @@ pub async fn logout(
     State(state): State<WebState>,
 ) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
     #[allow(clippy::expect_used)]
-    let url: Uri = state
-        .frontend_url
-        .expect("Got here without being checkd?")
-        .parse()
-        .map_err(|err| {
-            error!("Failed to parse redirect URL: {:?}", err);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to parse redirect URL",
-            )
-        })?;
+    let url: Uri = state.frontend_url.clone().parse().map_err(|err| {
+        error!("Failed to parse redirect URL: {:?}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to parse redirect URL",
+        )
+    })?;
     Ok(logout.with_post_logout_redirect(url).into_response())
 }

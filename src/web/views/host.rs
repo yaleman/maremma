@@ -94,10 +94,10 @@ pub(crate) async fn host(
         })?;
 
     Ok(HostTemplate {
-        title: host.hostname.clone(),
+        title: host.hostname.to_owned(),
         checks,
-        hostname: host.hostname.clone(),
-        check: host.check.clone(),
+        hostname: host.hostname.to_owned(),
+        check: host.check,
         host_groups,
         host_id: host.id,
     })

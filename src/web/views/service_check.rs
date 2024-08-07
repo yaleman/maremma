@@ -56,7 +56,7 @@ pub(crate) async fn set_service_check_status(
         .last_updated
         .set_if_not_equals(chrono::Utc::now());
 
-    let host_id = service_check.host_id.clone();
+    let host_id = service_check.host_id.clone().unwrap();
 
     if service_check.is_changed() {
         service_check.save(state.db.as_ref()).await.map_err(|err| {
@@ -71,10 +71,7 @@ pub(crate) async fn set_service_check_status(
         })?;
     };
     // TODO: make it so we can redirect to... elsewhere based on a query string?
-    Ok(Redirect::to(&format!(
-        "/host/{}",
-        host_id.as_ref().hyphenated()
-    )))
+    Ok(Redirect::to(&format!("/host/{}", host_id.hyphenated())))
 }
 
 #[cfg(test)]

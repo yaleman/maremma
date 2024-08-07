@@ -94,6 +94,23 @@ impl Configuration {
         }
         Arc::new(res)
     }
+
+    pub fn frontend_url(&self) -> String {
+        self.frontend_url.clone().unwrap_or_else(|| {
+            let proto = if self.tls_enabled { "https" } else { "http" };
+            let port = match self.listen_port {
+                Some(port) => {
+                    if [80, 443].contains(&port) {
+                        "".to_string()
+                    } else {
+                        port.to_string()
+                    }
+                }
+                None => crate::constants::DEFAULT_PORT.to_string(),
+            };
+            format!("{}://{}:{}", proto, self.listen_address, port)
+        })
+    }
 }
 
 #[cfg(test)]

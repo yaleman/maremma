@@ -27,14 +27,14 @@ pub(crate) mod views;
 #[derive(Clone)]
 pub(crate) struct WebState {
     pub db: Arc<DatabaseConnection>,
-    pub frontend_url: Option<String>,
+    pub frontend_url: Arc<String>,
 }
 
 impl WebState {
     pub fn new(db: Arc<DatabaseConnection>, config: &Configuration) -> Self {
         Self {
             db,
-            frontend_url: config.frontend_url.clone(),
+            frontend_url: Arc::new(config.frontend_url()),
         }
     }
 }
@@ -42,8 +42,6 @@ impl WebState {
 async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {
     Err((StatusCode::NOT_FOUND, "Not Implemented yet!"))
 }
-
-static DEFAULT_PORT: u16 = 8888;
 
 pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result<Router, Error> {
     let session_store = MemoryStore::default();
@@ -143,19 +141,20 @@ pub async fn run_web_server(
     let addr = format!(
         "{}:{}",
         configuration.listen_address,
-        configuration.listen_port.unwrap_or(DEFAULT_PORT)
+        configuration
+            .listen_port
+            .unwrap_or(crate::constants::DEFAULT_PORT)
     );
     let app = build_app(WebState::new(db, &configuration), &configuration).await?;
 
-    let frontend_url = configuration
-        .frontend_url
-        .clone()
-        .unwrap_or(format!("http://{}", addr));
+    let frontend_url = configuration.frontend_url();
 
     info!(
         "Starting web server on {}:{}",
         &frontend_url,
-        configuration.listen_port.unwrap_or(DEFAULT_PORT)
+        configuration
+            .listen_port
+            .unwrap_or(crate::constants::DEFAULT_PORT)
     );
     if configuration.tls_enabled {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
