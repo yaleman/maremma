@@ -43,16 +43,6 @@ impl KubeHost {
 
 #[async_trait]
 impl GenericHost for KubeHost {
-    fn id(&self) -> String {
-        sha256::digest(&format!(
-            "{}:{}",
-            self.api_url(),
-            self.kube_cluster.as_ref().unwrap_or(&"default".to_string())
-        ))
-    }
-    fn name(&self) -> String {
-        format!("KubeHost({})", self.api_url())
-    }
     async fn check_up(&self) -> Result<bool, crate::errors::Error> {
         let client = Client::try_default()
             .await
@@ -83,9 +73,6 @@ mod tests {
         assert_eq!(host.api_port, 6443);
         assert_eq!(host.kube_cluster, None);
         assert_eq!(host.api_url(), "https://localhost:6443");
-
-        assert_eq!(host.name(), "KubeHost(https://localhost:6443)");
-        assert!(!host.id().is_empty())
     }
 
     #[tokio::test]

@@ -62,18 +62,6 @@ impl SshHost {
 
 #[async_trait]
 impl GenericHost for SshHost {
-    fn id(&self) -> String {
-        sha256::digest(&format!(
-            "{}@{}:{}",
-            self.remote_user.as_ref().unwrap_or(&"user".to_string()),
-            self.hostname,
-            self.port
-        ))
-    }
-    fn name(&self) -> String {
-        format!("SshHost({}:{})", self.hostname, self.port)
-    }
-
     async fn check_up(&self) -> Result<bool, Error> {
         let socket_address = match self.ip_address {
             Some(ip) => match (ip, self.port)

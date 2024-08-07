@@ -96,10 +96,6 @@ where
 {
     async fn check_up(&self) -> Result<bool, crate::errors::Error>;
 
-    fn name(&self) -> String;
-
-    fn id(&self) -> String;
-
     fn try_from_config(config: serde_json::Value) -> Result<Self, Error>
     where
         Self: Sized;

@@ -7,12 +7,6 @@ pub struct FakeHost {
 
 #[async_trait]
 impl GenericHost for FakeHost {
-    fn id(&self) -> String {
-        "fakehost".to_string()
-    }
-    fn name(&self) -> String {
-        "FakeHost".to_string()
-    }
     /// This is always true because it's the maremma host
     async fn check_up(&self) -> Result<bool, Error> {
         Ok(true)
@@ -34,8 +28,6 @@ mod tests {
     #[tokio::test]
     async fn test_fakehost() {
         let host = FakeHost::try_from_config(json!({})).unwrap();
-        assert_eq!(host.id(), "fakehost");
-        assert_eq!(host.name(), "FakeHost");
         assert_eq!(host.check_up().await.unwrap(), true);
     }
 }
