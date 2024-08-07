@@ -91,18 +91,15 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                 }
             };
 
-            let result = match check
-                .config
-                .ok_or_else(|| {
-                    error!(
-                        "Failed to get service config for {}",
-                        service.id.hyphenated()
-                    );
-                    Error::ServiceConfigNotFound(service.id.hyphenated().to_string())
-                })?
-                .run(&host)
-                .await
-            {
+            let config = check.config.ok_or_else(|| {
+                error!(
+                    "Failed to get service config for {}",
+                    service.id.hyphenated()
+                );
+                Error::ServiceConfigNotFound(service.id.hyphenated().to_string())
+            })?;
+
+            let result = match config.run(&host).await {
                 Ok(val) => val,
                 Err(err) => {
                     error!(
