@@ -27,13 +27,22 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                     continue;
                 }
             };
-            service_check
+
+            if let Err(err) = service_check
                 .set_status(ServiceStatus::Checking, db.as_ref())
-                .await?;
+                .await
+            {
+                error!(
+                    "Failed to set 'checking' status for service_check_id={} error={:?}",
+                    service_check.id.hyphenated(),
+                    err
+                );
+            };
 
             info!(
                 "service check time! {} - {}",
-                service_check.id, service.name
+                service_check.id.hyphenated(),
+                service.name
             );
 
             let check: Service = match (&service).try_into() {
@@ -43,10 +52,16 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                         "Failed to convert service check {} to service: {:?}",
                         service_check.id, err
                     );
-                    // TODO: if this fails it will leave the service in "checking" status
-                    service_check
+                    if let Err(err) = service_check
                         .set_status(ServiceStatus::Error, db.as_ref())
-                        .await?;
+                        .await
+                    {
+                        error!(
+                            "Failed to set 'error' status for service_check_id={} error={:?}",
+                            service_check.id.hyphenated(),
+                            err
+                        );
+                    };
                     continue;
                 }
             };
@@ -62,18 +77,45 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                         "Failed to get host for service check: {:?}",
                         service_check.id
                     );
-                    service_check
+                    if let Err(err) = service_check
                         .set_status(ServiceStatus::Error, db.as_ref())
-                        .await?;
+                        .await
+                    {
+                        error!(
+                            "Failed to set 'error' status for service_check_id={} error={:?}",
+                            service_check.id.hyphenated(),
+                            err
+                        );
+                    };
                     continue;
                 }
             };
 
-            let result = check
+            let result = match check
                 .config
-                .ok_or_else(|| Error::ServiceConfigNotFound(service.id.hyphenated().to_string()))?
+                .ok_or_else(|| {
+                    error!(
+                        "Failed to get service config for {}",
+                        service.id.hyphenated()
+                    );
+                    Error::ServiceConfigNotFound(service.id.hyphenated().to_string())
+                })?
                 .run(&host)
-                .await?;
+                .await
+            {
+                Ok(val) => val,
+                Err(err) => {
+                    error!(
+                        "Failed to run service_check_id={} error={:?}",
+                        service_check.id.hyphenated(),
+                        err
+                    );
+                    service_check
+                        .set_status(ServiceStatus::Error, db.as_ref())
+                        .await?;
+                    return Err(err);
+                }
+            };
 
             // TODO: record result text and status and service_check_id etc
             info!("id={} result={:?}", service_check.id, result);
@@ -88,6 +130,7 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                     err
                 })?;
             service_check.set_next_check(&service, db.as_ref()).await?;
+
             // reset our backoff time
             backoff = tokio::time::Duration::from_millis(50);
         } else {

@@ -37,14 +37,14 @@ pub(crate) struct IndexQueries {
     pub field: Option<OrderFields>,
 }
 
-#[instrument(level = "info", skip(state))]
+#[instrument(level = "info", skip(state), fields(http.uri="/", ))]
 pub(crate) async fn index(
     Query(queries): Query<IndexQueries>,
     State(state): State<WebState>,
 ) -> Result<IndexTemplate, (StatusCode, String)> {
     let sort_order: Order = queries.ord.unwrap_or_default().into();
     let order_field = queries.field.unwrap_or(OrderFields::LastUpdated);
-    info!("Sorting home page by: {:?} {:?}", order_field, sort_order);
+    debug!("Sorting home page by: {:?} {:?}", order_field, sort_order);
 
     let mut checks = FullServiceCheck::all_query();
     checks = match order_field {
@@ -65,7 +65,7 @@ pub(crate) async fn index(
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
     Ok(IndexTemplate {
-        title: "Maremma".to_string(),
+        title: "".to_string(),
         num_checks: checks.len(),
         checks,
         page_refresh: 90,

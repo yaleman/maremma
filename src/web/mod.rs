@@ -9,6 +9,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use axum_server::bind;
 use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
 
 pub(crate) mod views;
 
@@ -23,22 +24,28 @@ async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoR
 
 pub(crate) fn build_app(state: WebState) -> Router {
     let static_path = PathBuf::from("./static");
+
     Router::new()
         .route("/", get(views::index::index))
         .route("/host/:host_id", get(views::host::host))
         .route("/service_check/:service_check_id", get(notimplemented))
         .route(
-            "/service_check/:service_check_id/set_urgent",
-            post(notimplemented),
+            "/service_check/:service_check_id/urgent",
+            post(views::service_check::set_service_check_urgent),
         )
         .route(
             "/service_check/:service_check_id/disable",
-            post(notimplemented),
+            post(views::service_check::set_service_check_disabled),
+        )
+        .route(
+            "/service_check/:service_check_id/enable",
+            post(views::service_check::set_service_check_enabled),
         )
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(notimplemented))
         .nest_service("/static", ServeDir::new(static_path).precompressed_br())
         .with_state(state)
+        .layer(TraceLayer::new_for_http())
 }
 
 pub async fn run_web_server(

@@ -14,13 +14,35 @@
         <th>Service</th>
         <th>Status</th>
         <th>Last Check</th>
+        <th>Check ID</th>
     </thead>
     {% for check in checks %}
     <tr>
         <td><a
                 href="/service/{{check.service_check_id}}">{{check.service_name}}</a></td>
-        <td>{{check.status}}</td>
+        <td
+            class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">
+            {{check.status}}
+        </td>
         <td>{{check.last_check}}</td>
+        <td>{{check.service_check_id}}</td>
+        <td>
+            {% if check.status == crate::web::ServiceStatus::Disabled %}
+            <form action="/service_check/{{check.service_check_id}}/enable"
+                method="post" class="buttonform">
+                <input type="submit" class="btn btn-success" value="Enable" />
+            </form>
+            {% else %}
+            <form action="/service_check/{{check.service_check_id}}/disable"
+                method="post" class="buttonform">
+                <input type="submit" class="btn btn-danger" value="Disable" />
+            </form>
+            {% endif %}
+            <form action="/service_check/{{check.service_check_id}}/urgent"
+                method="post" class="buttonform">
+                <input type="submit" class="btn btn-warning" value="Run ASAP" />
+            </form>
+        </td>
     </tr>
 
     {% endfor %}
