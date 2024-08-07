@@ -74,3 +74,18 @@ coverage:
 coverage/coveralls: ## Run coverage and upload to coveralls
 coverage/coveralls:
 	cargo tarpaulin --coveralls $(COVERALLS_REPO_TOKEN)
+
+.PHONY: plugins/extract
+plugins/extract: ## Download the check_* plugins from monitoring-plugins.org and extract them
+	cd plugins && wget https://www.monitoring-plugins.org/download/monitoring-plugins-2.4.0.tar.gz
+	cd plugins && tar -xvf monitoring-plugins-2.4.0.tar.gz
+	mv plugins/monitoring-plugins-2.4.0 plugins/monitoring-plugins
+
+.PHONY: plugins/build
+plugins/build: ## Build the check_* plugins
+plugins/build:
+	cd plugins/monitoring-plugins && ./configure \
+		--prefix="$(shell dirname `pwd`)" \
+		--without-systemd \
+		--with-ipv6 \
+		--with-openssl="/opt/homebrew/Cellar/openssl@3/3.3.1/"
