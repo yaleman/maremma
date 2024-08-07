@@ -87,6 +87,7 @@ impl ServiceTrait for HttpService {
         let time_elapsed = chrono::Utc::now() - start_time;
 
         Ok(CheckResult {
+            timestamp: start_time,
             result_text,
             status,
             time_elapsed,

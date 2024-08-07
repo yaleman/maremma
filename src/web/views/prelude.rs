@@ -10,7 +10,7 @@ pub(crate) use std::sync::Arc;
 
 pub(crate) use axum::http::StatusCode;
 pub(crate) use axum::response::IntoResponse;
-pub(crate) use sea_orm::{ActiveModelTrait, DbErr, EntityTrait, IntoActiveModel};
+pub(crate) use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
 pub(crate) use uuid::Uuid;
 
 pub(crate) use tracing::*;

@@ -11,11 +11,14 @@ pub enum Error {
     IoError(String),
     ServiceNotFoundByName(String),
     ServiceNotFound(Uuid),
+    HostGroupNotFoundByName(String),
     HostNotFound(Uuid),
     ServiceCheckNotFound(Uuid),
     ServiceConfigNotFound(String),
     SqlError(sea_orm::error::DbErr),
     CronParseError(String),
+    InvalidInput(String),
+    DateIsInTheFuture,
 }
 
 impl From<serde_json::Error> for Error {

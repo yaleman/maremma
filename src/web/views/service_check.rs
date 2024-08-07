@@ -38,12 +38,6 @@ pub(crate) async fn set_service_check_status(
                 ))
             }
         },
-        Err(DbErr::RecordNotFound(_)) => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={} not found", service_check_id),
-            ))
-        }
         Err(err) => {
             error!(
                 "Failed to search for service check {}: {:?}",

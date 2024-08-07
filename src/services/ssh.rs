@@ -43,6 +43,7 @@ impl ServiceTrait for SshService {
 
         if res.status != std::process::ExitStatus::from_raw(0) {
             return Ok(CheckResult {
+                timestamp: start_time,
                 result_text: "CRITICAL".to_string(),
                 status: ServiceStatus::Critical,
                 time_elapsed,
@@ -50,6 +51,7 @@ impl ServiceTrait for SshService {
         }
 
         Ok(CheckResult {
+            timestamp: start_time,
             result_text: "Ok".to_string(),
             status: ServiceStatus::Ok,
             time_elapsed,

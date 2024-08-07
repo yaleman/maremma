@@ -1,5 +1,5 @@
 use entities::host_group;
-use sea_orm::{ColumnTrait, DbErr, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use tracing::error;
 use uuid::Uuid;
 
@@ -54,12 +54,6 @@ pub(crate) async fn host(
                 ))
             }
         },
-        Err(DbErr::RecordNotFound(_)) => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("Host with id={} not found", host_id),
-            ))
-        }
         Err(err) => {
             error!("Failed to search for host: {:?}", err);
             return Err((

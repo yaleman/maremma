@@ -51,7 +51,6 @@ impl ActiveModelBehavior for ActiveModel {}
 pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
     match Entity::find().filter(Column::Name.eq(name)).one(db).await {
         Ok(val) => Ok(val.into_iter().next()),
-        Err(DbErr::RecordNotFound(_)) => Ok(None),
         Err(err) => {
             error!("Query failed while looking up host '{}': {:?}", name, err);
             Err(err.into())

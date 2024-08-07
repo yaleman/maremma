@@ -19,6 +19,7 @@ impl ServiceTrait for KubernetesService {
             Ok(val) => val,
             Err(err) => {
                 return Ok(CheckResult {
+                    timestamp: start_time,
                     result_text: format!("UNKNOWN: Unable to configure Kubernetes client: {}", err),
                     status: ServiceStatus::Unknown,
                     time_elapsed: chrono::Utc::now() - start_time,
@@ -32,6 +33,7 @@ impl ServiceTrait for KubernetesService {
         };
 
         Ok(CheckResult {
+            timestamp: start_time,
             result_text,
             status,
             time_elapsed: chrono::Utc::now() - start_time,

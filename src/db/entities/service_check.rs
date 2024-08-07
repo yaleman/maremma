@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use entities::service_check_history;
 use sea_orm::{Database, FromQueryResult, JoinType, QuerySelect, QueryTrait, Set, TryIntoModel};
 
 use crate::prelude::*;
@@ -70,6 +71,7 @@ impl Model {
 pub enum Relation {
     Service,
     Host,
+    ServiceCheckHistory,
 }
 
 impl RelationTrait for Relation {
@@ -82,6 +84,10 @@ impl RelationTrait for Relation {
             Self::Host => Entity::belongs_to(host::Entity)
                 .from(Column::HostId)
                 .to(host::Column::Id)
+                .into(),
+            Self::ServiceCheckHistory => Entity::belongs_to(service_check_history::Entity)
+                .from(Column::Id)
+                .to(service_check_history::Column::ServiceCheckId)
                 .into(),
         }
     }
@@ -96,6 +102,12 @@ impl Related<service::Entity> for Entity {
 impl Related<host::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Host.def()
+    }
+}
+
+impl Related<service_check_history::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ServiceCheckHistory.def()
     }
 }
 
@@ -186,13 +198,7 @@ impl MaremmaEntity for Model {
 
         info!("Starting remote updates...");
         // now we're doing the other services!
-        let services = match service::Entity::find().all(db.as_ref()).await {
-            Ok(services) => services,
-            Err(DbErr::RecordNotFound(_)) => {
-                vec![]
-            }
-            Err(err) => return Err(err.into()),
-        };
+        let services = service::Entity::find().all(db.as_ref()).await?;
 
         if services.is_empty() {
             error!("No services found, skipping service check update");

@@ -64,33 +64,28 @@ impl Entity {
         host_id: &Uuid,
         group_id: &Uuid,
     ) -> Result<Model, Error> {
-        let existing = match Entity::find()
+        let existing = Entity::find()
             .filter(Column::HostId.eq(*host_id))
             .filter(Column::GroupId.eq(*group_id))
             .one(db)
-            .await
-        {
-            Ok(val) => val,
-            Err(DbErr::RecordNotFound(_)) => None,
-            Err(err) => return Err(err.into()),
-        };
-
-        if let Some(model) = existing {
-            return Ok(model);
+            .await?;
+        match existing {
+            Some(val) => Ok(val),
+            None => {
+                debug!(
+                    "Adding host_group_member for host {} and group {}",
+                    host_id, group_id
+                );
+                ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    host_id: Set(*host_id),
+                    group_id: Set(*group_id),
+                }
+                .insert(db)
+                .await
+                .map_err(Error::from)
+            }
         }
-
-        debug!(
-            "Adding host_group_member for host {} and group {}",
-            host_id, group_id
-        );
-        let model = ActiveModel {
-            id: Set(Uuid::new_v4()),
-            host_id: Set(*host_id),
-            group_id: Set(*group_id),
-        };
-
-        let model = model.insert(db).await?;
-        Ok(model)
     }
 }
 
@@ -121,29 +116,14 @@ impl MaremmaEntity for Model {
                 if let Some((_group, host_list)) = inverted_group_list.get_mut(&group_name) {
                     host_list.push(db_host.id);
                 } else {
-                    let group = match super::host_group::Entity::find()
+                    let group = super::host_group::Entity::find()
                         .filter(super::host_group::Column::Name.eq(&group_name))
                         .one(db.as_ref())
-                        .await
-                    {
-                        Ok(val) => val,
-                        Err(err) => {
-                            if let DbErr::RecordNotFound(_) = err {
-                                None
-                            } else {
-                                error!("Oh no");
-                                return Err(err.into());
-                            }
-                        }
-                    };
+                        .await?;
 
                     match group {
                         None => {
-                            error!("Couldn't find group {}", group_name);
-                            return Err(Error::SqlError(DbErr::RecordNotFound(format!(
-                                "Group {} not found",
-                                group_name
-                            ))));
+                            return Err(Error::HostGroupNotFoundByName(group_name));
                         }
                         Some(group) => {
                             inverted_group_list.insert(group_name, (group, vec![db_host.id]));

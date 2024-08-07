@@ -34,11 +34,11 @@ impl Related<super::host_group_members::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {}
 
 pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-    match Entity::find().filter(Column::Name.eq(name)).one(db).await {
-        Ok(val) => Ok(val),
-        Err(DbErr::RecordNotFound(_)) => Ok(None),
-        Err(err) => Err(err.into()),
-    }
+    Entity::find()
+        .filter(Column::Name.eq(name))
+        .one(db)
+        .await
+        .map_err(Error::from)
 }
 
 #[async_trait]

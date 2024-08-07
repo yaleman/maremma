@@ -11,6 +11,7 @@ pub struct PingService {
 #[async_trait]
 impl ServiceTrait for PingService {
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+        let start_time = chrono::Utc::now();
         let payload = [0; 8];
 
         let hostname = lookup_host(format!("{}:80", host.hostname.clone()))
@@ -25,6 +26,7 @@ impl ServiceTrait for PingService {
         let res = format!("OK: Ping to {} took {}ms", host.name, duration.as_millis());
 
         Ok(CheckResult {
+            timestamp: start_time,
             result_text: res,
             status: ServiceStatus::Ok,
             time_elapsed: chrono::Duration::from_std(duration)

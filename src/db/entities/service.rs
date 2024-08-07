@@ -80,7 +80,7 @@ impl MaremmaEntity for Model {
                                 res.try_into_model()?
                             }
                         }
-                        Ok(None) | Err(DbErr::RecordNotFound(_)) => {
+                        Ok(None) => {
                             // insert the service if we can't find it
                             let mut am = ActiveModel::new();
                             let service_id = Uuid::new_v4();
