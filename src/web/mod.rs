@@ -18,6 +18,13 @@ pub(crate) struct WebState {
     pub db: Arc<DatabaseConnection>,
 }
 
+#[cfg(test)]
+impl WebState {
+    pub(crate) fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
+}
+
 async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {
     Err((StatusCode::NOT_FOUND, "Not Implemented yet!"))
 }

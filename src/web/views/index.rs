@@ -1,5 +1,5 @@
 use entities::service_check::FullServiceCheck;
-use sea_orm::{Order, QueryOrder};
+use sea_orm::{Order as SeaOrmOrder, QueryOrder};
 
 use super::prelude::*;
 
@@ -13,27 +13,10 @@ pub struct IndexTemplate {
     pub page_refresh: u64,
 }
 
-#[derive(Deserialize, Default, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum FieldOrder {
-    Asc,
-    #[default]
-    Desc,
-}
-
-impl From<FieldOrder> for Order {
-    fn from(value: FieldOrder) -> Self {
-        match value {
-            FieldOrder::Asc => Order::Asc,
-            FieldOrder::Desc => Order::Desc,
-        }
-    }
-}
-
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub(crate) struct IndexQueries {
-    pub ord: Option<FieldOrder>,
+    pub ord: Option<Order>,
     pub field: Option<OrderFields>,
 }
 
@@ -42,7 +25,7 @@ pub(crate) async fn index(
     Query(queries): Query<IndexQueries>,
     State(state): State<WebState>,
 ) -> Result<IndexTemplate, (StatusCode, String)> {
-    let sort_order: Order = queries.ord.unwrap_or_default().into();
+    let sort_order: SeaOrmOrder = queries.ord.unwrap_or_default().into();
     let order_field = queries.field.unwrap_or(OrderFields::LastUpdated);
     debug!("Sorting home page by: {:?} {:?}", order_field, sort_order);
 
@@ -70,4 +53,29 @@ pub(crate) async fn index(
         checks,
         page_refresh: 90,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::tests::test_setup;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_index() {
+        let (db, _config) = test_setup().await.expect("Failed to set up!");
+
+        let state = WebState::new(db);
+        let res = index(
+            Query(IndexQueries {
+                ord: None,
+                field: None,
+            }),
+            State(state),
+        )
+        .await;
+        assert!(res.is_ok());
+
+        assert!(res.unwrap().to_string().contains("Maremma"));
+    }
 }

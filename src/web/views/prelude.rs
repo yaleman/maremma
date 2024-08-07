@@ -44,6 +44,7 @@ pub(crate) enum OrderFields {
 
 #[allow(dead_code)]
 #[derive(Eq, PartialEq)]
+/// used in askama templates for displaying checks
 pub(crate) struct Check {
     /// Used internally for sorting the checks
     pub ordervalue: String,
@@ -63,5 +64,38 @@ impl Ord for Check {
 impl PartialOrd for Check {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_order_from() {
+        assert_eq!(sea_orm::Order::Asc, Order::Asc.into());
+        assert_eq!(sea_orm::Order::Desc, Order::Desc.into());
+    }
+
+    #[test]
+    fn test_check_ord() {
+        let check1 = Check {
+            ordervalue: "1".to_string(),
+            host_id: Arc::new("1".to_string()),
+            hostname: Arc::new("host1".to_string()),
+            name: "check1".to_string(),
+            status: "OK".to_string(),
+            last_updated: Local::now(),
+        };
+        let check2 = Check {
+            ordervalue: "2".to_string(),
+            host_id: Arc::new("2".to_string()),
+            hostname: Arc::new("host2".to_string()),
+            name: "check2".to_string(),
+            status: "OK".to_string(),
+            last_updated: Local::now(),
+        };
+        assert_eq!(check1.cmp(&check2), std::cmp::Ordering::Less);
+        assert_eq!(check1.partial_cmp(&check2), Some(std::cmp::Ordering::Less));
     }
 }
