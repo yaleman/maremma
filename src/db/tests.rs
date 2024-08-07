@@ -14,10 +14,9 @@ async fn test_next_service_check() {
             .expect("Failed to connect to database"),
     );
 
-    let configuration =
-        crate::config::Configuration::new(Some(PathBuf::from("maremma.example.json")))
-            .await
-            .expect("Failed to load config");
+    let configuration = crate::config::Configuration::new(&PathBuf::from("maremma.example.json"))
+        .await
+        .expect("Failed to load config");
 
     crate::db::update_db_from_config(db.clone(), &configuration)
         .await

@@ -56,8 +56,7 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    pub async fn new(filename: Option<PathBuf>) -> Result<Self, Error> {
-        let filename = filename.unwrap_or(PathBuf::from(DEFAULT_CONFIG_FILE));
+    pub async fn new(filename: &PathBuf) -> Result<Self, Error> {
         if !filename.exists() {
             return Err(Error::ConfigFileNotFound(
                 filename.to_string_lossy().to_string(),
@@ -103,9 +102,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_new() {
-        assert!(Configuration::new("asdfsdafdsf.asdfsadfdf".parse().ok())
-            .await
-            .is_err());
+        assert!(Configuration::new(
+            &"asdfsdafdsf.asdfsadfdf"
+                .parse()
+                .expect("Failed to parse filename")
+        )
+        .await
+        .is_err());
 
         let config = serde_json::json! {{
             "hosts": {

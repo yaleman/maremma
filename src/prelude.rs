@@ -13,7 +13,7 @@ pub use tracing::{debug, error, info, instrument, trace, warn};
 pub use uuid::Uuid;
 
 pub(crate) use crate::check_loop::CheckResult;
-pub(crate) use crate::{DEFAULT_CONFIG_FILE, LOCAL_SERVICE_HOST_NAME};
+pub(crate) use crate::LOCAL_SERVICE_HOST_NAME;
 
 pub(crate) use crate::config::Configuration;
 pub(crate) use crate::db::entities::{self, MaremmaEntity};

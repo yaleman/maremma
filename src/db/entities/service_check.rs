@@ -538,7 +538,7 @@ mod tests {
         );
 
         let configuration =
-            crate::config::Configuration::new(Some(PathBuf::from("maremma.example.json")))
+            crate::config::Configuration::new(&PathBuf::from("maremma.example.json"))
                 .await
                 .expect("Failed to load config");
 

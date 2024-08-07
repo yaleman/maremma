@@ -6,9 +6,9 @@ use clap::*;
 pub struct SharedOpts {
     #[clap(short, long,action = clap::ArgAction::SetTrue)]
     pub debug: Option<bool>,
-    #[clap(short, long, help=format!("Path to the configuration file. Defaults to {}", crate::DEFAULT_CONFIG_FILE))]
+    #[clap(short, long, help=format!("Path to the configuration file. Defaults to {}", crate::DEFAULT_CONFIG_FILE), default_value=crate::DEFAULT_CONFIG_FILE)]
     /// Defaults to [crate::DEFAULT_CONFIG_FILE]
-    pub config: Option<PathBuf>,
+    pub config: PathBuf,
 }
 
 #[derive(Parser, Clone, Default)]
@@ -41,10 +41,10 @@ pub struct CliOpts {
 }
 
 impl CliOpts {
-    pub fn config(&self) -> Option<PathBuf> {
+    pub fn config(&self) -> &PathBuf {
         match &self.action {
-            Actions::Run(run) => run.sharedopts.config.clone(),
-            Actions::ShowConfig(run) => run.sharedopts.config.clone(),
+            Actions::Run(run) => &run.sharedopts.config,
+            Actions::ShowConfig(run) => &run.sharedopts.config,
         }
     }
 
@@ -78,21 +78,24 @@ mod tests {
         let test_list = vec![
             (
                 "maremma run --config /tmp/config.toml",
-                Some(PathBuf::from("/tmp/config.toml")),
+                PathBuf::from("/tmp/config.toml"),
             ),
             (
                 "maremma show-config --config /tmp/config.toml",
-                Some(PathBuf::from("/tmp/config.toml")),
+                PathBuf::from("/tmp/config.toml"),
             ),
-            ("maremma run", None),
-            ("maremma show-config", None),
+            ("maremma run", PathBuf::from(crate::DEFAULT_CONFIG_FILE)),
+            (
+                "maremma show-config",
+                PathBuf::from(crate::DEFAULT_CONFIG_FILE),
+            ),
         ];
 
         for (args, expected_config) in test_list {
             let args = args.split_whitespace().collect::<Vec<&str>>();
             let opts = CliOpts::parse_from(args);
 
-            assert_eq!(opts.config(), expected_config);
+            assert_eq!(opts.config(), &expected_config);
         }
     }
 }
