@@ -95,7 +95,15 @@ impl GenericHost for SshHost {
     where
         Self: Sized,
     {
-        serde_json::from_value(config).map_err(|e| Error::ConfigParse(e.to_string()))
+        Self::try_from(&config)
+    }
+}
+
+impl TryFrom<&Value> for SshHost {
+    type Error = Error;
+
+    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+        serde_json::from_value(value.clone()).map_err(|e| Error::ConfigParse(e.to_string()))
     }
 }
 
@@ -135,5 +143,22 @@ mod test {
         assert_eq!(host.hostname, "example.com");
         assert_eq!(host.port, DEFAULT_SSH_PORT);
         assert_eq!(host.timeout_seconds, 5);
+    }
+    #[test]
+    fn test_try_from_value() {
+        let config = serde_json::json! {
+                {
+                    "hostname": "example.com",
+                    "timeout_seconds": 5
+                }
+        };
+        let host = SshHost::try_from(&config).unwrap();
+        assert_eq!(host.hostname, "example.com");
+        assert_eq!(host.port, DEFAULT_SSH_PORT);
+        assert_eq!(host.timeout_seconds, 5);
+        assert_eq!(
+            SshHost::try_from_config(config).unwrap().hostname,
+            host.hostname
+        );
     }
 }
