@@ -62,7 +62,7 @@ pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<
 impl MaremmaEntity for Model {
     async fn update_db_from_config(
         db: Arc<DatabaseConnection>,
-        config: &Configuration,
+        config: Arc<Configuration>,
     ) -> Result<(), Error> {
         for (name, host) in config.hosts.clone().into_iter() {
             let model = match find_by_name(&name, db.as_ref()).await {
@@ -77,7 +77,7 @@ impl MaremmaEntity for Model {
                 Some(val) => {
                     debug!("Found host '{:?}'", name);
                     let hostname = match host.hostname {
-                        None => name.clone(),
+                        None => name.to_owned(),
                         Some(val) => val,
                     };
 
@@ -87,7 +87,7 @@ impl MaremmaEntity for Model {
                     existing_host
                         .hostname
                         .set_if_not_equals(hostname.to_owned());
-                    existing_host.name.set_if_not_equals(name.to_owned());
+                    existing_host.name.set_if_not_equals(name);
 
                     if existing_host.is_changed() {
                         warn!("Updating {:?}", &existing_host);
@@ -132,37 +132,34 @@ mod tests {
     use tracing::info;
 
     use crate::db::entities::MaremmaEntity;
+    use crate::db::tests::test_setup;
     use crate::setup_logging;
 
     #[tokio::test]
     async fn test_host_entity() {
-        let _ = setup_logging(true);
-
-        let db = crate::db::test_connect()
-            .await
-            .expect("Failed to connect to database");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let host = super::test_host();
         info!("saving host...");
         let am = host.clone().into_active_model();
-        super::Entity::insert(am).exec(&db).await.unwrap();
+        super::Entity::insert(am).exec(db.as_ref()).await.unwrap();
 
         let new_host = super::Entity::find()
             .filter(super::Column::Id.eq(host.id))
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .unwrap();
         info!("found it: {:?}", new_host);
 
         super::Entity::delete_by_id(new_host.id)
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq(new_host.id))
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_none());
@@ -170,30 +167,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_db_from_config() {
-        let db = Arc::new(
-            crate::db::test_connect()
-                .await
-                .expect("Failed to connect to database"),
-        );
-
-        let configuration =
-            crate::config::Configuration::new(&PathBuf::from("maremma.example.json"))
-                .await
-                .expect("Failed to load configuration");
-
-        super::Model::update_db_from_config(db, &configuration)
+        let (db, config) = test_setup().await.expect("Failed to start test harness");
+        super::Model::update_db_from_config(db, config)
             .await
             .expect("Failed to load config");
     }
     #[tokio::test]
     async fn test_create_then_search() {
-        let _ = setup_logging(true);
-
-        let db = Arc::new(
-            crate::db::test_connect()
-                .await
-                .expect("Failed to connect to database"),
-        );
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let inserted_host = super::Entity::insert(super::test_host().into_active_model())
             .exec_with_returning(db.as_ref())

@@ -78,7 +78,7 @@ impl Configuration {
         Ok(res)
     }
     #[cfg(test)]
-    pub async fn load_test_config() -> Self {
+    pub async fn load_test_config() -> Arc<Self> {
         let mut res: Configuration = serde_json::from_str(
             &tokio::fs::read_to_string("maremma.example.json")
                 .await
@@ -92,7 +92,7 @@ impl Configuration {
                 Host::new(LOCAL_SERVICE_HOST_NAME.to_string(), HostCheck::None),
             );
         }
-        res
+        Arc::new(res)
     }
 }
 

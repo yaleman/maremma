@@ -93,7 +93,7 @@ impl Entity {
 impl MaremmaEntity for Model {
     async fn update_db_from_config(
         db: Arc<DatabaseConnection>,
-        config: &Configuration,
+        config: Arc<Configuration>,
     ) -> Result<(), Error> {
         // group -> (group def, host ids)
         let mut inverted_group_list: HashMap<String, (super::host_group::Model, Vec<Uuid>)> =
@@ -149,30 +149,24 @@ impl MaremmaEntity for Model {
 
 #[cfg(test)]
 mod tests {
-    use crate::{prelude::*, setup_logging};
+    use crate::db::tests::test_setup;
+    use crate::prelude::*;
 
     #[tokio::test]
     async fn test_update_db_from_config() {
-        let _ = setup_logging(true);
-        let db = Arc::new(
-            crate::db::test_connect()
-                .await
-                .expect("Failed to connect to database"),
-        );
-
-        let configuration = crate::config::Configuration::load_test_config().await;
+        let (db, config) = test_setup().await.expect("Failed to start test harness");
 
         // have to include this because otherwise the members won't exist :)
-        super::super::host::Model::update_db_from_config(db.clone(), &configuration)
+        super::super::host::Model::update_db_from_config(db.clone(), config.clone())
             .await
             .expect("Failed to update hosts from config");
 
         // have to include this because otherwise the members won't exist :)
-        super::super::host_group::Model::update_db_from_config(db.clone(), &configuration)
+        super::super::host_group::Model::update_db_from_config(db.clone(), config.clone())
             .await
             .expect("Failed to update host groups from config");
 
-        super::Model::update_db_from_config(db.clone(), &configuration)
+        super::Model::update_db_from_config(db.clone(), config)
             .await
             .expect("Failed to load config");
 

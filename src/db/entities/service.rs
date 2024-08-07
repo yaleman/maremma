@@ -45,7 +45,7 @@ impl ActiveModelBehavior for ActiveModel {}
 impl MaremmaEntity for Model {
     async fn update_db_from_config(
         db: Arc<DatabaseConnection>,
-        config: &Configuration,
+        config: Arc<Configuration>,
     ) -> Result<(), Error> {
         if let Some(services) = config.services.clone() {
             if let Some(services) = services.as_object() {
@@ -124,43 +124,37 @@ pub(crate) fn test_service() -> Model {
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use crate::db::tests::test_setup;
 
     use sea_orm::IntoActiveModel;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use tracing::info;
 
-    use crate::setup_logging;
-
     #[tokio::test]
     async fn test_service_entity() {
-        let _ = setup_logging(true);
-
-        let db = crate::db::test_connect()
-            .await
-            .expect("Failed to connect to database");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = super::test_service();
         info!("saving service...");
         let am = service.clone().into_active_model();
-        super::Entity::insert(am).exec(&db).await.unwrap();
+        super::Entity::insert(am).exec(db.as_ref()).await.unwrap();
 
         let service = super::Entity::find()
             .filter(super::Column::Id.eq(service.id))
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .unwrap();
         info!("found it: {:?}", service);
 
         super::Entity::delete_by_id(service.id)
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq("test_service".to_string()))
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_none());
@@ -168,18 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_update_db_from_config() {
-        let _ = setup_logging(true);
-
-        let db = Arc::new(
-            crate::db::test_connect()
-                .await
-                .expect("Failed to connect to database"),
-        );
-
-        let config = Configuration::load_test_config().await;
-        super::Model::update_db_from_config(db.clone(), &config)
-            .await
-            .unwrap();
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))

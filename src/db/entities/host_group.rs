@@ -45,7 +45,7 @@ pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<
 impl MaremmaEntity for Model {
     async fn update_db_from_config(
         db: Arc<DatabaseConnection>,
-        config: &Configuration,
+        config: Arc<Configuration>,
     ) -> Result<(), Error> {
         let mut known_group_list: Vec<String> = Entity::find()
             .all(db.as_ref())
@@ -130,25 +130,15 @@ impl MaremmaEntity for Model {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-    use std::sync::Arc;
 
+    use crate::db::tests::test_setup;
     use crate::prelude::MaremmaEntity;
 
     #[tokio::test]
     async fn test_update_db_from_config() {
-        let db = Arc::new(
-            crate::db::test_connect()
-                .await
-                .expect("Failed to connect to database"),
-        );
+        let (db, config) = test_setup().await.expect("Failed to start test harness");
 
-        let configuration =
-            crate::config::Configuration::new(&PathBuf::from("maremma.example.json"))
-                .await
-                .expect("Failed to load configuration");
-
-        super::Model::update_db_from_config(db, &configuration)
+        super::Model::update_db_from_config(db, config)
             .await
             .expect("Failed to load config");
     }

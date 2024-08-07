@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::db::get_next_service_check;
 use crate::prelude::*;
 
@@ -7,18 +5,9 @@ use crate::setup_logging;
 
 #[tokio::test]
 async fn test_next_service_check() {
-    let _ = setup_logging(true);
-    let db = Arc::new(
-        crate::db::test_connect()
-            .await
-            .expect("Failed to connect to database"),
-    );
+    let (db, config) = test_setup().await.expect("Failed to start test harness");
 
-    let configuration = crate::config::Configuration::new(&PathBuf::from("maremma.example.json"))
-        .await
-        .expect("Failed to load config");
-
-    crate::db::update_db_from_config(db.clone(), &configuration)
+    crate::db::update_db_from_config(db.clone(), config.clone())
         .await
         .unwrap();
 
@@ -28,7 +17,7 @@ async fn test_next_service_check() {
 }
 
 #[cfg(test)]
-pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, Configuration), Error> {
+pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, Arc<Configuration>), Error> {
     // make sure logging is happening
     let _ = setup_logging(true);
     // enable the rustls crypto provider
@@ -42,7 +31,7 @@ pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, Configurati
 
     let config = Configuration::load_test_config().await;
 
-    crate::db::update_db_from_config(db.clone(), &config)
+    crate::db::update_db_from_config(db.clone(), config.clone())
         .await
         .expect("Failed to update DB from config");
     Ok((db, config))

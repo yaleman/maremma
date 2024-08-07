@@ -34,7 +34,7 @@ async fn main() -> Result<(), ExitCode> {
                 ExitCode::FAILURE
             })?);
 
-            update_db_from_config(db.clone(), &config).await?;
+            update_db_from_config(db.clone(), config.clone()).await?;
 
             tokio::select! {
                 check_loop_result = run_check_loop(db.clone()) => {

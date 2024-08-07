@@ -115,7 +115,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 async fn update_local_services_from_db(
     db: Arc<DatabaseConnection>,
-    config: &Configuration,
+    config: Arc<Configuration>,
 ) -> Result<(), Error> {
     let local_host_id = match host::Entity::find()
         .filter(host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
@@ -189,7 +189,7 @@ impl MaremmaEntity for Model {
     /// This updates all the service checks. It really needs to be run after you've added all the hosts and services and host_groups!
     async fn update_db_from_config(
         db: Arc<DatabaseConnection>,
-        config: &Configuration,
+        config: Arc<Configuration>,
     ) -> Result<(), Error> {
         debug!("Starting update of service checks");
         // the easy ones are the locals.
@@ -350,6 +350,7 @@ impl FullServiceCheck {
 mod tests {
     use super::super::{host, service};
     use super::*;
+    use crate::db::tests::test_setup;
     use crate::prelude::*;
     use crate::setup_logging;
     use core::panic;
@@ -358,11 +359,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_check_entity() {
-        let _ = setup_logging(true);
-
-        let db = crate::db::test_connect()
-            .await
-            .expect("Failed to connect to database");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = service::test_service();
         let host = host::test_host();
@@ -370,12 +367,12 @@ mod tests {
 
         let service_am = service.into_active_model();
         let _service = service::Entity::insert(service_am.to_owned())
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
         let host_am = host.into_active_model();
         let _host = host::Entity::insert(host_am.to_owned())
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
 
@@ -390,13 +387,13 @@ mod tests {
 
         let am = service_check.into_active_model();
 
-        if let Err(err) = Entity::insert(am).exec(&db).await {
+        if let Err(err) = Entity::insert(am).exec(db.as_ref()).await {
             panic!("Failed to insert service check: {:?}", err);
         };
 
         let service_check = Entity::find()
             .filter(Column::Id.eq(service_check_id))
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .unwrap();
@@ -404,17 +401,17 @@ mod tests {
         info!("found it: {:?}", service_check);
 
         Entity::delete_by_id(service_check_id)
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
         // Check we didn't delete the host when deleting the service check
         assert!(host::Entity::find_by_id(host_am.id.unwrap())
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_some());
         assert!(service::Entity::find_by_id(service_am.id.unwrap())
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_some());
@@ -423,11 +420,7 @@ mod tests {
     #[tokio::test]
     /// test creating a service + host + service check, then deleting a host - which should delete the service_check
     async fn test_service_check_fk_host() {
-        let _ = setup_logging(true);
-
-        let db = crate::db::test_connect()
-            .await
-            .expect("Failed to connect to database");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = service::test_service();
         let host = host::test_host();
@@ -435,13 +428,13 @@ mod tests {
 
         let service_am = service.into_active_model();
         let _service = service::Entity::insert(service_am.to_owned())
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
         let host_am_id = host.id;
         let host_am = host.into_active_model();
         let _host = host::Entity::insert(host_am.to_owned())
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
 
@@ -453,24 +446,24 @@ mod tests {
         };
         let service_check_am = service_check
             .into_active_model()
-            .insert(&db)
+            .insert(db.as_ref())
             .await
             .expect("Failed to save service check")
             .try_into_model()
             .expect("Failed to turn activemodel into model");
 
         assert!(Entity::find_by_id(service_check_am.id)
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_some());
         host::Entity::delete_by_id(host_am_id)
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
         // Check we delete the service check when deleting the host
         assert!(Entity::find_by_id(service_check_am.id)
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_none());
@@ -478,11 +471,7 @@ mod tests {
     #[tokio::test]
     /// test creating a service + host + service check, then deleting a host - which should delete the service_check
     async fn test_service_check_fk_service() {
-        let _ = setup_logging(true);
-
-        let db = crate::db::test_connect()
-            .await
-            .expect("Failed to connect to database");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = service::test_service();
         let host = host::test_host();
@@ -490,12 +479,12 @@ mod tests {
 
         let service_am = service.clone().into_active_model();
         let _service = service::Entity::insert(service_am.to_owned())
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
         let host_am = host.into_active_model();
         let _host = host::Entity::insert(host_am.clone())
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
 
@@ -507,22 +496,25 @@ mod tests {
         };
         let service_check_am = service_check.into_active_model();
         dbg!(&service_check_am);
-        if let Err(err) = Entity::insert(service_check_am.to_owned()).exec(&db).await {
+        if let Err(err) = Entity::insert(service_check_am.to_owned())
+            .exec(db.as_ref())
+            .await
+        {
             panic!("Failed to insert service check: {:?}", err);
         };
 
         assert!(Entity::find_by_id(service_check_am.id.clone().unwrap())
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_some());
         service::Entity::delete_by_id(service.id)
-            .exec(&db)
+            .exec(db.as_ref())
             .await
             .unwrap();
         // Check we delete the service check when deleting the service
         assert!(Entity::find_by_id(service_check_am.id.unwrap())
-            .one(&db)
+            .one(db.as_ref())
             .await
             .unwrap()
             .is_none());
@@ -530,19 +522,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_full_service_check() {
-        let _ = setup_logging(true);
-        let db = Arc::new(
-            crate::db::test_connect()
-                .await
-                .expect("Failed to connect to database"),
-        );
+        let (db, config) = test_setup().await.expect("Failed to set up test config");
 
-        let configuration =
-            crate::config::Configuration::new(&PathBuf::from("maremma.example.json"))
-                .await
-                .expect("Failed to load config");
-
-        crate::db::update_db_from_config(db.clone(), &configuration)
+        crate::db::update_db_from_config(db.clone(), config.clone())
             .await
             .unwrap();
 
@@ -565,7 +547,7 @@ mod tests {
         info!("Query: {}", query);
 
         let service_check =
-            FullServiceCheck::get_by_service_id(known_service_check_service_id, &db)
+            FullServiceCheck::get_by_service_id(known_service_check_service_id, db.as_ref())
                 .await
                 .expect("Failed to get service_check");
 

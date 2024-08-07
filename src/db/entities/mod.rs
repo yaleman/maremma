@@ -12,6 +12,6 @@ pub mod service_check_history;
 pub trait MaremmaEntity {
     async fn update_db_from_config(
         db: Arc<DatabaseConnection>,
-        config: &Configuration,
+        config: Arc<Configuration>,
     ) -> Result<(), Error>;
 }
