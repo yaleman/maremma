@@ -11,6 +11,8 @@ pub struct SshService {
     pub cron_schedule: Cron,
 }
 
+// TODO: look at using this instead of shelling out https://crates.io/crates/ssh-rs
+
 #[async_trait]
 impl ServiceTrait for SshService {
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
