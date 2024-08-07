@@ -13,7 +13,7 @@ fn default_ssh_port() -> u16 {
     DEFAULT_SSH_PORT
 }
 
-fn default_timeout_seconds() -> u16 {
+fn default_ssh_timeout_seconds() -> u16 {
     DEFAULT_SSH_TIMEOUT_SECONDS
 }
 
@@ -27,7 +27,7 @@ pub struct SshHost {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ip_address: Option<std::net::IpAddr>,
     /// Defaults to [DEFAULT_SSH_TIMEOUT_SECONDS]
-    #[serde(default = "default_timeout_seconds")]
+    #[serde(default = "default_ssh_timeout_seconds")]
     pub timeout_seconds: u16,
     /// If you're not just connecting as "you"
     pub remote_user: Option<String>,
@@ -136,26 +136,26 @@ mod test {
         let config = r#"
             {
                 "hostname": "example.com",
-                "timeout_seconds": 5
+                "timeout_seconds": 1234
             }
         "#;
         let host: SshHost = serde_json::from_str(config).unwrap();
         assert_eq!(host.hostname, "example.com");
         assert_eq!(host.port, DEFAULT_SSH_PORT);
-        assert_eq!(host.timeout_seconds, 5);
+        assert_eq!(host.timeout_seconds, 1234);
     }
     #[test]
     fn test_try_from_value() {
         let config = serde_json::json! {
                 {
                     "hostname": "example.com",
-                    "timeout_seconds": 5
+                    "port" : 123
                 }
         };
         let host = SshHost::try_from(&config).unwrap();
         assert_eq!(host.hostname, "example.com");
-        assert_eq!(host.port, DEFAULT_SSH_PORT);
-        assert_eq!(host.timeout_seconds, 5);
+        assert_eq!(host.port, 123);
+        assert_eq!(host.timeout_seconds, default_ssh_timeout_seconds());
         assert_eq!(
             SshHost::try_from_config(config).unwrap().hostname,
             host.hostname

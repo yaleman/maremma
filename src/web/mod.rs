@@ -55,6 +55,7 @@ pub(crate) fn build_app(state: WebState) -> Router {
         .layer(TraceLayer::new_for_http())
 }
 
+#[cfg(not(tarpaulin_include))] // TODO: tarpaulin un-ignore for code coverage
 pub async fn run_web_server(
     configuration: Arc<Configuration>,
     db: Arc<DatabaseConnection>,
@@ -79,50 +80,52 @@ pub async fn run_web_server(
 #[cfg(test)]
 mod tests {
 
-    // use crate::prelude::*;
-    // use crate::setup_logging;
-    // use crate::web::run_web_server;
-
+    use super::*;
+    use crate::db::tests::test_setup;
+    use axum::body::Body;
+    use entities::host;
     // TODO: work out how to test the startup of the server
-    // #[tokio::test]
-    // async fn test_run_web_server() {
-    //     let _ = setup_logging(true);
+    use tower::util::ServiceExt;
 
-    //     let mut configuration = Configuration::load_test_config().await;
-    //     configuration.listen_port = Some(rand::random::<u16>());
+    #[tokio::test]
+    async fn test_app_requests() {
+        let (db, _config) = test_setup().await.expect("Failed to set up test");
+        let app = build_app(WebState::new(db.clone()));
 
-    //     let mut attempts = 0;
-    //     loop {
-    //         // don't test on the standard port
-    //         if configuration.listen_port == Some(8888) {
-    //             continue;
-    //         }
-    //         // don't let it run on low ports
-    //         if let Some(port) = configuration.listen_port {
-    //             if port < 4096 {
-    //                 continue;
-    //             }
-    //         }
-    //         // test to see if we can connect to the port
-    //         if let Ok(listener) = std::net::TcpListener::bind(format!(
-    //             "{}:{}",
-    //             configuration.listen_address,
-    //             configuration.listen_port.unwrap()
-    //         )) {
-    //             drop(listener);
-    //             break;
-    //         }
-    //         configuration.listen_port = Some(rand::random::<u16>());
-    //         attempts += 1;
-    //         if attempts > 5 {
-    //             panic!("Failed to find a port to bind to");
-    //         }
-    //     }
-    //     debug!("Using port: {:?}", configuration.listen_port);
-    //     let db = Arc::new(crate::db::test_connect().await.unwrap());
-    //     let _result = tokio::spawn(run_web_server(Arc::new(configuration), db));
+        app.clone()
+            .oneshot(axum::http::Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .expect("Failed to run app");
 
-    //     let _ = tokio::time::sleep(tokio::time::Duration::from_micros(500)).await;
-    //     drop(_result);
-    // }
+        let host = host::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query db for host")
+            .expect("Failed to find host");
+
+        let url = format!("/host/{}", host.id);
+        app.clone()
+            .oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
+            .await
+            .expect(&format!("Failed to GET {}", url));
+
+        let service_check = entities::service_check::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query db for service_check")
+            .expect("Failed to find service_check");
+
+        let url = format!("/service_check/{}", service_check.id);
+        app.oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
+            .await
+            .expect(&format!("Failed to get {}", url));
+    }
+
+    #[tokio::test]
+    async fn test_not_implemented() {
+        let (db, _config) = test_setup().await.expect("Failed to set up test");
+
+        let res = notimplemented(axum::extract::State(WebState::new(db))).await;
+        assert!(res.is_err());
+    }
 }
