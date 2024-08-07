@@ -24,3 +24,18 @@ impl GenericHost for FakeHost {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::host::GenericHost;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn test_fakehost() {
+        let host = FakeHost::try_from_config(json!({})).unwrap();
+        assert_eq!(host.id(), "fakehost");
+        assert_eq!(host.name(), "FakeHost");
+        assert_eq!(host.check_up().await.unwrap(), true);
+    }
+}

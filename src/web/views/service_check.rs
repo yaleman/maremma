@@ -60,7 +60,10 @@ pub(crate) async fn set_service_check_status(
 
     if service_check.is_changed() {
         service_check.save(state.db.as_ref()).await.map_err(|err| {
-            error!("Failed to update service check: {:?}", err);
+            error!(
+                "Failed to set service_check_id={} to status={}: {:?}",
+                service_check_id, status, err
+            );
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Database error".to_string(),

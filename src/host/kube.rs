@@ -74,8 +74,10 @@ impl GenericHost for KubeHost {
 
 #[cfg(test)]
 mod tests {
+    use crate::host::GenericHost;
+
     #[test]
-    fn test_kube_host_builderd() {
+    fn test_kube_host_builder() {
         let host = crate::host::kube::KubeHost::from_hostname("localhost");
         assert_eq!(host.hostname, "localhost");
         assert_eq!(host.api_port, 6443);
@@ -85,8 +87,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_kube_check_up() {
-        use super::*;
-
         let hostname = match std::env::var("MAREMMA_TEST_KUBE_HOST") {
             Ok(val) => val,
             Err(_) => {
@@ -100,5 +100,40 @@ mod tests {
         let host = super::KubeHost::from_hostname(&hostname);
         let result = host.check_up().await;
         assert_eq!(result, Ok(true));
+    }
+
+    #[test]
+    fn test_kube_host_with_port() {
+        let host = crate::host::kube::KubeHost::from_hostname("localhost").with_port(8443);
+        assert_eq!(host.hostname, "localhost");
+        assert_eq!(host.api_port, 8443);
+        assert_eq!(host.kube_cluster, None);
+        assert_eq!(host.api_url(), "https://localhost:8443");
+    }
+
+    #[test]
+    fn test_kube_host_with_cluster() {
+        let host =
+            crate::host::kube::KubeHost::from_hostname("localhost").with_cluster("my-cluster");
+        assert_eq!(host.hostname, "localhost");
+        assert_eq!(host.api_port, 6443);
+        assert_eq!(host.kube_cluster, Some("my-cluster".to_string()));
+        assert_eq!(host.api_url(), "https://localhost:6443");
+    }
+
+    #[test]
+    fn test_kube_host_try_from_config() {
+        let config = serde_json::json!({
+            "hostname": "localhost",
+            "api_port": 8443,
+            "kube_cluster": "my-cluster",
+            "host_groups": ["group1", "group2"]
+        });
+
+        let host = crate::host::kube::KubeHost::try_from_config(config).unwrap();
+        assert_eq!(host.hostname, "localhost");
+        assert_eq!(host.api_port, 8443);
+        assert_eq!(host.kube_cluster, Some("my-cluster".to_string()));
+        assert_eq!(host.host_groups, vec!["group1", "group2"]);
     }
 }

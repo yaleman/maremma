@@ -100,14 +100,17 @@ impl MaremmaEntity for Model {
             HashMap::new();
 
         if config.hosts.is_empty() {
-            error!("Host list is empty!");
+            debug!("Host list is empty!");
         }
 
         for (host_name, host) in config.hosts.clone() {
             let db_host = match super::host::find_by_name(&host_name, db.as_ref()).await? {
                 Some(host) => host,
                 None => {
-                    error!("Host {} not found", host_name);
+                    error!(
+                        "Host '{}' not found while updating host group members!",
+                        host_name
+                    );
                     continue;
                 }
             };
