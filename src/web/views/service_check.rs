@@ -79,3 +79,63 @@ pub(crate) async fn set_service_check_status(
         host_id.as_ref().hyphenated()
     )))
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::db::tests::test_setup;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_set_service_check_urgent() {
+        let (db, _config) = test_setup().await.expect("Failed to set up!");
+
+        let state = WebState::new(db);
+
+        let service_check = entities::service_check::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to get service check")
+            .expect("No service checks found");
+
+        let res = set_service_check_urgent(Path(service_check.id), State(state.clone())).await;
+        assert!(res.is_ok());
+        let res = set_service_check_urgent(Path(Uuid::new_v4()), State(state)).await;
+        assert!(res.is_err());
+    }
+    #[tokio::test]
+    async fn test_set_service_check_disabled() {
+        let (db, _config) = test_setup().await.expect("Failed to set up!");
+
+        let state = WebState::new(db);
+
+        let service_check = entities::service_check::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to get service check")
+            .expect("No service checks found");
+
+        let res = set_service_check_disabled(Path(service_check.id), State(state.clone())).await;
+        assert!(res.is_ok());
+        let res = set_service_check_disabled(Path(Uuid::new_v4()), State(state)).await;
+        assert!(res.is_err());
+    }
+    #[tokio::test]
+    async fn test_set_service_check_enabled() {
+        let (db, _config) = test_setup().await.expect("Failed to set up!");
+
+        let state = WebState::new(db);
+
+        let service_check = entities::service_check::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to get service check")
+            .expect("No service checks found");
+
+        let res = set_service_check_enabled(Path(service_check.id), State(state.clone())).await;
+        assert!(res.is_ok());
+        let res = set_service_check_enabled(Path(Uuid::new_v4()), State(state)).await;
+        assert!(res.is_err());
+    }
+}
