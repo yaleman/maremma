@@ -41,24 +41,6 @@ impl Host {
             extra: HashMap::new(),
         }
     }
-
-    pub fn with_hostname(self, hostname: &str) -> Self {
-        Self {
-            hostname: Some(hostname.to_string()),
-            ..self
-        }
-    }
-
-    pub fn with_host_groups(self, host_groups: Vec<String>) -> Self {
-        Self {
-            host_groups,
-            ..self
-        }
-    }
-
-    pub fn generate_host_id(name: &str, check: &HostCheck) -> String {
-        sha256::digest(&format!("{}:{:?}", name, check))
-    }
 }
 
 impl From<crate::db::entities::host::Model> for Host {
@@ -88,10 +70,10 @@ pub enum HostCheck {
     Ping,
     /// Checks by trying to SSH to the host
     #[sea_orm(string_value = "s")]
-    SshHost,
+    Ssh,
     /// Checks we can connect to the Kubernetes API
     #[sea_orm(string_value = "k")]
-    KubeHost,
+    Kubernetes,
 }
 
 impl Display for HostCheck {
@@ -99,8 +81,8 @@ impl Display for HostCheck {
         match self {
             HostCheck::None => write!(f, "None"),
             HostCheck::Ping => write!(f, "Ping"),
-            HostCheck::SshHost => write!(f, "SSH"),
-            HostCheck::KubeHost => {
+            HostCheck::Ssh => write!(f, "SSH"),
+            HostCheck::Kubernetes => {
                 write!(f, "Kubernetes")
             }
         }
@@ -121,4 +103,40 @@ where
     fn try_from_config(config: serde_json::Value) -> Result<Self, Error>
     where
         Self: Sized;
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::db::tests::test_setup;
+    use crate::host::HostCheck;
+
+    #[tokio::test]
+    async fn test_host_from_host() {
+        use super::*;
+
+        let (db, _config) = test_setup().await.expect("Failed to setup test");
+
+        let host: Host = entities::host::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query host")
+            .expect("Failed to find test host")
+            .into();
+
+        assert!(host.id.is_some());
+    }
+
+    #[test]
+
+    fn test_hostcheck_display() {
+        for (check, result) in [
+            (HostCheck::None, "None"),
+            (HostCheck::Ping, "Ping"),
+            (HostCheck::Ssh, "SSH"),
+            (HostCheck::Kubernetes, "Kubernetes"),
+        ] {
+            assert_eq!(check.to_string(), result);
+        }
+    }
 }

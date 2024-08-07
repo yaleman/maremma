@@ -83,6 +83,9 @@ mod tests {
         assert_eq!(host.api_port, 6443);
         assert_eq!(host.kube_cluster, None);
         assert_eq!(host.api_url(), "https://localhost:6443");
+
+        assert_eq!(host.name(), "KubeHost(https://localhost:6443)");
+        assert!(!host.id().is_empty())
     }
 
     #[tokio::test]
