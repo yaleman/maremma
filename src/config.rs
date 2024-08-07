@@ -14,6 +14,12 @@ fn default_listen_address() -> String {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
+pub struct OidcConfig {
+    pub issuer: String,
+    pub client_id: String,
+    pub client_secret: Option<String>,
+}
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Configuration {
     #[serde(default = "default_database_file")]
     pub database_file: String,
@@ -32,6 +38,21 @@ pub struct Configuration {
     // This is something we need to deserialize later because it's messy
     #[serde(skip_serializing)]
     pub services: Option<serde_json::Value>,
+
+    /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
+    pub frontend_url: Option<String>,
+
+    #[serde(default)]
+    pub oidc_enabled: bool,
+
+    pub oidc_config: Option<OidcConfig>,
+    #[serde(default)]
+    pub tls_enabled: bool,
+
+    #[serde(default)]
+    pub cert_file: Option<PathBuf>,
+    #[serde(default)]
+    pub cert_key: Option<PathBuf>,
 }
 
 impl Configuration {

@@ -1,3 +1,4 @@
+use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use entities::service_check::FullServiceCheck;
 use sea_orm::{Order as SeaOrmOrder, QueryOrder};
 
@@ -20,14 +21,18 @@ pub(crate) struct IndexQueries {
     pub field: Option<OrderFields>,
 }
 
-#[instrument(level = "info", skip(state), fields(http.uri="/", ))]
+#[instrument(level = "info", skip(state, claims), fields(http.uri="/", ))]
 pub(crate) async fn index(
     Query(queries): Query<IndexQueries>,
     State(state): State<WebState>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<IndexTemplate, (StatusCode, String)> {
     let sort_order: SeaOrmOrder = queries.ord.unwrap_or_default().into();
     let order_field = queries.field.unwrap_or(OrderFields::LastUpdated);
     debug!("Sorting home page by: {:?} {:?}", order_field, sort_order);
+    if let Some(claims) = claims {
+        info!("claims: {:?}", claims.0);
+    }
 
     let mut checks = FullServiceCheck::all_query();
     checks = match order_field {
@@ -63,15 +68,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_index() {
-        let (db, _config) = test_setup().await.expect("Failed to set up!");
+        let (db, config) = test_setup().await.expect("Failed to set up!");
 
-        let state = WebState::new(db);
+        let state = WebState::new(db, &config);
         let res = index(
             Query(IndexQueries {
                 ord: None,
                 field: None,
             }),
             State(state),
+            None,
         )
         .await;
         assert!(res.is_ok());

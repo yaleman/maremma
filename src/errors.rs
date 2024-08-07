@@ -19,6 +19,7 @@ pub enum Error {
     CronParseError(String),
     InvalidInput(String),
     DateIsInTheFuture,
+    Oidc(String),
 }
 
 impl From<serde_json::Error> for Error {
@@ -42,6 +43,12 @@ impl From<sea_orm::error::DbErr> for Error {
 impl From<CronError> for Error {
     fn from(value: CronError) -> Self {
         Error::CronParseError(value.to_string())
+    }
+}
+
+impl From<axum_oidc::error::Error> for Error {
+    fn from(value: axum_oidc::error::Error) -> Self {
+        Error::Oidc(value.to_string())
     }
 }
 

@@ -40,7 +40,7 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                 );
             };
 
-            info!(
+            debug!(
                 "service check time! {} - {}",
                 service_check.id.hyphenated(),
                 service.name

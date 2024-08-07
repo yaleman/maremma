@@ -27,6 +27,10 @@ There are {{ num_checks }} service checks enabled.
         <a href="/?ord=asc&field=lastupdated">Last Check&nbsp;&nbsp;⬆️</a>&nbsp;
         <a href="/?ord=desc&field=lastupdated">⬇️</a>
       </th>
+      <th>
+        <a href="/?ord=asc&field=nextcheck">Next Check&nbsp;&nbsp;⬆️</a>&nbsp;
+        <a href="/?ord=desc&field=nextcheck">⬇️</a>
+      </th>
     </tr>
   </thead>
   {% for check in checks %}
@@ -42,7 +46,8 @@ There are {{ num_checks }} service checks enabled.
       class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">
       {{check.status}}
     </td>
-    <td>{{check.last_check}}</td>
+    <td>{{check.last_check.format("%Y-%m-%d %H:%M:%S")}}</td>
+    <td>{{check.next_check.format("%Y-%m-%d %H:%M:%S")}}</td>
   </tr>
   {% endfor %}
 </table>

@@ -30,7 +30,10 @@ async fn test_next_service_check() {
 
 #[cfg(test)]
 pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, Configuration), Error> {
+    // make sure logging is happening
     let _ = setup_logging(true);
+    // enable the rustls crypto provider
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let db = Arc::new(
         crate::db::test_connect()

@@ -306,6 +306,7 @@ pub struct FullServiceCheck {
     pub host_name: String,
 
     pub last_check: DateTime<Utc>,
+    pub next_check: DateTime<Utc>,
     pub status: ServiceStatus,
 }
 
