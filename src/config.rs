@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::host::fakehost::FakeHost;
@@ -121,11 +121,55 @@ impl Configuration {
             format!("{}://{}:{}", proto, self.listen_address, port)
         })
     }
+
+    // Pulls the groups from hosts and services in the config
+    pub fn groups(&self) -> Vec<String> {
+        let mut groups: HashSet<String> = HashSet::new();
+
+        self.hosts.values().for_each(|host| {
+            host.host_groups.iter().cloned().for_each(|group| {
+                groups.insert(group);
+            });
+        });
+
+        if let Some(services) = &self.services {
+            if let Some(services) = services.as_object() {
+                services.iter().for_each(|(_service_name, service)| {
+                    if let Some(service) = service.as_object() {
+                        if let Some(host_groups) = service.get("host_groups") {
+                            if let Some(group_values) = host_groups.as_array() {
+                                group_values.iter().for_each(|group| {
+                                    if let Some(group) = group.as_str() {
+                                        groups.insert(group.to_string());
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        groups.into_iter().collect()
+    }
+
+    pub fn prune(&self, _db: &DatabaseConnection) -> Result<(), Error> {
+        // check the hosts agsinst the config file
+
+        // check the groups against the config file
+
+        // check the services against the config file
+
+        // check the checks against the config file
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::config::Configuration;
+    use crate::db::tests::test_setup;
 
     #[tokio::test]
     async fn test_config_new() {
@@ -147,5 +191,13 @@ mod tests {
         .to_string();
         let config = Configuration::new_from_string(&config).await.unwrap();
         assert_eq!(config.hosts.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_config_groups() {
+        let (_db, config) = test_setup().await.expect("Failed to setup test");
+
+        let groups = config.groups();
+        assert_eq!(groups.len(), 2);
     }
 }
