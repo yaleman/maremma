@@ -13,6 +13,12 @@ fn default_listen_address() -> String {
     "127.0.0.1".to_string()
 }
 
+fn default_max_concurrent_checks() -> usize {
+    let cpus = num_cpus::get();
+    debug!("Detected {} CPUs", cpus);
+    std::cmp::max(cpus - 2, 1)
+}
+
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct OidcConfig {
     pub issuer: String,
@@ -53,6 +59,9 @@ pub struct Configuration {
     pub cert_file: Option<PathBuf>,
     #[serde(default)]
     pub cert_key: Option<PathBuf>,
+
+    #[serde(default = "default_max_concurrent_checks")]
+    pub max_concurrent_checks: usize,
 }
 
 impl Configuration {

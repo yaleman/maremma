@@ -147,12 +147,16 @@ pub async fn run_service_check(
 }
 
 #[cfg(not(tarpaulin_include))] // TODO: tarpaulin un-ignore for code coverage
-pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
-    let max_permits = 5;
+pub async fn run_check_loop(db: Arc<DatabaseConnection>, max_permits: usize) -> Result<(), Error> {
     let mut backoff = tokio::time::Duration::from_millis(50);
     let semaphore = Arc::new(Semaphore::new(max_permits)); // Limit to n concurrent tasks
+    info!("Max concurrent tasks set to {}", max_permits);
     loop {
         if let Some((service_check, service)) = get_next_service_check(db.as_ref()).await? {
+            service_check
+                .set_status(ServiceStatus::Checking, db.as_ref())
+                .await?;
+
             match semaphore.clone().acquire_owned().await {
                 Ok(permit) => {
                     let db_clone = db.clone();

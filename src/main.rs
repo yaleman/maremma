@@ -37,7 +37,7 @@ async fn main() -> Result<(), ExitCode> {
             update_db_from_config(db.clone(), config.clone()).await?;
 
             tokio::select! {
-                check_loop_result = run_check_loop(db.clone()) => {
+                check_loop_result = run_check_loop(db.clone(), config.max_concurrent_checks) => {
                     error!("Check loop bailed: {:?}", check_loop_result);
                 },
                 web_server_result = run_web_server(config.clone(), db.clone()) => {
