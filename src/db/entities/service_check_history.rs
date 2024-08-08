@@ -1,7 +1,9 @@
 #![allow(unused_imports)]
 
 use entities::service_check;
-use sea_orm::{Database, FromQueryResult, JoinType, QuerySelect, QueryTrait, Set, TryIntoModel};
+use sea_orm::{
+    Database, FromQueryResult, JoinType, QueryOrder, QuerySelect, QueryTrait, Set, TryIntoModel,
+};
 
 use crate::prelude::*;
 
@@ -42,12 +44,21 @@ impl Related<service_check::Entity> for Entity {
 }
 
 impl Entity {
+    /// Leaves only the last x number of service check history entries
+    pub async fn head(
+        _db: &DatabaseConnection,
+        _service_check_id: Uuid,
+        _count: u64,
+    ) -> Result<(), Error> {
+        // TODO: implement this
+        todo!()
+    }
+
     /// Prunes the service check history table
     pub async fn prune(
         db: &DatabaseConnection,
         after_time: DateTime<Utc>,
         service_check_id: Option<Uuid>,
-        // count: Option<usize>, // TODO: work out how to do this (leave the last x count)
     ) -> Result<u64, Error> {
         if after_time > Utc::now() {
             return Err(Error::DateIsInTheFuture);
