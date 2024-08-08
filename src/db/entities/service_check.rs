@@ -36,6 +36,7 @@ impl Model {
     #[instrument(skip(self, db), fields(service_check_id = self.id.to_string()))]
     pub async fn set_last_check(
         &self,
+        service: &service::Model,
         last_check: chrono::DateTime<chrono::Utc>,
         status: ServiceStatus,
         db: &DatabaseConnection,
@@ -46,10 +47,11 @@ impl Model {
         if model.is_changed() {
             model.save(db).await.map_err(Error::from)?;
         }
+        self.set_next_check(service, db).await?;
         Ok(())
     }
 
-    #[instrument(skip_all, fields(service_check_id = self.id.to_string()))]
+    // #[instrument(skip_all, fields(service_check_id = self.id.to_string()))]
     pub async fn set_next_check(
         &self,
         service: &service::Model,
