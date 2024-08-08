@@ -61,7 +61,7 @@ tracing = { version = "0.1.40", features = ["release_max_level_debug"] }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
 rustls = { version = "0.23.12", features = ["zlib"] }
 num_cpus = "1.16.0"
-sqlx = { version = "0.7.4", no-default-features = true }
+sqlx = { version = "0.7.4", default-features = false }
 
 [dev-dependencies]
 rand = "0.8.5"
