@@ -43,6 +43,7 @@ pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
 
     #[cfg(not(all(test, debug_assertions)))]
     builder.filter(Some("sqlx::query"), tracing::log::LevelFilter::Warn);
+    builder.filter(Some("tracing::span"), tracing::log::LevelFilter::Warn);
     #[cfg(not(test))]
     builder.target(Target::Stdout);
     #[cfg(test)]
