@@ -1906,7 +1906,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -1966,6 +1966,7 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "log",
+ "num_cpus",
  "rand",
  "reqwest 0.12.5",
  "rustls 0.23.12",
@@ -1974,6 +1975,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha256",
+ "sqlx",
  "surge-ping",
  "tokio",
  "tower",
@@ -2157,6 +2159,16 @@ checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
  "libm",
+]
+
+[[package]]
+name = "num_cpus"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
+dependencies = [
+ "hermit-abi",
+ "libc",
 ]
 
 [[package]]
