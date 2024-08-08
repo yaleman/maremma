@@ -149,13 +149,7 @@ pub async fn run_web_server(
 
     let frontend_url = configuration.frontend_url();
 
-    info!(
-        "Starting web server on {}:{}",
-        &frontend_url,
-        configuration
-            .listen_port
-            .unwrap_or(crate::constants::DEFAULT_PORT)
-    );
+    info!("Starting web server on {}", &frontend_url);
     if configuration.tls_enabled {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
