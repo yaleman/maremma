@@ -59,8 +59,12 @@ impl Model {
         let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
         let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
         model.next_check.set_if_not_equals(next_check);
-        info!("{} next check: {}", self.id, next_check.to_rfc3339());
         if model.is_changed() {
+            info!(
+                "service_check_id={} saving next check: {}",
+                self.id.hyphenated(),
+                next_check.to_rfc3339()
+            );
             model.save(db).await.map_err(Error::from)?;
         }
         Ok(())
@@ -210,7 +214,7 @@ impl MaremmaEntity for Model {
         for service in services.into_iter() {
             let service_id = service.id;
 
-            debug!("Checking groups for service: {:?}", service.name);
+            debug!("Checking groups for service: {}", service.name);
             let host_groups: Vec<String> = match serde_json::from_value(service.host_groups) {
                 Ok(host_groups) => host_groups,
                 Err(err) => {
@@ -261,30 +265,53 @@ impl MaremmaEntity for Model {
                     }
 
                     // check we have the service check
-                    if Entity::find()
+                    match Entity::find()
                         .filter(Column::HostId.eq(host_group_member.host_id))
                         .filter(Column::ServiceId.eq(service.id))
                         .one(db.as_ref())
                         .await
                         .map_err(Error::from)?
-                        .is_none()
                     {
-                        info!(
-                            "Adding service check for service {} on host {:?}",
-                            service.name, host_group_member
-                        );
-                        let model = ActiveModel {
-                            id: Set(Uuid::new_v4()),
-                            service_id: Set(service_id),
-                            host_id: Set(host_group_member.host_id),
-                            status: Set(ServiceStatus::Unknown),
-                            last_check: Set(chrono::Utc::now()),
-                            next_check: Set(chrono::Utc::now()),
-                            last_updated: Set(chrono::Utc::now()),
-                        };
-                        debug!("Inserting... {:?}", model);
-                        model.insert(db.as_ref()).await.map_err(Error::from)?;
-                        debug!("Done!");
+                        None => {
+                            info!(
+                                "Adding service check for service {} on host {:?}",
+                                service.name, host_group_member
+                            );
+                            let model = ActiveModel {
+                                id: Set(Uuid::new_v4()),
+                                service_id: Set(service_id),
+                                host_id: Set(host_group_member.host_id),
+                                status: Set(ServiceStatus::Unknown),
+                                last_check: Set(chrono::Utc::now()),
+                                next_check: Set(chrono::Utc::now()),
+                                last_updated: Set(chrono::Utc::now()),
+                            };
+                            debug!("Inserting... {:?}", model);
+                            model.insert(db.as_ref()).await.map_err(Error::from)?;
+                            debug!("Done!");
+                        }
+                        Some(service_check) => {
+                            debug!("Found existing service check: {:?}", service_check);
+                            let mut service_check = service_check.into_active_model();
+                            // if the service has been in checking for more than 10 seconds, we'll reset it.
+                            if service_check.last_check.clone().unwrap()
+                                + chrono::Duration::seconds(10)
+                                < chrono::Utc::now()
+                            {
+                                if let ServiceStatus::Checking =
+                                    service_check.clone().status.unwrap()
+                                {
+                                    service_check
+                                        .status
+                                        .set_if_not_equals(ServiceStatus::Unknown);
+                                    // service_check.save(db.as_ref()).await.map_err(Error::from)?;
+                                }
+                            }
+
+                            if service_check.is_changed() {
+                                service_check.save(db.as_ref()).await.map_err(Error::from)?;
+                            }
+                        }
                     }
                 }
             }

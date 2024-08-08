@@ -14,17 +14,7 @@ use serde::de::DeserializeOwned;
 
 use crate::errors::Error;
 #[derive(
-    Deserialize,
-    Debug,
-    Serialize,
-    Default,
-    PartialEq,
-    Eq,
-    Copy,
-    Clone,
-    DeriveActiveEnum,
-    EnumIter,
-    Iden,
+    Deserialize, Debug, Serialize, PartialEq, Eq, Copy, Clone, DeriveActiveEnum, EnumIter, Iden,
 )]
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
@@ -32,7 +22,6 @@ pub enum ServiceStatus {
     #[sea_orm(string_value = "ok")]
     Ok,
     #[sea_orm(string_value = "pending")]
-    #[default]
     Pending,
     #[sea_orm(string_value = "critical")]
     Critical,
@@ -50,6 +39,7 @@ pub enum ServiceStatus {
     #[sea_orm(string_value = "disabled")]
     Disabled,
 }
+
 impl Display for ServiceStatus {
     #[allow(clippy::expect_used)]
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -61,6 +51,12 @@ impl Display for ServiceStatus {
                 .last()
                 .expect("This should be impossible to fail")
         )
+    }
+}
+
+impl Default for ServiceStatus {
+    fn default() -> Self {
+        Self::Pending
     }
 }
 

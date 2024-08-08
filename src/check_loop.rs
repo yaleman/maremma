@@ -72,7 +72,14 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                 .one(db.as_ref())
                 .await?
             {
-                Some(host) => host,
+                Some(host) => {
+                    debug!(
+                        "Found host: {} for service_check={}",
+                        host.name,
+                        service_check.id.hyphenated()
+                    );
+                    host
+                }
                 None => {
                     error!(
                         "Failed to get host for service check: {:?}",
@@ -99,6 +106,7 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>) -> Result<(), Error> {
                 );
                 Error::ServiceConfigNotFound(service.id.hyphenated().to_string())
             })?;
+            debug!("service={} config: {:?}", service.id.hyphenated(), config);
 
             let result = match config.run(&host).await {
                 Ok(val) => val,
