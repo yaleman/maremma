@@ -16,7 +16,7 @@ fn default_listen_address() -> String {
 fn default_max_concurrent_checks() -> usize {
     let cpus = num_cpus::get();
     debug!("Detected {} CPUs", cpus);
-    std::cmp::max(cpus - 2, 1)
+    std::cmp::max(cpus.saturating_sub(2), 1)
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -199,5 +199,10 @@ mod tests {
 
         let groups = config.groups();
         assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn test_default_max_concurrent_checks() {
+        assert!(default_max_concurrent_checks() >= 1);
     }
 }
