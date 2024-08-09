@@ -146,6 +146,7 @@ pub async fn get_next_service_check(
         .filter(
             entities::service_check::Column::Status
                 .ne(ServiceStatus::Disabled)
+                .and(entities::service_check::Column::Status.ne(ServiceStatus::Checking))
                 .and(entities::service_check::Column::NextCheck.lte(chrono::Utc::now())),
         );
 
