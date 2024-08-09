@@ -13,7 +13,7 @@ pub struct CheckResult {
     pub result_text: String,
 }
 
-pub async fn run_service_check(
+pub(crate) async fn run_service_check(
     db: Arc<DatabaseConnection>,
     service_check: entities::service_check::Model,
     service: Option<entities::service::Model>,
@@ -184,5 +184,25 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>, max_permits: usize) -> 
         if semaphore.available_permits() == 0 {
             warn!("No spare task slots, something might be running slow!");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::tests::test_setup;
+
+    #[tokio::test]
+    async fn test_run_service_check() {
+        let (db, _config) = test_setup().await.expect("Failed to setup test");
+
+        let (service_check, service) = get_next_service_check(db.as_ref())
+            .await
+            .expect("Failed to run next service check")
+            .expect("Failed to find next service check");
+
+        run_service_check(db, service_check, service)
+            .await
+            .expect("Failed to run service check");
     }
 }
