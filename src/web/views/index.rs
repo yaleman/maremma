@@ -54,7 +54,7 @@ pub(crate) async fn index(
         num_checks: checks.len(),
         checks,
         page_refresh: 90,
-        user: claims.map(|c| User::from(c)),
+        user: claims.map(User::from),
     })
 }
 

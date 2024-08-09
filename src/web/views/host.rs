@@ -103,6 +103,6 @@ pub(crate) async fn host(
         check: host.check,
         host_groups,
         host_id: host.id,
-        user: claims.map(|c| User::from(c)),
+        user: claims.map(User::from),
     })
 }
