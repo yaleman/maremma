@@ -6,6 +6,7 @@ use uuid::Uuid;
 use super::prelude::*;
 
 use crate::host::HostCheck;
+use crate::web::oidc::User;
 
 #[derive(Template)] // this will generate the code...
 #[template(path = "host.html")] // using the template in this path, relative
@@ -17,6 +18,7 @@ pub(crate) struct HostTemplate {
     check: HostCheck,
     host_groups: Vec<host_group::Model>,
     host_id: Uuid,
+    user: Option<User>,
 }
 
 #[derive(Default, Deserialize, Debug)]
@@ -40,6 +42,7 @@ pub(crate) enum OrderFields {
 pub(crate) async fn host(
     Path(host_id): Path<Uuid>,
     State(state): State<WebState>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostTemplate, impl IntoResponse> {
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(state.db.as_ref())
@@ -100,5 +103,6 @@ pub(crate) async fn host(
         check: host.check,
         host_groups,
         host_id: host.id,
+        user: claims.map(|c| User::from(c)),
     })
 }

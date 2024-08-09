@@ -1,4 +1,3 @@
-use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use entities::service_check::FullServiceCheck;
 use sea_orm::{Order as SeaOrmOrder, QueryOrder};
 
@@ -12,6 +11,7 @@ pub struct IndexTemplate {
     pub num_checks: usize,
     pub checks: Vec<FullServiceCheck>,
     pub page_refresh: u64,
+    pub user: Option<User>,
 }
 
 #[allow(dead_code)]
@@ -30,9 +30,6 @@ pub(crate) async fn index(
     let sort_order: SeaOrmOrder = queries.ord.unwrap_or_default().into();
     let order_field = queries.field.unwrap_or(OrderFields::LastUpdated);
     debug!("Sorting home page by: {:?} {:?}", order_field, sort_order);
-    if let Some(claims) = claims {
-        info!("claims: {:?}", claims.0);
-    }
 
     let mut checks = FullServiceCheck::all_query();
     checks = match order_field {
@@ -57,6 +54,7 @@ pub(crate) async fn index(
         num_checks: checks.len(),
         checks,
         page_refresh: 90,
+        user: claims.map(|c| User::from(c)),
     })
 }
 

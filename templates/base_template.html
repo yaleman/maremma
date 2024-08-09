@@ -25,14 +25,20 @@
                     title }}</a>
                 <ul
                     class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
-                    <li>
-                        <a class="nav-link" aria-current="page"
-                            href="/auth/login">Login</a>
-                    </li>
-                    <li>
-                        <a class="nav-link" aria-current="page"
+
+                    {% if let Some(user) = user %}
+                    <li class="nav">
+                        <a class="nav-link text-white"
                             href="/auth/logout">Logout</a>
                     </li>
+                    <li class="text-white nav nav-link">Logged in as:
+                        {{user.username()}}</li>
+                    {% else %}
+                    <li>
+                        <a class="nav-link"
+                            href="/auth/login">Login</a>
+                    </li>
+                    {% endif %}
 
                 </ul>
             </div>
