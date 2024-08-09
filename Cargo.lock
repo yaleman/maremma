@@ -688,6 +688,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fd119d74b830634cea2a0f58bbd0d54540518a14397557951e79340abc28c0"
 
 [[package]]
+name = "concurrent-queue"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1069,6 +1078,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
+name = "event-listener"
+version = "5.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6032be9bd27023a771701cc49f9f053c751055f71efb2e0ae5c15809093675ba"
+dependencies = [
+ "concurrent-queue",
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1351,6 +1371,15 @@ name = "hashlink"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8094feaf31ff591f651a2664fb9cfd92bba7a60ce3197265e9482ebe753c8f7"
+dependencies = [
+ "hashbrown 0.14.5",
+]
+
+[[package]]
+name = "hashlink"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af"
 dependencies = [
  "hashbrown 0.14.5",
 ]
@@ -1975,7 +2004,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha256",
- "sqlx",
+ "sqlx 0.8.0",
  "surge-ping",
  "tokio",
  "tower",
@@ -2347,6 +2376,12 @@ dependencies = [
  "primeorder",
  "sha2",
 ]
+
+[[package]]
+name = "parking"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb813b8af86854136c6922af0598d719255ecb2179515e6e7730d468f05c9cae"
 
 [[package]]
 name = "parking_lot"
@@ -3126,7 +3161,7 @@ dependencies = [
  "sea-query-binder",
  "serde",
  "serde_json",
- "sqlx",
+ "sqlx 0.7.4",
  "strum",
  "thiserror",
  "time",
@@ -3212,7 +3247,7 @@ dependencies = [
  "rust_decimal",
  "sea-query",
  "serde_json",
- "sqlx",
+ "sqlx 0.7.4",
  "time",
  "uuid",
 ]
@@ -3563,11 +3598,20 @@ version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9a2ccff1a000a5a59cd33da541d9f2fdcd9e6e8229cc200565942bff36d0aaa"
 dependencies = [
- "sqlx-core",
+ "sqlx-core 0.7.4",
  "sqlx-macros",
  "sqlx-mysql",
  "sqlx-postgres",
  "sqlx-sqlite",
+]
+
+[[package]]
+name = "sqlx"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27144619c6e5802f1380337a209d2ac1c431002dd74c6e60aebff3c506dc4f0c"
+dependencies = [
+ "sqlx-core 0.8.0",
 ]
 
 [[package]]
@@ -3585,13 +3629,13 @@ dependencies = [
  "crc",
  "crossbeam-queue",
  "either",
- "event-listener",
+ "event-listener 2.5.3",
  "futures-channel",
  "futures-core",
  "futures-intrusive",
  "futures-io",
  "futures-util",
- "hashlink",
+ "hashlink 0.8.4",
  "hex",
  "indexmap 2.3.0",
  "log",
@@ -3618,6 +3662,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlx-core"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a999083c1af5b5d6c071d34a708a19ba3e02106ad82ef7bbd69f5e48266b613b"
+dependencies = [
+ "atoi",
+ "byteorder",
+ "bytes",
+ "crc",
+ "crossbeam-queue",
+ "either",
+ "event-listener 5.3.1",
+ "futures-channel",
+ "futures-core",
+ "futures-intrusive",
+ "futures-io",
+ "futures-util",
+ "hashbrown 0.14.5",
+ "hashlink 0.9.1",
+ "hex",
+ "indexmap 2.3.0",
+ "log",
+ "memchr",
+ "once_cell",
+ "paste",
+ "percent-encoding",
+ "serde",
+ "sha2",
+ "smallvec",
+ "sqlformat",
+ "thiserror",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "sqlx-macros"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3625,7 +3705,7 @@ checksum = "4ea40e2345eb2faa9e1e5e326db8c34711317d2b5e08d0d5741619048a803127"
 dependencies = [
  "proc-macro2",
  "quote",
- "sqlx-core",
+ "sqlx-core 0.7.4",
  "sqlx-macros-core",
  "syn 1.0.109",
 ]
@@ -3646,7 +3726,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sqlx-core",
+ "sqlx-core 0.7.4",
  "sqlx-mysql",
  "sqlx-postgres",
  "sqlx-sqlite",
@@ -3694,7 +3774,7 @@ dependencies = [
  "sha1",
  "sha2",
  "smallvec",
- "sqlx-core",
+ "sqlx-core 0.7.4",
  "stringprep",
  "thiserror",
  "time",
@@ -3738,7 +3818,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "smallvec",
- "sqlx-core",
+ "sqlx-core 0.7.4",
  "stringprep",
  "thiserror",
  "time",
@@ -3765,7 +3845,7 @@ dependencies = [
  "log",
  "percent-encoding",
  "serde",
- "sqlx-core",
+ "sqlx-core 0.7.4",
  "time",
  "tracing",
  "url",
