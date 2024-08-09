@@ -299,7 +299,7 @@ impl MaremmaEntity for Model {
                             if let sea_orm::ActiveValue::Set(last_check) =
                                 service_check.last_check.clone()
                             {
-                                if last_check + chrono::Duration::seconds(10) < chrono::Utc::now() {
+                                if last_check + chrono::Duration::seconds(5) < chrono::Utc::now() {
                                     if let sea_orm::ActiveValue::Set(ServiceStatus::Checking) =
                                         service_check.status
                                     {
