@@ -168,7 +168,7 @@ impl Configuration {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::Configuration;
+    use crate::config::{default_max_concurrent_checks, Configuration};
     use crate::db::tests::test_setup;
 
     #[tokio::test]
