@@ -122,7 +122,8 @@ pub async fn run_check_loop(
         Arc::new(metrics_meter.u64_counter("checks_run_since_startup").init());
 
     let mut backoff = tokio::time::Duration::from_millis(50);
-    let semaphore = Arc::new(Semaphore::new(max_permits)); // Limit to n concurrent tasks
+    // Limit to n concurrent tasks
+    let semaphore = Arc::new(Semaphore::new(max_permits));
     info!("Max concurrent tasks set to {}", max_permits);
     loop {
         if let Some((service_check, service)) = get_next_service_check(db.as_ref()).await? {
