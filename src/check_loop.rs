@@ -41,16 +41,6 @@ pub(crate) async fn run_service_check(
                 "Failed to convert service check {} to service: {:?}",
                 service_check.id, err
             );
-            if let Err(err) = service_check
-                .set_status(ServiceStatus::Error, db.as_ref())
-                .await
-            {
-                error!(
-                    "Failed to set 'error' status for service_check_id={} error={:?}",
-                    service_check.id.hyphenated(),
-                    err
-                );
-            };
             return Err(Error::Generic(format!(
                 "Failed to convert service check {} to service: {:?}",
                 service_check.id, err
@@ -76,16 +66,6 @@ pub(crate) async fn run_service_check(
                 "Failed to get host for service check: {:?}",
                 service_check.id
             );
-            if let Err(err) = service_check
-                .set_status(ServiceStatus::Error, db.as_ref())
-                .await
-            {
-                return Err(Error::Generic(format!(
-                    "Failed to set 'error' status for service_check_id={} error={:?}",
-                    service_check.id.hyphenated(),
-                    err
-                )));
-            };
             return Err(Error::HostNotFound(service_check.host_id));
         }
     };
@@ -101,20 +81,15 @@ pub(crate) async fn run_service_check(
 
     let result = match config.run(&host).await {
         Ok(val) => val,
-        Err(err) => {
-            error!(
-                "Failed to run service_check_id={} error={:?}",
-                service_check.id.hyphenated(),
-                err
-            );
-            service_check
-                .set_status(ServiceStatus::Error, db.as_ref())
-                .await?;
-            return Err(err);
-        }
+        Err(err) => CheckResult {
+            timestamp: chrono::Utc::now(),
+            time_elapsed: Duration::zero(),
+            status: ServiceStatus::Error,
+            result_text: format!("Error: {:?}", err),
+        },
     };
+    info!("id={} result={:?}", service_check.id, result.status);
 
-    info!("id={} result={:?}", service_check.id, result);
     service_check
         .set_last_check(&service, chrono::Utc::now(), result.status, db.as_ref())
         .await
@@ -145,6 +120,7 @@ pub async fn run_check_loop(
     use opentelemetry::KeyValue;
     let checks_run_since_startup =
         Arc::new(metrics_meter.u64_counter("checks_run_since_startup").init());
+
     let mut backoff = tokio::time::Duration::from_millis(50);
     let semaphore = Arc::new(Semaphore::new(max_permits)); // Limit to n concurrent tasks
     info!("Max concurrent tasks set to {}", max_permits);
@@ -163,8 +139,18 @@ pub async fn run_check_loop(
                         if let Err(err) = run_service_check(db_clone, service_check, service).await
                         {
                             error!("Failed to run service check: {:?}", err);
+                            checks_run_since_startup_clone.add(
+                                1,
+                                &[KeyValue::new("type", "error"), KeyValue::new("id", sc_id)],
+                            );
                         } else {
-                            checks_run_since_startup_clone.add(1, &[KeyValue::new("id", sc_id)]);
+                            checks_run_since_startup_clone.add(
+                                1,
+                                &[
+                                    KeyValue::new("result", "success"),
+                                    KeyValue::new("id", sc_id),
+                                ],
+                            );
                         }
                         drop(permit); // Release the permit when the task is done
                     });
