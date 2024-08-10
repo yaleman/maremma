@@ -26,16 +26,17 @@
                 <ul
                     class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
 
-                    {% if let Some(user) = user %}
+                    {% if let Some(username) = username %}
                     <li class="nav">
                         <a class="nav-link text-white"
                             href="/auth/logout">Logout</a>
                     </li>
                     <li class="text-white nav nav-link">Logged in as:
-                        {{user.username()}}</li>
+                        <a href="/auth/profile"
+                            class="nav-link">{{username}}</a></li>
                     {% else %}
                     <li>
-                        <a class="nav-link"
+                        <a class="nav-link text-white"
                             href="/auth/login">Login</a>
                     </li>
                     {% endif %}

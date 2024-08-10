@@ -12,6 +12,7 @@ impl MigratorTrait for Migrator {
             Box::new(super::migrations::m20240802_create_service_table::Migration),
             Box::new(super::migrations::m20240802_create_service_check_table::Migration),
             Box::new(super::migrations::m20240807_create_service_check_hstory_table::Migration),
+            Box::new(super::migrations::m20240810_create_user_table::Migration),
         ]
     }
 }

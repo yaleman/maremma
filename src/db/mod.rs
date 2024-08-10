@@ -134,8 +134,8 @@ pub async fn get_next_service_check(
         .one(db)
         .await?;
 
-    if let Some(val) = urgent {
-        return Ok(Some(val));
+    if let Some(row) = urgent {
+        return Ok(Some(row));
     }
 
     // all others we just care about:

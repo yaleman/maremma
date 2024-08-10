@@ -3,15 +3,14 @@ use sea_orm::{Order as SeaOrmOrder, QueryOrder};
 
 use super::prelude::*;
 
-#[derive(Template)] // this will generate the code...
+#[derive(Template)]
 #[template(path = "index.html")]
 pub struct IndexTemplate {
-    // the name of the struct can be anything
     pub title: String,
     pub num_checks: usize,
     pub checks: Vec<FullServiceCheck>,
     pub page_refresh: u64,
-    pub user: Option<User>,
+    pub username: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -54,7 +53,7 @@ pub(crate) async fn index(
         num_checks: checks.len(),
         checks,
         page_refresh: 90,
-        user: claims.map(User::from),
+        username: claims.map(|c| User::from(c).username()),
     })
 }
 

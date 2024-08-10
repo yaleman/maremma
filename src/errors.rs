@@ -7,7 +7,7 @@ pub enum Error {
     ConfigFileNotFound(String),
     ConnectionFailed,
     Generic(String),
-    ConfigParse(String),
+    Deserialization(String),
     IoError(String),
     ServiceNotFoundByName(String),
     ServiceNotFound(Uuid),
@@ -24,7 +24,7 @@ pub enum Error {
 
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
-        Error::ConfigParse(err.to_string())
+        Error::Deserialization(err.to_string())
     }
 }
 
@@ -59,7 +59,7 @@ mod tests {
     fn test_error_from_serde_json_error() {
         let err = serde_json::from_str::<String>("{").unwrap_err();
         assert_eq!(
-            crate::errors::Error::ConfigParse(err.to_string()),
+            crate::errors::Error::Deserialization(err.to_string()),
             crate::errors::Error::from(err)
         );
     }

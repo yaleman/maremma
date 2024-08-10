@@ -9,6 +9,7 @@ pub mod service_check;
 pub mod service_check_history;
 #[cfg(test)]
 pub mod tests;
+pub mod user;
 
 #[async_trait]
 pub trait MaremmaEntity {

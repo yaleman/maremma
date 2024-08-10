@@ -103,7 +103,7 @@ impl TryFrom<&Value> for SshHost {
     type Error = Error;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        serde_json::from_value(value.clone()).map_err(|e| Error::ConfigParse(e.to_string()))
+        serde_json::from_value(value.clone()).map_err(|e| Error::Deserialization(e.to_string()))
     }
 }
 

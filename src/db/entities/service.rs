@@ -95,7 +95,7 @@ impl MaremmaEntity for Model {
                     };
                 }
             } else {
-                return Err(Error::ConfigParse(
+                return Err(Error::Deserialization(
                     "services in configuration is not an object!".to_string(),
                 ));
             }

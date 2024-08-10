@@ -55,6 +55,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
 
     let mut app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
+        .route("/auth/profile", get(views::profile::profile))
         .route(
             "/service_check/:service_check_id/urgent",
             post(views::service_check::set_service_check_urgent),
@@ -115,7 +116,10 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
                         issuer,
                         client_id,
                         client_secret,
-                        vec![],
+                        vec!["openid", "groups"]
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect(),
                     )
                     .await
                     .map_err(Error::from)?,
