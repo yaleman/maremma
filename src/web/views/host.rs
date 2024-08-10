@@ -19,6 +19,7 @@ pub(crate) struct HostTemplate {
     host_groups: Vec<host_group::Model>,
     host_id: Uuid,
     username: Option<String>,
+    page_refresh: u64,
 }
 
 #[derive(Default, Deserialize, Debug)]
@@ -104,5 +105,6 @@ pub(crate) async fn host(
         host_groups,
         host_id: host.id,
         username: claims.map(|u| User::from(u).username()),
+        page_refresh: 30,
     })
 }

@@ -1,5 +1,9 @@
 {% extends "base_template.html" %}
 
+{% block header %}
+<meta http-equiv="refresh" content="{{ page_refresh }}">
+{% endblock %}
+
 {% block content %}
 
 <p>hostname: {{hostname}}</p>

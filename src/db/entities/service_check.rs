@@ -31,7 +31,7 @@ impl Model {
         Ok(())
     }
 
-    #[instrument(skip(self, db), fields(service_check_id = self.id.to_string()))]
+    #[instrument(skip(self, service, last_check, db), fields(service_check_id = self.id.to_string()))]
     pub async fn set_last_check(
         &self,
         service: &service::Model,
@@ -42,33 +42,41 @@ impl Model {
         let mut model = self.clone().into_active_model();
         model.last_check.set_if_not_equals(last_check);
         model.status.set_if_not_equals(status);
+        let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
+        let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
+        model.next_check.set_if_not_equals(next_check);
+
         if model.is_changed() {
-            model.save(db).await.map_err(Error::from)?;
+            model.save(db).await.map_err(|err| {
+                error!("{} error saving {:?}", service.id.hyphenated(), err);
+                Error::from(err)
+            })?;
+        } else {
+            warn!("set_last_check with no change? {:?}", self);
         }
-        self.set_next_check(service, db).await?;
         Ok(())
     }
 
     // #[instrument(skip_all, fields(service_check_id = self.id.to_string()))]
-    pub async fn set_next_check(
-        &self,
-        service: &service::Model,
-        db: &DatabaseConnection,
-    ) -> Result<(), Error> {
-        let mut model = self.clone().into_active_model();
-        let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
-        let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
-        model.next_check.set_if_not_equals(next_check);
-        if model.is_changed() {
-            info!(
-                "service_check_id={} saving next check: {}",
-                self.id.hyphenated(),
-                next_check.to_rfc3339()
-            );
-            model.save(db).await.map_err(Error::from)?;
-        }
-        Ok(())
-    }
+    // pub(crate) async fn set_next_check(
+    //     &self,
+    //     service: &service::Model,
+    //     db: &DatabaseConnection,
+    // ) -> Result<(), Error> {
+    //     let mut model = self.clone().into_active_model();
+    //     let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
+    //     let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
+    //     model.next_check.set_if_not_equals(next_check);
+    //     if model.is_changed() {
+    //         debug!(
+    //             "service_check_id={} saving next check: {}",
+    //             self.id.hyphenated(),
+    //             next_check.to_rfc3339()
+    //         );
+    //         model.save(db).await.map_err(Error::from)?;
+    //     }
+    //     Ok(())
+    // }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
