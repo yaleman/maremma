@@ -29,17 +29,6 @@ pub(crate) async fn run_service_check(
         }
     };
 
-    if let Err(err) = service_check
-        .set_status(ServiceStatus::Checking, db.as_ref())
-        .await
-    {
-        error!(
-            "Failed to set 'checking' status for service_check_id={} error={:?}",
-            service_check.id.hyphenated(),
-            err
-        );
-    };
-
     debug!(
         "service check time! {} - {}",
         service_check.id.hyphenated(),
@@ -147,7 +136,16 @@ pub(crate) async fn run_service_check(
 }
 
 #[cfg(not(tarpaulin_include))] // TODO: tarpaulin un-ignore for code coverage
-pub async fn run_check_loop(db: Arc<DatabaseConnection>, max_permits: usize) -> Result<(), Error> {
+pub async fn run_check_loop(
+    db: Arc<DatabaseConnection>,
+    max_permits: usize,
+    metrics_meter: Arc<Meter>,
+) -> Result<(), Error> {
+    // Create a Counter Instrument.
+
+    use opentelemetry::KeyValue;
+    let checks_run_since_startup =
+        Arc::new(metrics_meter.u64_counter("checks_run_since_startup").init());
     let mut backoff = tokio::time::Duration::from_millis(50);
     let semaphore = Arc::new(Semaphore::new(max_permits)); // Limit to n concurrent tasks
     info!("Max concurrent tasks set to {}", max_permits);
@@ -159,11 +157,15 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>, max_permits: usize) -> 
 
             match semaphore.clone().acquire_owned().await {
                 Ok(permit) => {
+                    let checks_run_since_startup_clone = checks_run_since_startup.clone();
                     let db_clone = db.clone();
                     tokio::spawn(async move {
+                        let sc_id = service_check.id.hyphenated().to_string();
                         if let Err(err) = run_service_check(db_clone, service_check, service).await
                         {
                             error!("Failed to run service check: {:?}", err);
+                        } else {
+                            checks_run_since_startup_clone.add(1, &[KeyValue::new("id", sc_id)]);
                         }
                         drop(permit); // Release the permit when the task is done
                     });
@@ -184,6 +186,8 @@ pub async fn run_check_loop(db: Arc<DatabaseConnection>, max_permits: usize) -> 
         if semaphore.available_permits() == 0 {
             warn!("No spare task slots, something might be running slow!");
         }
+
+        // TODO: auto-cleanup service checks stuck in "checking state"
     }
 }
 

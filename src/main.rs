@@ -8,7 +8,10 @@ use maremma::setup_logging;
 
 use maremma::check_loop::run_check_loop;
 use maremma::db::update_db_from_config;
+use maremma::metrics::init_meter_provider;
 use std::process::ExitCode;
+
+use opentelemetry::global as otel_global;
 
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
@@ -36,8 +39,14 @@ async fn main() -> Result<(), ExitCode> {
 
             update_db_from_config(db.clone(), config.clone()).await?;
 
+            // start up the metrics provider
+            let _metrics_provider = init_meter_provider();
+
+            // Create a meter from the above MeterProvider.
+            let metrics_meter = Arc::new(otel_global::meter("maremma"));
+
             tokio::select! {
-                check_loop_result = run_check_loop(db.clone(), config.max_concurrent_checks) => {
+                check_loop_result = run_check_loop(db.clone(), config.max_concurrent_checks, metrics_meter.clone()) => {
                     error!("Check loop bailed: {:?}", check_loop_result);
                 },
                 web_server_result = run_web_server(config.clone(), db.clone()) => {

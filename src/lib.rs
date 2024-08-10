@@ -22,6 +22,7 @@ pub mod constants;
 pub mod db;
 pub mod errors;
 pub mod host;
+pub mod metrics;
 pub mod prelude;
 pub(crate) mod serde;
 pub mod services;

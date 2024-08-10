@@ -1,4 +1,5 @@
 use crate::db::entities::{host, service};
+use crate::db::get_next_service_check;
 use crate::db::tests::test_setup;
 use crate::prelude::*;
 
@@ -217,4 +218,50 @@ async fn test_full_service_check() {
     info!("found service check {:?}", service_check);
 
     assert!(service_check.len() > 0);
+}
+
+#[tokio::test]
+async fn test_get_urgent_service_check() {
+    let (db, _config) = test_setup().await.expect("Failed to setup test db");
+
+    let sc = entities::service_check::Entity::find()
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+
+    sc.set_status(ServiceStatus::Urgent, db.as_ref())
+        .await
+        .expect("Failed to set status to urgent");
+
+    let urgent = get_next_service_check(db.as_ref())
+        .await
+        .expect("Failed to query DB");
+    assert!(urgent.is_some());
+
+    let (sc, _) = urgent.unwrap();
+    assert_eq!(sc.status, ServiceStatus::Urgent);
+}
+
+#[tokio::test]
+async fn test_get_next_pending_service_check() {
+    let (db, _config) = test_setup().await.expect("Failed to setup test db");
+
+    let sc = entities::service_check::Entity::find()
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+
+    sc.set_status(ServiceStatus::Pending, db.as_ref())
+        .await
+        .expect("Failed to set status to pending");
+
+    let urgent = get_next_service_check(db.as_ref())
+        .await
+        .expect("Failed to query DB");
+    assert!(urgent.is_some());
+
+    let (sc, _) = urgent.unwrap();
+    assert_eq!(sc.status, ServiceStatus::Pending);
 }

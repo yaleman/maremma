@@ -25,3 +25,5 @@ pub(crate) use crate::services::{Service, ServiceStatus, ServiceTrait, ServiceTy
 pub(crate) use sea_orm::entity::prelude::*;
 pub(crate) use sea_orm::DatabaseConnection;
 pub(crate) use sea_orm::IntoActiveModel;
+
+pub(crate) use opentelemetry::metrics::Meter;

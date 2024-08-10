@@ -31,11 +31,12 @@
                         <a class="nav-link text-white"
                             href="/auth/logout">Logout</a>
                     </li>
-                    <li class="text-white nav nav-link">Logged in as:
+                    <li class="nav">
                         <a href="/auth/profile"
-                            class="nav-link">{{username}}</a></li>
+                            class="nav-link text-white">Logged in as:
+                            {{username}}</a></li>
                     {% else %}
-                    <li>
+                    <li class="nav">
                         <a class="nav-link text-white"
                             href="/auth/login">Login</a>
                     </li>
