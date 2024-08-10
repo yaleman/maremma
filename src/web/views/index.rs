@@ -13,7 +13,6 @@ pub struct IndexTemplate {
     pub username: Option<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub(crate) struct IndexQueries {
     pub ord: Option<Order>,
@@ -53,21 +52,18 @@ pub(crate) async fn index(
         num_checks: checks.len(),
         checks,
         page_refresh: 90,
-        username: claims.map(|c| User::from(c).username()),
+        username: claims.map(|c: OidcClaims<EmptyAdditionalClaims>| User::from(c).username()),
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::db::tests::test_setup;
 
     use super::*;
 
     #[tokio::test]
     async fn test_index() {
-        let (db, config) = test_setup().await.expect("Failed to set up!");
-
-        let state = WebState::new(db, &config);
+        let state = WebState::test().await;
         let res = index(
             Query(IndexQueries {
                 ord: None,

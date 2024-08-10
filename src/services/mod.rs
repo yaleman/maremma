@@ -41,7 +41,6 @@ pub enum ServiceStatus {
 }
 
 impl Display for ServiceStatus {
-    #[allow(clippy::expect_used)]
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
@@ -49,7 +48,7 @@ impl Display for ServiceStatus {
             format!("{:?}", self)
                 .split(':')
                 .last()
-                .expect("This should be impossible to fail")
+                .unwrap_or(format!("{:?}", self).as_str()) // should never trigger this
         )
     }
 }

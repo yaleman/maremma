@@ -1,3 +1,5 @@
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use croner::errors::CronError;
 use uuid::Uuid;
 
@@ -20,6 +22,7 @@ pub enum Error {
     InvalidInput(String),
     DateIsInTheFuture,
     Oidc(String),
+    NotImplemented,
 }
 
 impl From<serde_json::Error> for Error {
@@ -49,6 +52,12 @@ impl From<CronError> for Error {
 impl From<axum_oidc::error::Error> for Error {
     fn from(value: axum_oidc::error::Error) -> Self {
         Error::Oidc(value.to_string())
+    }
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> askama_axum::Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self)).into_response()
     }
 }
 

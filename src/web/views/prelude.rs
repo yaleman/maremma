@@ -45,10 +45,9 @@ pub(crate) enum OrderFields {
     Check,
 }
 
-#[allow(dead_code)]
 #[derive(Eq, PartialEq)]
-/// used in askama templates for displaying checks
-pub(crate) struct Check {
+/// used in Askama templates for displaying checks
+pub struct Check {
     /// Used internally for sorting the checks
     pub ordervalue: String,
     pub host_id: Arc<String>,

@@ -1,0 +1,17 @@
+{% extends "base_template.html" %}
+
+{% block content %}
+
+{% if let Some(message) = message %}
+<div class="alert alert-{{ status }}" <div
+    class="alert alert-secondary" role="alert">
+    {{ message }}
+</div>
+{% endif %}
+
+<form method="POST">
+    <input type="submit" value="Set all to urgent" class="btn btn-warning" />
+    <input type="hidden" name="action" value="set_all_to_urgent" />
+</form>
+
+{% endblock content %}

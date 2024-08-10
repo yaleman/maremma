@@ -13,6 +13,7 @@ use axum::Router;
 use axum_oidc::error::MiddlewareError;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
 
+use prometheus::Registry;
 use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
@@ -28,14 +29,28 @@ pub(crate) mod views;
 pub(crate) struct WebState {
     pub db: Arc<DatabaseConnection>,
     pub frontend_url: Arc<String>,
+    pub registry: Option<Arc<Registry>>,
 }
 
 impl WebState {
-    pub fn new(db: Arc<DatabaseConnection>, config: &Configuration) -> Self {
+    pub fn new(
+        db: Arc<DatabaseConnection>,
+        config: &Configuration,
+        registry: Option<Arc<Registry>>,
+    ) -> Self {
         Self {
             db,
             frontend_url: Arc::new(config.frontend_url()),
+            registry,
         }
+    }
+
+    #[cfg(test)]
+    pub async fn test() -> Self {
+        let (db, config) = crate::db::tests::test_setup()
+            .await
+            .expect("Failed to set up test");
+        Self::new(db, &config, None)
     }
 }
 
@@ -71,8 +86,8 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .route("/host/:host_id", get(views::host::host))
         .route("/service_check/:service_check_id", get(notimplemented))
         .route("/service/:service_id", get(notimplemented))
-        .route("/host_group/:group_id", get(notimplemented));
-
+        .route("/host_group/:group_id", get(notimplemented))
+        .route("/tools", get(views::tools::tools).post(views::tools::tools));
     if config.oidc_enabled {
         app = app.route("/auth/logout", get(oidc::logout)).layer(
             ServiceBuilder::new()
@@ -82,8 +97,10 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
                 .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new()),
         );
     }
+    // after here, the routers don't *require* auth
 
     app = app.route("/", get(views::index::index));
+    app = app.route("/metrics", get(views::metrics::metrics));
 
     if config.oidc_enabled {
         let (issuer, client_id, client_secret) = if let Some(oidc_config) = &config.oidc_config {
@@ -138,6 +155,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
 pub async fn run_web_server(
     configuration: Arc<Configuration>,
     db: Arc<DatabaseConnection>,
+    registry: Arc<Registry>,
 ) -> Result<(), Error> {
     use axum_server::bind_rustls;
     use axum_server::tls_rustls::RustlsConfig;
@@ -149,7 +167,11 @@ pub async fn run_web_server(
             .listen_port
             .unwrap_or(crate::constants::DEFAULT_PORT)
     );
-    let app = build_app(WebState::new(db, &configuration), &configuration).await?;
+    let app = build_app(
+        WebState::new(db, &configuration, Some(registry)),
+        &configuration,
+    )
+    .await?;
 
     let frontend_url = configuration.frontend_url();
 
@@ -224,7 +246,7 @@ mod tests {
     #[tokio::test]
     async fn test_app_requests() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
-        let app = build_app(WebState::new(db.clone(), &config), &config)
+        let app = build_app(WebState::new(db.clone(), &config, None), &config)
             .await
             .expect("Failed to build app");
 
@@ -261,7 +283,7 @@ mod tests {
     async fn test_not_implemented() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
 
-        let res = notimplemented(axum::extract::State(WebState::new(db, &config))).await;
+        let res = notimplemented(axum::extract::State(WebState::new(db, &config, None))).await;
         assert!(res.is_err());
     }
 }

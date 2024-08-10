@@ -1,13 +1,6 @@
-#![allow(unused_imports)]
-
 use entities::service_check;
-use sea_orm::{
-    Database, FromQueryResult, JoinType, QueryOrder, QuerySelect, QueryTrait, Set, TryIntoModel,
-};
 
 use crate::prelude::*;
-
-use super::{host, host_group, host_group_members, service};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
 #[sea_orm(table_name = "service_check_history")]

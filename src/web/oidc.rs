@@ -15,7 +15,6 @@ pub async fn logout(
     logout: OidcRpInitiatedLogout,
     State(state): State<WebState>,
 ) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
-    #[allow(clippy::expect_used)]
     let url: Uri = state.frontend_url.clone().parse().map_err(|err| {
         error!("Failed to parse redirect URL: {:?}", err);
         (

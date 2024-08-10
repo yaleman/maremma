@@ -1,8 +1,6 @@
-#![allow(unused_imports)]
-
 use crate::prelude::*;
 use sea_orm::entity::prelude::*;
-use sea_orm::{ColIdx, IntoActiveModel, QuerySelect, QueryTrait, Set};
+use sea_orm::IntoActiveModel;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "host")]
@@ -124,8 +122,6 @@ pub fn test_host() -> Model {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-    use std::sync::Arc;
 
     use sea_orm::IntoActiveModel;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -133,7 +129,6 @@ mod tests {
 
     use crate::db::entities::MaremmaEntity;
     use crate::db::tests::test_setup;
-    use crate::setup_logging;
 
     #[tokio::test]
     async fn test_host_entity() {

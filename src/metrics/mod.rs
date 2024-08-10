@@ -1,23 +1,52 @@
-use opentelemetry::{global, KeyValue};
-use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
-use opentelemetry_sdk::{runtime, Resource};
+use crate::prelude::*;
+use std::time::Duration;
 
-use opentelemetry_stdout::MetricsExporter;
+use opentelemetry::KeyValue;
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::resource::{
+    EnvResourceDetector, SdkProvidedResourceDetector, TelemetryResourceDetector,
+};
+use opentelemetry_sdk::Resource;
+use prometheus::Registry;
 
-fn build_exporter() -> MetricsExporter {
-    opentelemetry_stdout::MetricsExporterBuilder::default()
-        // uncomment the below lines to pretty print output.
-        //  .with_encoder(|writer, data|/
-        //    Ok(serde_json::to_writer_pretty(writer, &data).unwrap()))
+pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
+    // create a new prometheus registry
+    let registry = prometheus::Registry::new();
+
+    // configure OpenTelemetry to use this registry
+    let exporter = opentelemetry_prometheus::exporter()
+        .with_namespace("maremma")
+        .with_registry(registry.clone())
         .build()
+        .map_err(|err| Error::Generic(err.to_string()))?;
+
+    let resource = Resource::from_detectors(
+        Duration::from_secs(0),
+        vec![
+            Box::new(SdkProvidedResourceDetector),
+            Box::new(TelemetryResourceDetector),
+            Box::new(EnvResourceDetector::new()),
+        ],
+    );
+
+    let resource = resource.merge(&Resource::new(vec![KeyValue::new(
+        "service.name",
+        "maremma",
+    )]));
+
+    // set up a meter to create instruments
+    let provider = SdkMeterProvider::builder()
+        .with_reader(exporter)
+        .with_resource(resource)
+        .build();
+    Ok((provider, registry))
 }
 
-pub fn init_meter_provider() -> opentelemetry_sdk::metrics::SdkMeterProvider {
-    let reader = PeriodicReader::builder(build_exporter(), runtime::Tokio).build();
-    let provider = SdkMeterProvider::builder()
-        .with_reader(reader)
-        .with_resource(Resource::new([KeyValue::new("service.name", "maremma")]))
-        .build();
-    global::set_meter_provider(provider.clone());
-    provider
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn test_metrics() {
+        let (provider, _registry) = super::new().unwrap();
+        provider.shutdown().expect("Failed to shut down");
+    }
 }

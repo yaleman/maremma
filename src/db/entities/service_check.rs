@@ -1,7 +1,5 @@
-#![allow(unused_imports)]
-
 use entities::service_check_history;
-use sea_orm::{Database, FromQueryResult, JoinType, QuerySelect, QueryTrait, Set, TryIntoModel};
+use sea_orm::{FromQueryResult, JoinType, QuerySelect, Set};
 
 use crate::prelude::*;
 

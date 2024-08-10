@@ -5,7 +5,6 @@ use sea_orm::prelude::*;
 use tokio::sync::Semaphore;
 
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // 'cause debug
 pub struct CheckResult {
     pub timestamp: chrono::DateTime<Utc>,
     pub time_elapsed: Duration,

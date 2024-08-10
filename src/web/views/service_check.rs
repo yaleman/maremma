@@ -85,7 +85,7 @@ mod tests {
     async fn test_set_service_check_urgent() {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
-        let state = WebState::new(db, &config);
+        let state = WebState::new(db, &config, None);
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db.as_ref())
@@ -100,9 +100,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_set_service_check_disabled() {
-        let (db, config) = test_setup().await.expect("Failed to set up!");
-
-        let state = WebState::new(db, &config);
+        let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db.as_ref())
@@ -119,7 +117,7 @@ mod tests {
     async fn test_set_service_check_enabled() {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
-        let state = WebState::new(db, &config);
+        let state = WebState::new(db, &config, None);
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db.as_ref())
