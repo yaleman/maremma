@@ -47,6 +47,7 @@ impl Model {
         model.next_check.set_if_not_equals(next_check);
 
         if model.is_changed() {
+            debug!("saving {:?}", model);
             model.save(db).await.map_err(|err| {
                 error!("{} error saving {:?}", service.id.hyphenated(), err);
                 Error::from(err)
