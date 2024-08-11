@@ -89,7 +89,7 @@ mod tests {
         let service: super::CliService = match serde_json::from_str(
             r#" {
             "name": "local_lslah",
-            "type": "cli",
+            "service_type": "cli",
             "host_groups": ["local_lslah"],
             "command_line": "ls -lah /tmp",
             "cron_schedule": "* * * * *"
@@ -103,7 +103,7 @@ mod tests {
         // test parsing broken service
         assert!(Service {
             name: Some("test".to_string()),
-            type_: ServiceType::Cli,
+            service_type: ServiceType::Cli,
             id: Default::default(),
             description: None,
             host_groups: vec![],

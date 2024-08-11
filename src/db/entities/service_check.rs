@@ -361,7 +361,7 @@ impl FullServiceCheck {
             .column_as(service::Column::Name, "service_name")
             .column_as(host::Column::Id, "host_id")
             .column_as(host::Column::Hostname, "host_name")
-            .column_as(service::Column::Type, "service_type")
+            .column_as(service::Column::ServiceType, "service_type")
             .join(JoinType::LeftJoin, Relation::Service.def())
             .join(JoinType::LeftJoin, Relation::Host.def())
             .column_as(Column::Id, "service_check_id")

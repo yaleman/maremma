@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query;
 use std::fmt::Display;
@@ -8,19 +9,19 @@ pub mod fakehost;
 pub mod kube;
 pub mod ssh;
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, JsonSchema)]
 
 pub struct Host {
     #[serde(skip, skip_serializing_if = "Option::is_none")]
     pub id: Option<Uuid>,
 
-    #[serde(default = "Default::default")]
+    #[serde(default)]
     pub check: HostCheck,
 
-    #[serde(default = "Default::default")]
+    #[serde(default)]
     pub hostname: Option<String>,
 
-    #[serde(default = "Default::default")]
+    #[serde(default)]
     pub host_groups: Vec<String>,
 
     // Capture all the other config fields
@@ -56,7 +57,17 @@ impl From<crate::db::entities::host::Model> for Host {
 }
 
 #[derive(
-    Deserialize, Debug, Serialize, Default, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden,
+    Deserialize,
+    Debug,
+    Serialize,
+    Default,
+    PartialEq,
+    Eq,
+    Clone,
+    DeriveActiveEnum,
+    EnumIter,
+    Iden,
+    JsonSchema,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(1))")]
 #[serde(rename_all = "lowercase")]

@@ -9,6 +9,7 @@ use crate::db::entities;
 use crate::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
 
+use schemars::JsonSchema;
 use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
 use serde::de::DeserializeOwned;
 
@@ -97,7 +98,7 @@ pub trait ServiceTrait: Debug + Sync + Send {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct Service {
     #[serde(default = "uuid::Uuid::new_v4")]
     pub id: Uuid,
@@ -105,12 +106,13 @@ pub struct Service {
     pub name: Option<String>,
     pub description: Option<String>,
     pub host_groups: Vec<String>,
-    #[serde(alias = "type")]
-    pub type_: ServiceType,
+    pub service_type: ServiceType,
     #[serde(
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
+    #[schemars(with = "String")]
+    /// Cron schedule for the service, eg `@hourly`, `* * * * * *` or `0 0 * * *`
     pub cron_schedule: Cron,
 
     /// Catch-all for the other fields in the config
@@ -129,7 +131,7 @@ impl Service {
             .name
             .clone()
             .unwrap_or(self.id.hyphenated().to_string());
-        let config = match self.type_ {
+        let config = match self.service_type {
             ServiceType::Cli => {
                 let value = match cli::CliService::from_config(&value) {
                     Ok(value) => value,
@@ -224,7 +226,7 @@ impl TryFrom<&entities::service::Model> for Service {
             name: Some(value.name.clone()),
             description: value.description.clone(),
             host_groups,
-            type_: value.type_.clone(),
+            service_type: value.service_type.clone(),
             cron_schedule: Cron::new(&value.cron_schedule).parse()?,
             extra_config,
             config: None,
@@ -235,7 +237,18 @@ impl TryFrom<&entities::service::Model> for Service {
     }
 }
 
-#[derive(Deserialize, Debug, Serialize, PartialEq, Eq, Clone, DeriveActiveEnum, EnumIter, Iden)]
+#[derive(
+    Deserialize,
+    Debug,
+    Serialize,
+    PartialEq,
+    Eq,
+    Clone,
+    DeriveActiveEnum,
+    EnumIter,
+    Iden,
+    JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(5))")]
 pub enum ServiceType {
@@ -329,7 +342,7 @@ mod tests {
 
         let service_without_host_groups = entities::service::Model {
             host_groups: Default::default(),
-            type_: ServiceType::Ping,
+            service_type: ServiceType::Ping,
             extra_config: None,
             ..service.clone()
         };
@@ -340,7 +353,7 @@ mod tests {
 
         let service_as_value =
             serde_json::to_value(&service).expect("Failed to convert service model to value");
-
+        debug!("Service as value: {:?}", service_as_value);
         let service_from_value: Service = (&service_as_value)
             .try_into()
             .expect("Failed to convert value to service");
@@ -362,7 +375,7 @@ mod tests {
     fn test_parse_http_service_configs() {
         let config = r#"{
             "name": "test",
-            "type": "http",
+            "service_type": "http",
             "host_groups": ["test"],
             "http_uri" : "/foo",
             "http_method" : "POST",
@@ -371,7 +384,7 @@ mod tests {
         let value: Value = serde_json::from_str(config).expect("Failed to parse config");
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
-        assert_eq!(service.type_, ServiceType::Http);
+        assert_eq!(service.service_type, ServiceType::Http);
         assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
@@ -383,7 +396,7 @@ mod tests {
     fn test_parse_cli_service_config() {
         let config = r#"{
             "name": "test",
-            "type": "cli",
+            "service_type": "cli",
             "host_groups": ["test"],
             "command_line": "ls -lah .",
             "cron_schedule": "@hourly"
@@ -391,7 +404,7 @@ mod tests {
         let value: Value = serde_json::from_str(config).expect("Failed to parse config");
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
-        assert_eq!(service.type_, ServiceType::Cli);
+        assert_eq!(service.service_type, ServiceType::Cli);
         assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
@@ -403,7 +416,7 @@ mod tests {
     fn test_parse_ssh_service_config() {
         let config = r#"{
             "name": "test",
-            "type": "ssh",
+            "service_type": "ssh",
             "host_groups": ["test"],
             "command_line": "ls -lah .",
             "cron_schedule": "@hourly"
@@ -411,7 +424,7 @@ mod tests {
         let value: Value = serde_json::from_str(config).expect("Failed to parse config");
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
-        assert_eq!(service.type_, ServiceType::Ssh);
+        assert_eq!(service.service_type, ServiceType::Ssh);
         assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
@@ -423,14 +436,14 @@ mod tests {
     fn test_parse_ping_service_config() {
         let config = r#"{
             "name": "test",
-            "type": "ping",
+            "service_type": "ping",
             "host_groups": ["test"],
             "cron_schedule": "@hourly"
         }"#;
         let value: Value = serde_json::from_str(config).expect("Failed to parse config");
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
-        assert_eq!(service.type_, ServiceType::Ping);
+        assert_eq!(service.service_type, ServiceType::Ping);
         assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
@@ -442,14 +455,14 @@ mod tests {
     fn test_parse_service_from_value() {
         let config = r#"{
             "name": "test",
-            "type": "ping",
+            "service_type": "ping",
             "host_groups": ["test"],
             "cron_schedule": "@hourly"
         }"#;
         let value: Value = serde_json::from_str(config).expect("Failed to parse config");
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
-        assert_eq!(service.type_, ServiceType::Ping);
+        assert_eq!(service.service_type, ServiceType::Ping);
         assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),

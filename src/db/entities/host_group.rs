@@ -82,43 +82,31 @@ impl MaremmaEntity for Model {
             }
         }
 
-        if let Some(services) = config.services.clone() {
-            if let Some(services) = services.as_object().cloned() {
-                for (service_name, service) in services {
-                    match serde_json::from_value::<Service>(service.clone()) {
-                        Ok(service) => {
-                            for group_name in service.host_groups.iter() {
-                                if known_group_list.contains(group_name) {
-                                    continue;
-                                }
-                                if find_by_name(group_name, db.as_ref()).await?.is_none() {
-                                    debug!("Adding host group {}", group_name);
-                                    Entity::insert(
-                                        Model {
-                                            id: Uuid::new_v4(),
-                                            name: group_name.to_owned(),
-                                        }
-                                        .into_active_model(),
-                                    )
-                                    .exec_with_returning(db.as_ref())
-                                    .await?;
-                                    warn!(
-                                        "Added group {:?} from service {:?} to DB",
-                                        &service_name, group_name
-                                    );
-                                } else {
-                                    debug!("Already have group {}", group_name);
-                                }
+        if let Some(services) = config.services.as_ref() {
+            for (service_name, service) in services {
+                for group_name in service.host_groups.iter() {
+                    if known_group_list.contains(group_name) {
+                        continue;
+                    }
+                    if find_by_name(group_name, db.as_ref()).await?.is_none() {
+                        debug!("Adding host group {}", group_name);
+                        Entity::insert(
+                            Model {
+                                id: Uuid::new_v4(),
+                                name: group_name.to_owned(),
                             }
-                        }
-                        Err(err) => {
-                            error!("Couldn't parse service: {:?} -> {:?}", service, err);
-                        }
-                    };
+                            .into_active_model(),
+                        )
+                        .exec_with_returning(db.as_ref())
+                        .await?;
+                        warn!(
+                            "Added group {:?} from service {:?} to DB",
+                            &service_name, group_name
+                        );
+                    } else {
+                        debug!("Already have group {}", group_name);
+                    }
                 }
-            } else {
-                warn!("Couldn't parse service map from configuration");
-                debug!("Services: {:?}", services);
             }
         } else {
             warn!("No services found in configuration");

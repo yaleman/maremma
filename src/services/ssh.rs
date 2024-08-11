@@ -96,7 +96,7 @@ mod tests {
         let service: super::SshService = match serde_json::from_str(
             r#" {
             "name": "local_lslah",
-            "type": "ssh",
+            "service_type": "ssh",
             "host_groups": ["local_lslah"],
             "command_line": "ls -lah /tmp",
             "cron_schedule": "* * * * *"
@@ -110,7 +110,7 @@ mod tests {
         // test parsing broken service
         assert!(Service {
             name: Some("test".to_string()),
-            type_: ServiceType::Ssh,
+            service_type: ServiceType::Ssh,
             id: Default::default(),
             description: None,
             host_groups: vec![],

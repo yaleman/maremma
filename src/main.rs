@@ -21,7 +21,7 @@ async fn main() -> Result<(), ExitCode> {
     };
 
     // parse the config file
-    let config = Configuration::new(cli.config()).await.map_err(|err| {
+    let config = Configuration::new(&cli.config()).await.map_err(|err| {
         error!("Failed to load config: {:?}", err);
         ExitCode::from(1)
     })?;
@@ -62,6 +62,10 @@ async fn main() -> Result<(), ExitCode> {
                 serde_json::to_string_pretty(&*config)
                     .unwrap_or(format!("Failed to serialize config: {:?}", &config))
             );
+        }
+        Actions::ExportConfigSchema => {
+            let schema = schemars::schema_for!(Configuration);
+            println!("{}", serde_json::to_string_pretty(&schema).unwrap());
         }
     }
     Ok(())

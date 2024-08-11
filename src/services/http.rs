@@ -125,7 +125,7 @@ mod tests {
             {
                 "name": "test",
                 "run_in_shell": false,
-                "type": "http",
+                "service_type": "http",
             }
         })
         .is_err());

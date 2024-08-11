@@ -25,8 +25,8 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Service::HostGroups).string().not_null())
                     .col(ColumnDef::new(Service::CronSchedule).string().not_null())
                     .col(
-                        ColumnDef::new(Service::Type)
-                            .enumeration(Alias::new("type"), ServiceType::iter())
+                        ColumnDef::new(Service::ServiceType)
+                            .enumeration(Alias::new("service_type"), ServiceType::iter())
                             .string(),
                     )
                     .col(ColumnDef::new(Service::ExtraConfig).json())
@@ -50,7 +50,8 @@ pub enum Service {
     Name,
     Description,
     HostGroups,
-    Type,
+    #[allow(clippy::enum_variant_names)]
+    ServiceType,
     CronSchedule,
     ExtraConfig,
 }

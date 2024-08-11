@@ -1,6 +1,8 @@
+use schemars::JsonSchema;
+
 use crate::prelude::*;
 
-#[derive(Deserialize, Default, Serialize, Debug, Clone)]
+#[derive(Deserialize, Default, Serialize, Debug, Clone, JsonSchema)]
 pub struct FakeHost {
     pub services: Vec<String>,
 }

@@ -1,5 +1,5 @@
 use sea_orm::entity::prelude::*;
-use sea_orm::{Set, TryIntoModel};
+use sea_orm::TryIntoModel;
 
 use crate::prelude::*;
 
@@ -12,9 +12,7 @@ pub struct Model {
     pub description: Option<String>,
     /// A list of host group names
     pub host_groups: Json,
-    #[sea_orm(name = "type")]
-    #[serde(alias = "type")]
-    pub type_: ServiceType,
+    pub service_type: ServiceType,
     pub cron_schedule: String,
     #[serde(flatten)]
     pub extra_config: Option<Json>,
@@ -47,57 +45,55 @@ impl MaremmaEntity for Model {
         db: Arc<DatabaseConnection>,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
-        if let Some(services) = config.services.clone() {
-            if let Some(services) = services.as_object() {
-                for (service_name, service) in services {
-                    let mut service = service.to_owned();
+        if let Some(services) = config.services.as_ref() {
+            for (service_name, service) in services {
+                // this is janky but we need to flatten it using serde to get the "extra" fields
+                let extra_config: Json = serde_json::to_value(service.extra_config.clone())?;
 
-                    // this is janky but we need to flatten it using serde to get the "extra" fields
-                    let service_parsed: Service = serde_json::from_value(service.clone())?;
-                    let extra_config: Json = serde_json::to_value(service_parsed.extra_config)?;
+                let mut service_value = serde_json::to_value(service)?;
 
-                    if let Some(service_object) = service.as_object_mut() {
+                if let Some(service_object) = service_value.as_object_mut() {
+                    if !service_object.contains_key("id") || service_object.get("id").is_none() {
                         service_object.insert("id".to_string(), json!(Uuid::new_v4()));
-                        service_object.insert("name".to_string(), json!(service_name));
-                        service_object.insert("extra_config".to_string(), json!(extra_config));
+                    }
+                    service_object.insert("name".to_string(), json!(service_name));
+                    service_object.insert("extra_config".to_string(), json!(extra_config));
+                }
+
+                // check if we have one and add it if not
+                match Entity::find()
+                    .filter(Column::Name.eq(service_name))
+                    .one(db.as_ref())
+                    .await
+                {
+                    Ok(Some(res)) => {
+                        let mut res = res.into_active_model();
+                        res.name.set_if_not_equals(service_name.clone());
+                        if let Err(err) = res.set_from_json(service_value) {
+                            error!("Error setting service from json: {:?}", err);
+                            return Err(err.into());
+                        };
+
+                        if res.is_changed() {
+                            debug!("about to update this: {:?}", res);
+                            debug!("Source: {:?}", service);
+                            res.update(db.as_ref()).await?
+                        } else {
+                            res.try_into_model()?
+                        }
+                    }
+                    Ok(None) => {
+                        // insert the service if we can't find it
+                        let mut am = ActiveModel::new();
+
+                        am.set_from_json(serde_json::to_value(&service_value)?)?;
+                        am.id.set_if_not_equals(Uuid::new_v4());
+                        debug!("Creating service: {:?}", am);
+                        Entity::insert(am).exec_with_returning(&*db).await?
                     }
 
-                    // check if we have one and add it if not
-                    match Entity::find()
-                        .filter(Column::Name.eq(service_name))
-                        .one(db.as_ref())
-                        .await
-                    {
-                        Ok(Some(res)) => {
-                            let mut res = res.into_active_model();
-
-                            res.set_from_json(service.clone())?;
-                            if res.is_changed() {
-                                debug!("about to update this: {:?}", res);
-                                debug!("Source: {:?}", service);
-                                res.update(db.as_ref()).await?
-                            } else {
-                                res.try_into_model()?
-                            }
-                        }
-                        Ok(None) => {
-                            // insert the service if we can't find it
-                            let mut am = ActiveModel::new();
-                            let service_id = Uuid::new_v4();
-
-                            am.set_from_json(service)?;
-                            am.id = Set(service_id);
-                            debug!("Creating service: {:?}", am);
-                            Entity::insert(am).exec_with_returning(&*db).await?
-                        }
-
-                        Err(err) => return Err(err.into()),
-                    };
-                }
-            } else {
-                return Err(Error::Deserialization(
-                    "services in configuration is not an object!".to_string(),
-                ));
+                    Err(err) => return Err(err.into()),
+                };
             }
         } else {
             error!("No services in config!");
@@ -116,7 +112,7 @@ pub(crate) fn test_service() -> Model {
         name: "Test Service".to_string(),
         description: Some("Test Service Description".to_string()),
         host_groups: json! {["test".to_string()]},
-        type_: crate::prelude::ServiceType::Cli,
+        service_type: crate::prelude::ServiceType::Cli,
         cron_schedule: "* * * * *".to_string(),
         extra_config: serde_json::json!({ "url": "http://localhost:8080" }).into(),
     }

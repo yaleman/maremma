@@ -1,0 +1,240 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Configuration",
+  "type": "object",
+  "required": [
+    "hosts"
+  ],
+  "properties": {
+    "database_file": {
+      "default": "maremma.sqlite",
+      "type": "string"
+    },
+    "listen_address": {
+      "default": "127.0.0.1",
+      "type": "string"
+    },
+    "listen_port": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "hosts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Host"
+      }
+    },
+    "local_services": {
+      "default": {
+        "services": []
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/FakeHost"
+        }
+      ]
+    },
+    "services": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "$ref": "#/definitions/Service"
+      }
+    },
+    "frontend_url": {
+      "description": "The frontend URL ie `https://maremma.example.com` used for things like OIDC",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "oidc_enabled": {
+      "default": false,
+      "type": "boolean"
+    },
+    "oidc_config": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/OidcConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cert_file": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cert_key": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "max_concurrent_checks": {
+      "default": 10,
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "Host": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "default": "ping",
+          "allOf": [
+            {
+              "$ref": "#/definitions/HostCheck"
+            }
+          ]
+        },
+        "hostname": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host_groups": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "HostCheck": {
+      "oneOf": [
+        {
+          "description": "No checks done",
+          "type": "string",
+          "enum": [
+            "none"
+          ]
+        },
+        {
+          "description": "Checks by pinging the host",
+          "type": "string",
+          "enum": [
+            "ping"
+          ]
+        },
+        {
+          "description": "Checks by trying to SSH to the host",
+          "type": "string",
+          "enum": [
+            "ssh"
+          ]
+        },
+        {
+          "description": "Checks we can connect to the Kubernetes API",
+          "type": "string",
+          "enum": [
+            "kubernetes"
+          ]
+        }
+      ]
+    },
+    "FakeHost": {
+      "type": "object",
+      "required": [
+        "services"
+      ],
+      "properties": {
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Service": {
+      "type": "object",
+      "required": [
+        "cron_schedule",
+        "host_groups",
+        "service_type"
+      ],
+      "properties": {
+        "id": {
+          "default": "b2bc11e1-3210-4853-a4b8-143dd9c39510",
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "description": "This is pulled from the config file's key",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "service_type": {
+          "$ref": "#/definitions/ServiceType"
+        },
+        "cron_schedule": {
+          "description": "Cron schedule for the service, eg `@hourly`, `* * * * * *` or `0 0 * * *`",
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ServiceType": {
+      "type": "string",
+      "enum": [
+        "cli",
+        "ssh",
+        "ping",
+        "http"
+      ]
+    },
+    "OidcConfig": {
+      "type": "object",
+      "required": [
+        "client_id",
+        "issuer"
+      ],
+      "properties": {
+        "issuer": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "client_secret": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

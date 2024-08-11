@@ -13,18 +13,20 @@
     },
     "services": {
         "local_lslah": {
-            "type": "cli",
+            "service_type": "cli",
             "host_groups": ["local_lslah"],
             "command_line": "ls -lah /tmp",
             "cron_schedule": "* * * * *"
         },
         "check_ntp_time": {
-            "type": "ssh",
+            "service_type": "ssh",
             "host_groups": ["check_ntp_time"],
             "command_line": "/usr/lib/nagios/plugins/check_ntp_time -H localhost",
             "cron_schedule": "* * * * *"
         }
     },
+    "listen_address": "127.0.0.1",
+    "listen_port": 8000,
     "cert_file": "/etc/letsencrypt/live/example.com/fullchain.pem",
     "cert_key": "/etc/letsencrypt/live/example.com/privkey.pem"
 }

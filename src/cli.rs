@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::*;
 
+use crate::DEFAULT_CONFIG_FILE;
+
 #[derive(Parser, Clone, Default)]
 pub struct SharedOpts {
     #[clap(short, long,action = clap::ArgAction::SetTrue)]
@@ -32,6 +34,9 @@ pub enum Actions {
     Run(Run),
     #[clap(name = "show-config")]
     ShowConfig(ShowConfig),
+    #[clap(name = "export-config-schema")]
+    /// Export a JSON schema for the config file
+    ExportConfigSchema,
 }
 
 #[derive(Parser, Clone)]
@@ -41,10 +46,11 @@ pub struct CliOpts {
 }
 
 impl CliOpts {
-    pub fn config(&self) -> &PathBuf {
+    pub fn config(&self) -> PathBuf {
         match &self.action {
-            Actions::Run(run) => &run.sharedopts.config,
-            Actions::ShowConfig(run) => &run.sharedopts.config,
+            Actions::Run(run) => run.sharedopts.config.clone(),
+            Actions::ShowConfig(run) => run.sharedopts.config.clone(),
+            Actions::ExportConfigSchema => PathBuf::from(DEFAULT_CONFIG_FILE),
         }
     }
 
@@ -52,6 +58,7 @@ impl CliOpts {
         match &self.action {
             Actions::Run(run) => run.sharedopts.debug.unwrap_or(false),
             Actions::ShowConfig(run) => run.sharedopts.debug.unwrap_or(false),
+            Actions::ExportConfigSchema => false,
         }
     }
 }
@@ -66,6 +73,7 @@ mod tests {
             ("maremma run", false),
             ("maremma show-config --debug", true),
             ("maremma show-config", false),
+            ("maremma export-config-schema", false),
         ];
 
         for (args, debug) in test_list {
@@ -95,7 +103,9 @@ mod tests {
             let args = args.split_whitespace().collect::<Vec<&str>>();
             let opts = CliOpts::parse_from(args);
 
-            assert_eq!(opts.config(), &expected_config);
+            assert_eq!(opts.config(), expected_config);
         }
     }
+
+    // TOOD: work out how to run the export subcommand, capture the result and confirm it's doing what it says
 }

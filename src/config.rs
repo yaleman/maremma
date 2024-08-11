@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use schemars::JsonSchema;
+
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
@@ -19,14 +21,15 @@ fn default_max_concurrent_checks() -> usize {
     std::cmp::max(cpus.saturating_sub(2), 1)
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
 pub struct OidcConfig {
     pub issuer: String,
     pub client_id: String,
     pub client_secret: Option<String>,
 }
+
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct Configuration {
+pub struct ConfigurationParser {
     #[serde(default = "default_database_file")]
     pub database_file: String,
 
@@ -43,7 +46,7 @@ pub struct Configuration {
 
     // This is something we need to deserialize later because it's messy
     #[serde(skip_serializing)]
-    pub services: Option<serde_json::Value>,
+    pub services: Option<HashMap<String, Value>>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
     pub frontend_url: Option<String>,
@@ -62,6 +65,74 @@ pub struct Configuration {
     pub max_concurrent_checks: usize,
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
+pub struct Configuration {
+    #[serde(default = "default_database_file")]
+    pub database_file: String,
+
+    #[serde(default = "default_listen_address")]
+    pub listen_address: String,
+
+    //// Defaults to 8888
+    pub listen_port: Option<u16>,
+
+    pub hosts: HashMap<String, Host>,
+
+    #[serde(default)]
+    pub local_services: FakeHost,
+
+    // This is something we need to deserialize later because it's messy
+    pub services: Option<HashMap<String, Service>>,
+
+    /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
+    pub frontend_url: Option<String>,
+
+    #[serde(default)]
+    pub oidc_enabled: bool,
+
+    pub oidc_config: Option<OidcConfig>,
+
+    #[serde(default)]
+    pub cert_file: Option<PathBuf>,
+    #[serde(default)]
+    pub cert_key: Option<PathBuf>,
+
+    #[serde(default = "default_max_concurrent_checks")]
+    pub max_concurrent_checks: usize,
+}
+
+impl TryFrom<ConfigurationParser> for Configuration {
+    fn try_from(value: ConfigurationParser) -> Result<Self, Error> {
+        let services = match value.services {
+            Some(services) => {
+                let mut res: HashMap<String, Service> = HashMap::new();
+                for (service_name, service) in services {
+                    res.insert(service_name, serde_json::from_value(service)?);
+                }
+                Some(res)
+            }
+            None => None,
+        };
+
+        Ok(Configuration {
+            database_file: value.database_file,
+            listen_address: value.listen_address,
+            listen_port: value.listen_port,
+            hosts: value.hosts,
+            local_services: value.local_services,
+            services,
+            frontend_url: value.frontend_url,
+            oidc_enabled: value.oidc_enabled,
+            oidc_config: value.oidc_config,
+            cert_file: value.cert_file,
+            cert_key: value.cert_key,
+            max_concurrent_checks: value.max_concurrent_checks,
+        })
+    }
+
+    type Error = Error;
+}
+
 impl Configuration {
     pub async fn new(filename: &PathBuf) -> Result<Self, Error> {
         if !filename.exists() {
@@ -74,7 +145,7 @@ impl Configuration {
     }
 
     pub async fn new_from_string(config: &str) -> Result<Self, Error> {
-        let mut res: Configuration = serde_json::from_str(config)?;
+        let mut res: ConfigurationParser = serde_json::from_str(config)?;
 
         if !res.local_services.services.is_empty() {
             res.hosts.insert(
@@ -82,6 +153,8 @@ impl Configuration {
                 Host::new(LOCAL_SERVICE_HOST_NAME.to_string(), HostCheck::None),
             );
         }
+
+        // handle the case where the frontend URL is set but doesn't start with https
         if let Some(url) = &res.frontend_url {
             if !url.starts_with("https") {
                 return Err(Error::Configuration(
@@ -89,7 +162,7 @@ impl Configuration {
                 ));
             }
         }
-        Ok(res)
+        res.try_into()
     }
 
     #[cfg(test)]
@@ -137,21 +210,9 @@ impl Configuration {
         });
 
         if let Some(services) = &self.services {
-            if let Some(services) = services.as_object() {
-                services.iter().for_each(|(_service_name, service)| {
-                    if let Some(service) = service.as_object() {
-                        if let Some(host_groups) = service.get("host_groups") {
-                            if let Some(group_values) = host_groups.as_array() {
-                                group_values.iter().for_each(|group| {
-                                    if let Some(group) = group.as_str() {
-                                        groups.insert(group.to_string());
-                                    }
-                                });
-                            }
-                        }
-                    }
-                });
-            }
+            services.iter().for_each(|(_service_name, service)| {
+                groups.extend(service.host_groups.iter().cloned());
+            });
         }
 
         groups.into_iter().collect()
@@ -165,7 +226,7 @@ impl Configuration {
         // check the services against the config file
 
         // check the checks against the config file
-
+        // TODO: prune config
         Ok(())
     }
 }
@@ -175,6 +236,7 @@ mod tests {
     use crate::config::{default_max_concurrent_checks, Configuration};
     use crate::db::tests::test_setup;
 
+    use schemars::schema_for;
     #[tokio::test]
     async fn test_config_new() {
         assert!(Configuration::new(
@@ -208,5 +270,12 @@ mod tests {
     #[test]
     fn test_default_max_concurrent_checks() {
         assert!(default_max_concurrent_checks() >= 1);
+    }
+
+    #[test]
+    fn test_json_schema() {
+        let schema = schema_for!(Configuration);
+
+        println!("{}", serde_json::to_string_pretty(&schema).unwrap());
     }
 }
