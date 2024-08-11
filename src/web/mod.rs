@@ -160,13 +160,6 @@ pub async fn run_web_server(
     use axum_server::bind_rustls;
     use axum_server::tls_rustls::RustlsConfig;
 
-    let addr = format!(
-        "{}:{}",
-        configuration.listen_address,
-        configuration
-            .listen_port
-            .unwrap_or(crate::constants::DEFAULT_PORT)
-    );
     let app = build_app(
         WebState::new(db, &configuration, Some(registry)),
         &configuration,
@@ -175,62 +168,61 @@ pub async fn run_web_server(
 
     let frontend_url = configuration.frontend_url();
 
-    info!("Starting web server on {}", &frontend_url);
-    if configuration.tls_enabled {
-        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+    info!(
+        "Starting web server on {} (listen address is {}",
+        &frontend_url,
+        configuration.listen_addr()
+    );
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
-        let cert_file = match &configuration.cert_file {
-            Some(cert_file) => {
-                if !cert_file.exists() {
-                    return Err(Error::Generic(format!(
-                        "TLS is enabled but cert_file {:?} does not exist",
-                        cert_file
-                    )));
-                }
-                cert_file
+    let cert_file = match &configuration.cert_file {
+        Some(cert_file) => {
+            if !cert_file.exists() {
+                return Err(Error::Generic(format!(
+                    "TLS is enabled but cert_file {:?} does not exist",
+                    cert_file
+                )));
             }
-            None => {
-                return Err(Error::Generic(
-                    "TLS is enabled but no cert_file is provided".to_string(),
-                ))
+            cert_file
+        }
+        None => {
+            return Err(Error::Generic(
+                "TLS is enabled but no cert_file is provided".to_string(),
+            ))
+        }
+    };
+    let cert_key = match &configuration.cert_key {
+        Some(cert_key) => {
+            if !cert_key.exists() {
+                return Err(Error::Generic(format!(
+                    "TLS is enabled but cert_key {:?} does not exist",
+                    cert_key
+                )));
             }
-        };
-        let cert_key = match &configuration.cert_key {
-            Some(cert_key) => {
-                if !cert_key.exists() {
-                    return Err(Error::Generic(format!(
-                        "TLS is enabled but cert_key {:?} does not exist",
-                        cert_key
-                    )));
-                }
-                cert_key
-            }
-            None => {
-                return Err(Error::Generic(
-                    "TLS is enabled but no cert_key is provided".to_string(),
-                ))
-            }
-        };
-        let tls_config = RustlsConfig::from_pem_file(&cert_file.as_path(), &cert_key.as_path())
-            .await
-            .map_err(|err| Error::Generic(format!("Failed to load TLS config: {:?}", err)))?;
-        bind_rustls(
-            addr.parse()
-                .map_err(|err| Error::Generic(format!("Failed to parse address: {err:?}")))?,
-            tls_config,
-        )
-        .serve(app.into_make_service())
+            cert_key
+        }
+        None => {
+            return Err(Error::Generic(
+                "TLS is enabled but no cert_key is provided".to_string(),
+            ))
+        }
+    };
+    let tls_config = RustlsConfig::from_pem_file(&cert_file.as_path(), &cert_key.as_path())
         .await
-        .map_err(|err| Error::Generic(format!("Web server failed: {:?}", err)))
-    } else {
-        axum_server::bind(
-            addr.parse()
-                .map_err(|err| Error::Generic(format!("{:?}", err)))?,
-        )
-        .serve(app.into_make_service())
-        .await
-        .map_err(|err| Error::Generic(format!("Web server failed: {:?}", err)))
-    }
+        .map_err(|err| Error::Generic(format!("Failed to load TLS config: {:?}", err)))?;
+    bind_rustls(
+        configuration.listen_addr().parse().map_err(|err| {
+            Error::Generic(format!(
+                "Failed to parse listen address {}: {:?}",
+                configuration.listen_addr(),
+                err
+            ))
+        })?,
+        tls_config,
+    )
+    .serve(app.into_make_service())
+    .await
+    .map_err(|err| Error::Generic(format!("Web server failed: {:?}", err)))
 }
 
 #[cfg(test)]

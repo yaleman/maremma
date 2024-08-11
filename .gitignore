@@ -21,3 +21,4 @@ maremma.sqlite
 
 # ignore all the other plugins files
 plugins/*
+*.json

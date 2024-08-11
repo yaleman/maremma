@@ -52,8 +52,6 @@ pub struct Configuration {
     pub oidc_enabled: bool,
 
     pub oidc_config: Option<OidcConfig>,
-    #[serde(default)]
-    pub tls_enabled: bool,
 
     #[serde(default)]
     pub cert_file: Option<PathBuf>,
@@ -84,6 +82,13 @@ impl Configuration {
                 Host::new(LOCAL_SERVICE_HOST_NAME.to_string(), HostCheck::None),
             );
         }
+        if let Some(url) = &res.frontend_url {
+            if !url.starts_with("https") {
+                return Err(Error::Configuration(
+                    "Frontend URL must start with https".to_string(),
+                ));
+            }
+        }
         Ok(res)
     }
 
@@ -107,19 +112,18 @@ impl Configuration {
 
     pub fn frontend_url(&self) -> String {
         self.frontend_url.clone().unwrap_or_else(|| {
-            let proto = if self.tls_enabled { "https" } else { "http" };
-            let port = match self.listen_port {
-                Some(port) => {
-                    if [80, 443].contains(&port) {
-                        "".to_string()
-                    } else {
-                        port.to_string()
-                    }
-                }
-                None => crate::constants::DEFAULT_PORT.to_string(),
-            };
-            format!("{}://{}:{}", proto, self.listen_address, port)
+            let port = self.listen_port.unwrap_or(crate::constants::DEFAULT_PORT);
+            format!("https://{}:{}", self.listen_address, port)
         })
+    }
+
+    // returns the listen address and port as a string ie `127.0.0.1:8888`
+    pub fn listen_addr(&self) -> String {
+        format!(
+            "{}:{}",
+            self.listen_address,
+            self.listen_port.unwrap_or(crate::constants::DEFAULT_PORT)
+        )
     }
 
     // Pulls the groups from hosts and services in the config

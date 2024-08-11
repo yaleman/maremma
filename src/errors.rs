@@ -5,24 +5,25 @@ use uuid::Uuid;
 
 #[derive(Debug, PartialEq)]
 pub enum Error {
-    DNSFailed,
     ConfigFileNotFound(String),
+    Configuration(String),
     ConnectionFailed,
-    Generic(String),
+    CronParseError(String),
+    DateIsInTheFuture,
     Deserialization(String),
-    IoError(String),
-    ServiceNotFoundByName(String),
-    ServiceNotFound(Uuid),
+    DNSFailed,
+    Generic(String),
     HostGroupNotFoundByName(String),
     HostNotFound(Uuid),
+    InvalidInput(String),
+    IoError(String),
+    NotImplemented,
+    Oidc(String),
     ServiceCheckNotFound(Uuid),
     ServiceConfigNotFound(String),
+    ServiceNotFound(Uuid),
+    ServiceNotFoundByName(String),
     SqlError(sea_orm::error::DbErr),
-    CronParseError(String),
-    InvalidInput(String),
-    DateIsInTheFuture,
-    Oidc(String),
-    NotImplemented,
 }
 
 impl From<serde_json::Error> for Error {

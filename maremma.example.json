@@ -24,5 +24,7 @@
             "command_line": "/usr/lib/nagios/plugins/check_ntp_time -H localhost",
             "cron_schedule": "* * * * *"
         }
-    }
+    },
+    "cert_file": "/etc/letsencrypt/live/example.com/fullchain.pem",
+    "cert_key": "/etc/letsencrypt/live/example.com/privkey.pem"
 }
