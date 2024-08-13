@@ -58,6 +58,10 @@ async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoR
     Err((StatusCode::NOT_FOUND, "Not Implemented yet!"))
 }
 
+async fn up(State(_state): State<WebState>) -> impl IntoResponse {
+    (StatusCode::OK, "OK")
+}
+
 pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result<Router, Error> {
     let session_store = MemoryStore::default();
 
@@ -144,6 +148,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         );
     }
     app = app
+        .route("/healthcheck", get(up))
         .nest_service("/static", ServeDir::new(static_path).precompressed_br())
         .layer(TraceLayer::new_for_http())
         .layer(session_layer);
