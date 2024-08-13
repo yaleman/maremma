@@ -1,4 +1,5 @@
 use entities::service_check;
+use sea_orm::QuerySelect;
 
 use crate::prelude::*;
 
@@ -39,12 +40,35 @@ impl Related<service_check::Entity> for Entity {
 impl Entity {
     /// Leaves only the last x number of service check history entries
     pub async fn head(
-        _db: &DatabaseConnection,
-        _service_check_id: Uuid,
-        _count: u64,
-    ) -> Result<(), Error> {
-        // TODO: implement this
-        todo!()
+        db: &DatabaseConnection,
+        service_check_id: Option<Uuid>,
+        count: u64,
+    ) -> Result<usize, Error> {
+        let mut trimmed = 0;
+        // find all the service checks
+
+        let mut service_checks = Self::find().distinct().group_by(Column::Id);
+        if let Some(sc) = service_check_id {
+            service_checks = service_checks.filter(Column::ServiceCheckId.eq(sc));
+        }
+        let service_checks = service_checks.all(db).await?;
+
+        for check in service_checks {
+            info!("Service check: {}", check.id.hyphenated());
+            // check if there's enough to trim
+            let sc_count = Self::find()
+                .filter(Column::ServiceCheckId.eq(check.id))
+                .count(db)
+                .await?;
+            if sc_count <= count {
+                continue;
+            }
+            // TODO: implement the actual trimming
+            // update trimmed variable with how many were stripped
+            trimmed += 1;
+        }
+        error!("Haven't done the trimming bit yet!");
+        Ok(trimmed)
     }
 
     /// Prunes the service check history table
@@ -155,6 +179,16 @@ mod tests {
         )
         .await
         .expect("Failed to prune nothing");
+
+        assert_eq!(res, 0);
+    }
+    #[tokio::test]
+    async fn test_head_service_check_history() {
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+
+        let res = Entity::head(db.as_ref(), Some(Uuid::new_v4()), 0)
+            .await
+            .expect("Failed to prune nothing");
 
         assert_eq!(res, 0);
     }
