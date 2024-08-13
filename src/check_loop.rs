@@ -1,8 +1,10 @@
 use crate::db::get_next_service_check;
 use crate::prelude::*;
-use chrono::Duration;
 use sea_orm::prelude::*;
 use tokio::sync::Semaphore;
+
+const DEFAULT_BACKOFF: std::time::Duration = tokio::time::Duration::from_millis(50);
+const MAX_BACKOFF_TIME: std::time::Duration = tokio::time::Duration::from_secs(1);
 
 #[derive(Clone, Debug)]
 pub struct CheckResult {
@@ -108,7 +110,6 @@ pub(crate) async fn run_service_check(
 
     Ok(())
 }
-
 #[cfg(not(tarpaulin_include))] // TODO: tarpaulin un-ignore for code coverage
 pub async fn run_check_loop(
     db: Arc<DatabaseConnection>,
@@ -121,18 +122,21 @@ pub async fn run_check_loop(
     let checks_run_since_startup =
         Arc::new(metrics_meter.u64_counter("checks_run_since_startup").init());
 
-    let mut backoff = tokio::time::Duration::from_millis(50);
+    let mut backoff = DEFAULT_BACKOFF;
     // Limit to n concurrent tasks
     let semaphore = Arc::new(Semaphore::new(max_permits));
     info!("Max concurrent tasks set to {}", max_permits);
     loop {
-        if let Some((service_check, service)) = get_next_service_check(db.as_ref()).await? {
-            service_check
-                .set_status(ServiceStatus::Checking, db.as_ref())
-                .await?;
-
-            match semaphore.clone().acquire_owned().await {
-                Ok(permit) => {
+        while semaphore.available_permits() == 0 {
+            warn!("No spare task slots, something might be running slow!");
+            tokio::time::sleep(backoff).await;
+        }
+        match semaphore.clone().acquire_owned().await {
+            Ok(permit) => {
+                if let Some((service_check, service)) = get_next_service_check(db.as_ref()).await? {
+                    service_check
+                        .set_status(ServiceStatus::Checking, db.as_ref())
+                        .await?;
                     let checks_run_since_startup_clone = checks_run_since_startup.clone();
                     let db_clone = db.clone();
                     tokio::spawn(async move {
@@ -153,25 +157,23 @@ pub async fn run_check_loop(
                                 ],
                             );
                         }
-                        drop(permit); // Release the permit when the task is done
                     });
+                } else {
+                    backoff += DEFAULT_BACKOFF;
+                    if backoff > MAX_BACKOFF_TIME {
+                        backoff = MAX_BACKOFF_TIME;
+                    }
+                    debug!("Nothing to do, waiting {}ms", backoff.as_millis());
+                    tokio::time::sleep(backoff).await;
                 }
-                Err(err) => {
-                    error!("Failed to acquire semaphore permit: {:?}", err);
-                }
-            };
-            backoff = tokio::time::Duration::from_millis(50);
-        } else {
-            backoff += tokio::time::Duration::from_millis(50);
-            if backoff > tokio::time::Duration::from_secs(1) {
-                backoff = tokio::time::Duration::from_secs(1);
+                drop(permit); // Release the permit when the task is done
             }
-            debug!("Nothing to do, waiting {}ms", backoff.as_millis());
-            tokio::time::sleep(backoff).await;
-        }
-        if semaphore.available_permits() == 0 {
-            warn!("No spare task slots, something might be running slow!");
-        }
+            Err(err) => {
+                error!("Failed to acquire semaphore permit: {:?}", err);
+            }
+        };
+        // we did a thing, so we can reset the back-off time
+        backoff = DEFAULT_BACKOFF;
 
         // TODO: auto-cleanup service checks stuck in "checking state"
     }
