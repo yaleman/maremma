@@ -22,7 +22,7 @@ pub async fn test_connect() -> Result<DatabaseConnection, sea_orm::error::DbErr>
     connect(&config).await
 }
 
-#[instrument(level = "info")]
+#[instrument(level = "info", skip_all)]
 pub async fn connect(config: &Configuration) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
     let connect_string = if config.database_file == ":memory:" {
         info!("Using in-memory database!");
