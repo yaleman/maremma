@@ -52,21 +52,20 @@ pub async fn set_check_result(
 ) -> Result<(), Error> {
     let mut model = model.into_active_model();
     model.last_check.set_if_not_equals(last_check);
-    warn!("status before setting: {:?}", model.status);
     model.status.set_if_not_equals(status);
-    warn!("status after setting: {:?}", model.status);
-    let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
-    let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
+    let next_check = Cron::new(&service.cron_schedule)
+        .parse()?
+        .find_next_occurrence(&chrono::Utc::now(), false)?;
     model.next_check.set_if_not_equals(next_check);
 
     if model.is_changed() {
-        info!("saving {:?}", model);
+        debug!("saving {:?}", model);
         model.save(db).await.map_err(|err| {
             error!("{} error saving {:?}", service.id.hyphenated(), err);
             Error::from(err)
         })?;
     } else {
-        warn!("set_last_check with no change? {:?}", model);
+        debug!("set_last_check with no change? {:?}", model);
     }
     Ok(())
 }
