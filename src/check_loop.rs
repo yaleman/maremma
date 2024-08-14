@@ -1,5 +1,6 @@
 use crate::db::get_next_service_check;
 use crate::prelude::*;
+use entities::service_check::set_check_result;
 use sea_orm::prelude::*;
 use tokio::sync::Semaphore;
 
@@ -14,6 +15,7 @@ pub struct CheckResult {
     pub result_text: String,
 }
 
+#[instrument(level = "INFO", skip(db))]
 pub(crate) async fn run_service_check(
     db: Arc<DatabaseConnection>,
     service_check: entities::service_check::Model,
@@ -79,8 +81,8 @@ pub(crate) async fn run_service_check(
         );
         Error::ServiceConfigNotFound(service.id.hyphenated().to_string())
     })?;
-    debug!("service={} config: {:?}", service.id.hyphenated(), config);
 
+    debug!("starting service_check={:?}", service_check);
     let result = match config.run(&host).await {
         Ok(val) => val,
         Err(err) => CheckResult {
@@ -90,24 +92,40 @@ pub(crate) async fn run_service_check(
             result_text: format!("Error: {:?}", err),
         },
     };
-    info!("id={} result={:?}", service_check.id, result.status);
+    debug!(
+        "done service_check={:?} result={:?}",
+        service_check, result.status
+    );
+    let service_check_id = service_check.id;
 
-    service_check
-        .set_last_check(&service, chrono::Utc::now(), result.status, db.as_ref())
-        .await
-        .map_err(|err| {
-            error!(
-                "Failed to set status for service check: {:?}",
-                service_check.id
-            );
-            err
-        })?;
+    set_check_result(
+        service_check,
+        &service,
+        chrono::Utc::now(),
+        result.status,
+        db.as_ref(),
+    )
+    .await
+    .map_err(|err| {
+        error!(
+            "Failed to set status for service check: {:?}",
+            service_check_id
+        );
+        err
+    })?;
 
-    entities::service_check_history::Model::from_service_check_result(service_check.id, &result)
-        .into_active_model()
-        .insert(db.as_ref())
-        .await?;
-
+    if let Err(err) =
+        entities::service_check_history::Model::from_service_check_result(service_check_id, &result)
+            .into_active_model()
+            .insert(db.as_ref())
+            .await
+    {
+        error!(
+            "Failed to store service_check_history for service_check_id={} error={}",
+            service_check_id,
+            err.to_string()
+        )
+    }
     Ok(())
 }
 #[cfg(not(tarpaulin_include))] // TODO: tarpaulin un-ignore for code coverage
@@ -134,7 +152,7 @@ pub async fn run_check_loop(
         match semaphore.clone().acquire_owned().await {
             Ok(permit) => {
                 if let Some((service_check, service)) = get_next_service_check(db.as_ref()).await? {
-                    service_check
+                    let service_check = service_check
                         .set_status(ServiceStatus::Checking, db.as_ref())
                         .await?;
                     let checks_run_since_startup_clone = checks_run_since_startup.clone();

@@ -160,5 +160,10 @@ pub async fn get_next_service_check(
         return Ok(Some(res));
     }
 
-    Ok(base_query.one(db).await?.into_iter().next())
+    Ok(base_query
+        .filter(entities::service_check::Column::Status.ne(ServiceStatus::Ok))
+        .one(db)
+        .await?
+        .into_iter()
+        .next())
 }

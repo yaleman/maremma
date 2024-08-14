@@ -1,5 +1,5 @@
 use entities::service_check_history;
-use sea_orm::{FromQueryResult, JoinType, QuerySelect, Set};
+use sea_orm::{FromQueryResult, JoinType, QuerySelect, Set, TryIntoModel};
 
 use crate::prelude::*;
 
@@ -24,60 +24,51 @@ impl Model {
         &self,
         status: ServiceStatus,
         db: &DatabaseConnection,
-    ) -> Result<(), Error> {
+    ) -> Result<Self, Error> {
         let mut model = self.clone().into_active_model();
-        model.status = Set(status);
-        model.save(db).await.map_err(Error::from)?;
-        Ok(())
-    }
-
-    #[instrument(skip(self, service, last_check, db), fields(service_check_id = self.id.to_string()))]
-    pub async fn set_last_check(
-        &self,
-        service: &service::Model,
-        last_check: chrono::DateTime<chrono::Utc>,
-        status: ServiceStatus,
-        db: &DatabaseConnection,
-    ) -> Result<(), Error> {
-        let mut model = self.clone().into_active_model();
-        model.last_check.set_if_not_equals(last_check);
         model.status.set_if_not_equals(status);
-        let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
-        let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
-        model.next_check.set_if_not_equals(next_check);
-
-        if model.is_changed() {
-            debug!("saving {:?}", model);
-            model.save(db).await.map_err(|err| {
-                error!("{} error saving {:?}", service.id.hyphenated(), err);
+        model
+            .save(db)
+            .await
+            .map_err(|err| {
+                error!(
+                    "Failed to set_status service_check_id={}, status={} error={:?}",
+                    self.id, status, err
+                );
                 Error::from(err)
-            })?;
-        } else {
-            warn!("set_last_check with no change? {:?}", self);
-        }
-        Ok(())
+            })?
+            .try_into_model()
+            .map_err(Error::from)
     }
+}
 
-    // #[instrument(skip_all, fields(service_check_id = self.id.to_string()))]
-    // pub(crate) async fn set_next_check(
-    //     &self,
-    //     service: &service::Model,
-    //     db: &DatabaseConnection,
-    // ) -> Result<(), Error> {
-    //     let mut model = self.clone().into_active_model();
-    //     let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
-    //     let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
-    //     model.next_check.set_if_not_equals(next_check);
-    //     if model.is_changed() {
-    //         debug!(
-    //             "service_check_id={} saving next check: {}",
-    //             self.id.hyphenated(),
-    //             next_check.to_rfc3339()
-    //         );
-    //         model.save(db).await.map_err(Error::from)?;
-    //     }
-    //     Ok(())
-    // }
+#[instrument(skip_all, fields(service_check_id = model.id.to_string()))]
+pub async fn set_check_result(
+    model: Model,
+    service: &service::Model,
+    last_check: chrono::DateTime<chrono::Utc>,
+    status: ServiceStatus,
+    db: &DatabaseConnection,
+) -> Result<(), Error> {
+    let mut model = model.into_active_model();
+    model.last_check.set_if_not_equals(last_check);
+    warn!("status before setting: {:?}", model.status);
+    model.status.set_if_not_equals(status);
+    warn!("status after setting: {:?}", model.status);
+    let next_check: Cron = Cron::new(&service.cron_schedule).parse()?;
+    let next_check = next_check.find_next_occurrence(&chrono::Utc::now(), false)?;
+    model.next_check.set_if_not_equals(next_check);
+
+    if model.is_changed() {
+        info!("saving {:?}", model);
+        model.save(db).await.map_err(|err| {
+            error!("{} error saving {:?}", service.id.hyphenated(), err);
+            Error::from(err)
+        })?;
+    } else {
+        warn!("set_last_check with no change? {:?}", model);
+    }
+    Ok(())
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]

@@ -15,7 +15,7 @@ pub async fn logout(
     logout: OidcRpInitiatedLogout,
     State(state): State<WebState>,
 ) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
-    let url: Uri = state.frontend_url.clone().parse().map_err(|err| {
+    let url: Uri = state.frontend_url.parse().map_err(|err| {
         error!("Failed to parse redirect URL: {:?}", err);
         (
             StatusCode::INTERNAL_SERVER_ERROR,

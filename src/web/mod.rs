@@ -283,4 +283,13 @@ mod tests {
         let res = notimplemented(axum::extract::State(WebState::new(db, &config, None))).await;
         assert!(res.is_err());
     }
+    #[tokio::test]
+    async fn test_up_endpoint() {
+        let (db, config) = test_setup().await.expect("Failed to set up test");
+
+        let res = up(axum::extract::State(WebState::new(db, &config, None)))
+            .await
+            .into_response();
+        assert!(res.status() == StatusCode::OK);
+    }
 }
