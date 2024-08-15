@@ -89,30 +89,6 @@ pub async fn update_db_from_config(
     Ok(())
 }
 
-/// find the next time we need to wake up
-pub async fn find_next_wakeup(_db: &DatabaseConnection) -> DateTime<Utc> {
-    // let mut next_wakeup: Option<DateTime<Utc>> = None;
-
-    // for (_id, check) in self.service_checks.read().await.iter() {
-    //     if let Ok(cron) = check.get_cron(self) {
-    //         if let Ok(next_runtime) = cron.find_next_occurrence(&check.last_check, false) {
-    //             match next_wakeup {
-    //                 Some(wakeup) => {
-    //                     if next_runtime < wakeup {
-    //                         next_wakeup = Some(next_runtime);
-    //                     }
-    //                 }
-    //                 None => {
-    //                     next_wakeup = Some(next_runtime);
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    // next_wakeup.unwrap_or(chrono::Utc::now() + TimeDelta::seconds(1))
-    chrono::Utc::now() + TimeDelta::seconds(1)
-}
-
 /// Get the next service check to run, returns
 pub async fn get_next_service_check(
     db: &DatabaseConnection,
@@ -139,10 +115,9 @@ pub async fn get_next_service_check(
     }
 
     // all others we just care about:
-    // - the last_check time
     // - the next_check time
     let base_query = base_query
-        .order_by_asc(entities::service_check::Column::LastUpdated)
+        .order_by_asc(entities::service_check::Column::NextCheck)
         .filter(
             entities::service_check::Column::Status
                 .ne(ServiceStatus::Disabled)
