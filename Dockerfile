@@ -30,12 +30,7 @@ FROM gcr.io/distroless/cc-debian12 AS maremma
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
 COPY --from=builder /maremma/target/release/maremma /
 
-# DNS ports
-# EXPOSE 15353/udp
-# EXPOSE 15353/tcp
-# default web API port
-# EXPOSE 9000/udp
-
 WORKDIR /
 USER nonroot
 ENTRYPOINT ["./maremma"]
+CMD [ "run" ]
