@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::prelude::*;
@@ -69,8 +68,6 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .with_secure(false)
         .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::seconds(3600)));
-
-    let static_path = PathBuf::from("./static");
 
     let mut app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
@@ -149,7 +146,10 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
     }
     app = app
         .route("/healthcheck", get(up))
-        .nest_service("/static", ServeDir::new(static_path).precompressed_br())
+        .nest_service(
+            "/static",
+            ServeDir::new(config.static_path.to_owned()).precompressed_br(),
+        )
         .layer(TraceLayer::new_for_http())
         .layer(session_layer);
     // here... we... go!

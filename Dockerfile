@@ -30,8 +30,8 @@ FROM gcr.io/distroless/cc-debian12 AS maremma
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
 WORKDIR /app
 COPY --from=builder /maremma/target/release/maremma /app/
-RUN chmod +x /app/maremma
-COPY static/ /app/
+RUN mkdir /app/static
+COPY static/* /app/static/*
 USER nonroot
 ENTRYPOINT ["/app/maremma"]
 CMD [ "run" ]

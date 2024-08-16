@@ -33,6 +33,9 @@ pub struct ConfigurationParser {
     #[serde(default = "default_database_file")]
     pub database_file: String,
 
+    /// The path to the web server's static files, defaults to ./static
+    pub static_path: Option<PathBuf>,
+
     #[serde(default = "default_listen_address")]
     pub listen_address: String,
 
@@ -69,6 +72,9 @@ pub struct ConfigurationParser {
 pub struct Configuration {
     #[serde(default = "default_database_file")]
     pub database_file: String,
+
+    /// The path to the web server's static files, defaults to ./static
+    pub static_path: PathBuf,
 
     #[serde(default = "default_listen_address")]
     pub listen_address: String,
@@ -127,6 +133,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_file: value.cert_file,
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
+            static_path: value.static_path.unwrap_or(PathBuf::from("./static")),
         })
     }
 
