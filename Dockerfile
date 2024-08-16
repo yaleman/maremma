@@ -28,9 +28,10 @@ RUN chmod +x /maremma/target/release/maremma
 FROM gcr.io/distroless/cc-debian12 AS maremma
 # # ======================
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
-COPY --from=builder /maremma/target/release/maremma /
-
-WORKDIR /
+WORKDIR /app
+COPY --from=builder /maremma/target/release/maremma /app/
+RUN chmod +x /app/maremma
+COPY static/ /app/
 USER nonroot
-ENTRYPOINT ["./maremma"]
+ENTRYPOINT ["/app/maremma"]
 CMD [ "run" ]
