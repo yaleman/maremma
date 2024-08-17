@@ -25,10 +25,9 @@ RUN mv /root/.cargo/bin/* /usr/local/bin/
 RUN  --mount=type=cache,target=/maremma/target/release/deps cargo build --release --bin maremma
 RUN chmod +x /maremma/target/release/maremma
 
-FROM gcr.io/distroless/cc-debian12 AS maremma
-# # ======================
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
-WORKDIR /app
+FROM gcr.io/distroless/cc-debian12 AS maremma
+
 COPY --from=builder /maremma/target/release/maremma /maremma
 
 COPY ./static /static/
