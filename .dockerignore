@@ -2,3 +2,4 @@ target/
 .git/
 docs/
 tests/
+plugins/*
