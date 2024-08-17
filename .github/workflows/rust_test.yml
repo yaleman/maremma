@@ -2,7 +2,8 @@
 name: Rust Testing
 "on":
   push:
-  pull_request:
+    paths-ignore:
+      - docs/**
 env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
