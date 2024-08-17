@@ -11,7 +11,7 @@ COPY . /maremma/
 
 WORKDIR /maremma
 # install the dependencies
-RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y \
     protobuf-compiler \
     curl \
     git \
