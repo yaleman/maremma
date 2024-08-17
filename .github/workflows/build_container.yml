@@ -7,6 +7,7 @@ name: "Build container"
       - docs/**
     branches:
       - main
+  pull_request:
 permissions:
   packages: write
   contents: read
