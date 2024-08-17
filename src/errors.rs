@@ -19,6 +19,8 @@ pub enum Error {
     IoError(String),
     NotImplemented,
     Oidc(String),
+    /// When something went wrong while invoking reqwest
+    Reqwest(String),
     ServiceCheckNotFound(Uuid),
     ServiceConfigNotFound(String),
     ServiceNotFound(Uuid),
@@ -53,6 +55,12 @@ impl From<CronError> for Error {
 impl From<axum_oidc::error::Error> for Error {
     fn from(value: axum_oidc::error::Error) -> Self {
         Error::Oidc(value.to_string())
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Reqwest(value.to_string())
     }
 }
 

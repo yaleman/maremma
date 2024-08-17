@@ -22,6 +22,11 @@ impl From<HttpMethod> for reqwest::Method {
         }
     }
 }
+
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Deserialize)]
 pub struct HttpService {
     pub name: String,
@@ -41,6 +46,10 @@ pub struct HttpService {
 
     /// Expected status code, defaults to 200
     pub http_status: Option<u16>,
+
+    /// Validate TLS, defaults to True
+    #[serde(default = "default_true")]
+    pub validate_tls: bool,
 }
 
 #[async_trait]
@@ -54,7 +63,11 @@ impl ServiceTrait for HttpService {
             &self.http_uri.clone().unwrap_or("".to_string())
         );
 
-        let client = reqwest::Client::new();
+        let mut client = reqwest::ClientBuilder::new();
+        if !self.validate_tls {
+            client = client.danger_accept_invalid_certs(true);
+        }
+        let client = client.build()?;
 
         let (result_text, status) = match client.request(self.http_method.into(), url).send().await
         {
@@ -109,6 +122,7 @@ mod tests {
             http_method: crate::services::http::HttpMethod::Post,
             http_uri: None,
             http_status: None,
+            validate_tls: true,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -120,7 +134,7 @@ mod tests {
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
         assert_eq!(res.is_ok(), true);
-
+        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
         assert!(Service::try_from(&json! {
             {
                 "name": "test",
@@ -129,5 +143,73 @@ mod tests {
             }
         })
         .is_err());
+    }
+
+    #[tokio::test]
+    async fn test_skip_tls_verify() {
+        let service = super::HttpService {
+            name: "test".to_string(),
+            run_in_shell: false,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            http_method: crate::services::http::HttpMethod::Get,
+            http_uri: None,
+            http_status: Some(200),
+            validate_tls: false,
+        };
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: "untrusted-root.badssl.com".to_string(),
+            check: crate::host::HostCheck::None,
+        };
+
+        let res = service.run(&host).await;
+        assert_eq!(service.name, "test".to_string());
+        assert_eq!(res.is_ok(), true);
+        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+
+        let service = super::HttpService {
+            name: "test".to_string(),
+            run_in_shell: false,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            http_method: crate::services::http::HttpMethod::Get,
+            http_uri: None,
+            http_status: Some(200),
+            validate_tls: false,
+        };
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: "expired.badssl.com".to_string(),
+            check: crate::host::HostCheck::None,
+        };
+
+        let res = service.run(&host).await;
+        assert_eq!(service.name, "test".to_string());
+        assert_eq!(res.is_ok(), true);
+        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+
+        // now we make sure it fails when we do validate
+
+        let service = super::HttpService {
+            name: "test".to_string(),
+            run_in_shell: false,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            http_method: crate::services::http::HttpMethod::Get,
+            http_uri: None,
+            http_status: Some(200),
+            validate_tls: true,
+        };
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: "untrusted-root.badssl.com".to_string(),
+            check: crate::host::HostCheck::None,
+        };
+
+        let res = service.run(&host).await;
+        assert_eq!(service.name, "test".to_string());
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().status, ServiceStatus::Critical);
     }
 }
