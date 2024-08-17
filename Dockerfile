@@ -17,21 +17,29 @@ RUN apt-get update && apt-get install -y \
     git \
     build-essential \
     pkg-config \
-    libssl-dev
+    libssl-dev \
+    procps
+
 # install rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 RUN mv /root/.cargo/bin/* /usr/local/bin/
+
 # do the build bits
-RUN cargo build --release --bin maremma
+RUN --mount=type=cache,target=/maremma/target/release/deps cargo build --release --bin maremma
 RUN chmod +x /maremma/target/release/maremma
 
-FROM gcr.io/distroless/cc-debian12 AS maremma
-# # ======================
-# https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
-WORKDIR /app
-COPY --from=builder /maremma/target/release/maremma /app/
+RUN make plugins/extract
+RUN cd plugins/monitoring-plugins && ./configure \
+		--prefix="$(pwd)/../" \
+		--with-ipv6 --without-systemd \
+		&& make clean && make && make install
 
-COPY static/ /app/static/
+# https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
+FROM gcr.io/distroless/cc-debian12 AS maremma
+
+COPY --from=builder /maremma/target/release/maremma /maremma
+COPY --from=builder /maremma/plugins/libexec/* /usr/local/bin/
+COPY ./static /static/
 USER nonroot
-ENTRYPOINT ["/app/maremma"]
+ENTRYPOINT ["/maremma"]
 CMD [ "run" ]

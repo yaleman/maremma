@@ -4,7 +4,8 @@ name: Clippy
 # Trigger the workflow on push or pull request
 "on":
   push:
-  pull_request:
+    paths-ignore:
+      - docs/**
 
 env:
   SCCACHE_GHA_ENABLED: "true"
