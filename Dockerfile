@@ -11,7 +11,7 @@ COPY . /maremma/
 
 WORKDIR /maremma
 # install the dependencies
-RUN apt-get update && apt-get install -y \
+RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y \
     protobuf-compiler \
     curl \
     git \
@@ -22,16 +22,16 @@ RUN apt-get update && apt-get install -y \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 RUN mv /root/.cargo/bin/* /usr/local/bin/
 # do the build bits
-RUN cargo build --release --bin maremma
+RUN  --mount=type=cache,target=/maremma/target/release/deps cargo build --release --bin maremma
 RUN chmod +x /maremma/target/release/maremma
 
 FROM gcr.io/distroless/cc-debian12 AS maremma
 # # ======================
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
 WORKDIR /app
-COPY --from=builder /maremma/target/release/maremma /app/
+COPY --from=builder /maremma/target/release/maremma /maremma
 
-COPY static/ /app/static/
+COPY ./static /static/
 USER nonroot
-ENTRYPOINT ["/app/maremma"]
+ENTRYPOINT ["/maremma"]
 CMD [ "run" ]
