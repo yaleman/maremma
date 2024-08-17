@@ -148,7 +148,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .route("/healthcheck", get(up))
         .nest_service(
             "/static",
-            ServeDir::new(config.static_path.to_owned()).precompressed_br(),
+            ServeDir::new(&config.static_path).precompressed_br(),
         )
         .layer(TraceLayer::new_for_http())
         .layer(session_layer);

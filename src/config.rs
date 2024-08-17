@@ -174,7 +174,7 @@ impl Configuration {
 
     #[cfg(test)]
     pub async fn load_test_config() -> Arc<Self> {
-        let mut res: Configuration = serde_json::from_str(
+        let mut res: ConfigurationParser = serde_json::from_str(
             &tokio::fs::read_to_string("maremma.example.json")
                 .await
                 .expect("Failed to read example config"),
@@ -187,6 +187,7 @@ impl Configuration {
                 Host::new(LOCAL_SERVICE_HOST_NAME.to_string(), HostCheck::None),
             );
         }
+        let res: Configuration = res.try_into().expect("Failed to convert test config");
         Arc::new(res)
     }
 
