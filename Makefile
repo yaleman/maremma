@@ -84,8 +84,10 @@ plugins/extract: ## Download the check_* plugins from monitoring-plugins.org and
 .PHONY: plugins/build
 plugins/build: ## Build the check_* plugins
 plugins/build:
+	./scripts/fix_plugins_ioctl.sh
 	cd plugins/monitoring-plugins && ./configure \
 		--prefix="$(shell dirname `pwd`)" \
 		--without-systemd \
 		--with-ipv6 \
-		--with-openssl="/opt/homebrew/Cellar/openssl@3/3.3.1/"
+		--with-openssl="/opt/homebrew/Cellar/openssl@3/3.3.1/" \
+		&& make
