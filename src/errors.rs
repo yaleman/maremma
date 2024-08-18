@@ -26,6 +26,8 @@ pub enum Error {
     ServiceNotFound(Uuid),
     ServiceNotFoundByName(String),
     SqlError(sea_orm::error::DbErr),
+    TlsError(String),
+    Timeout,
 }
 
 impl From<serde_json::Error> for Error {
@@ -61,6 +63,12 @@ impl From<axum_oidc::error::Error> for Error {
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
         Self::Reqwest(value.to_string())
+    }
+}
+
+impl From<rustls::Error> for Error {
+    fn from(value: rustls::Error) -> Self {
+        Self::TlsError(value.to_string())
     }
 }
 
