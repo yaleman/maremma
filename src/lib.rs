@@ -28,6 +28,8 @@ pub mod metrics;
 pub mod prelude;
 pub(crate) mod serde;
 pub mod services;
+#[cfg(test)]
+pub(crate) mod tests;
 pub mod web;
 
 pub static DEFAULT_CONFIG_FILE: &str = "maremma.json";
@@ -53,12 +55,4 @@ pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
     #[cfg(test)]
     builder.target(Target::Stderr);
     builder.try_init()
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_default_config_file() {
-        assert_eq!(super::DEFAULT_CONFIG_FILE, "maremma.json");
-    }
 }
