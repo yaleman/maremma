@@ -59,11 +59,6 @@ doc/format/fix: ## Fix docs formatting
 		-name \*.md \
 		-exec deno fmt  $(MARKDOWN_FORMAT_ARGS) "{}" +
 
-.PHONY: release/prep
-prep:
-	cargo outdated -R
-	cargo audit
-
 .PHONY: coverage
 coverage: ## Run coverage
 coverage:

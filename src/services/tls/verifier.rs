@@ -1,6 +1,8 @@
-use super::{TlsPeerState, TlsPeerStatus};
+use super::TlsPeerState;
 use crate::prelude::*;
+use rustls::client::verify_server_name;
 use rustls::pki_types::{CertificateDer, ServerName};
+use rustls::server::ParsedCertificate;
 use rustls::SignatureScheme;
 
 #[derive(Debug, Default)]
@@ -28,13 +30,13 @@ impl TlsCertVerifier {
 }
 
 impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
-    #[instrument(level = "debug")]
+    #[instrument(level = "debug", skip(end_entity))]
     /// This is ALWAYS going to throw a [rustlts::Error::General] error, because we don't have a way to pass state back out
     fn verify_server_cert(
         &self,
         end_entity: &CertificateDer<'_>,
-        _intermediates: &[CertificateDer<'_>],
-        _server_name: &ServerName<'_>,
+        intermediates: &[CertificateDer<'_>],
+        server_name: &ServerName<'_>,
         _ocsp_response: &[u8],
         now: rustls::pki_types::UnixTime,
     ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
@@ -42,22 +44,27 @@ impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
         use x509_parser::parse_x509_certificate;
         let (_, cert) = parse_x509_certificate(end_entity.as_ref()).unwrap();
 
-        let mut tls_peer_state = TlsPeerState::default();
+        // let this just fail out if it fails because well, too bad
+        let parsed_cert = ParsedCertificate::try_from(end_entity)?;
 
-        let expiry: chrono::DateTime<Utc> = DateTime::from_timestamp_nanos(
+        let mut tls_peer_state = TlsPeerState::new(DateTime::from_timestamp_nanos(
             cert.validity()
                 .not_after
                 .to_datetime()
                 .unix_timestamp_nanos() as i64,
-        );
+        ));
 
-        tls_peer_state.expiry_tail = Some(expiry);
-        if cert.validity().time_to_expiration().is_none() {
-            tls_peer_state.status = TlsPeerStatus::EndCertExpired;
-        }
+        tls_peer_state.cert_name_matches = verify_server_name(&parsed_cert, server_name).is_ok();
 
-        if let TlsPeerStatus::Unknown = tls_peer_state.status {
-            tls_peer_state.status = TlsPeerStatus::Ok;
+        for intermediate in intermediates {
+            if let Ok((_, cert)) = parse_x509_certificate(intermediate.as_ref()) {
+                if !cert.validity.is_valid() {
+                    tls_peer_state.set_intermediate_expired();
+                    break;
+                }
+            } else {
+                debug!("Couldn't parse intermediate certificate... that's odd.")
+            }
         }
 
         Err(rustls::Error::General(

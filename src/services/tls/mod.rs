@@ -14,6 +14,9 @@ use crate::prelude::*;
 /// The IO error returns something like this and we want to find it: `IoError("unexpected error: {\"expiry\":\"2024-11-07T15:05:43Z\"}")`
 const UNEXPECTED_ERROR_PREFIX: &str = "unexpected error: ";
 
+static DEFAULT_CRITICAL_DAYS: u16 = 0;
+static DEFAULT_WARNING_DAYS: u16 = 1;
+
 /// For when you want to check TLS things like certificate expiries etc
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TlsService {
@@ -27,9 +30,9 @@ pub struct TlsService {
     /// Port to connect to
     pub port: u16,
 
-    /// Critical expiry in days
+    /// Critical expiry in days, defaults to [DEFAULT_CRITICAL_DAYS] (0)
     pub expiry_critical: Option<u16>,
-    /// Warning expiry in days
+    /// Warning expiry in days, defaults to [DEFAULT_WARNING_DAYS] (1)
     pub expiry_warn: Option<u16>,
 
     /// Defaults to 10 seconds
@@ -40,6 +43,7 @@ pub struct TlsService {
 impl ServiceTrait for TlsService {
     #[instrument(level = "debug")]
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+        let start_time = chrono::Utc::now();
         if self.port == 0 {
             return Err(Error::InvalidInput("Port cannot be 0".to_string()));
         }
@@ -92,34 +96,81 @@ impl ServiceTrait for TlsService {
             }
         };
 
-        let status = match result.status {
-            TlsPeerStatus::Ok => ServiceStatus::Ok,
-            TlsPeerStatus::EndCertExpired => ServiceStatus::Critical,
-            TlsPeerStatus::CaCertExpired(_expiry) => ServiceStatus::Critical,
-            TlsPeerStatus::Unknown => ServiceStatus::Unknown,
-        };
-        let result_text = "OK".to_string(); // TODO: update the result text to be more useful
+        let mut status = ServiceStatus::Ok;
+        let mut result_text = "OK".to_string();
+
+        if result.cert_expired() {
+            status = ServiceStatus::Critical;
+            result_text = format!("Certificate expired {} days ago", -result.expiry_days());
+        } else if !result.cert_name_matches {
+            status = ServiceStatus::Critical;
+            result_text = "Certificate name does not match".to_string();
+        } else if result.intermediate_expired {
+            status = ServiceStatus::Critical;
+            result_text = "Intermediate certificate expired".to_string();
+        } else if result.expiry_days()
+            <= self.expiry_critical.unwrap_or(DEFAULT_CRITICAL_DAYS) as i64
+        {
+            status = ServiceStatus::Critical;
+            result_text = format!(
+                "CRITICAL: Certificate expires in {} days",
+                result.expiry_days()
+            );
+        } else if result.expiry_days() <= self.expiry_warn.unwrap_or(DEFAULT_WARNING_DAYS) as i64 {
+            status = ServiceStatus::Warning;
+            result_text = format!(
+                "WARNING: Certificate expires in {} days",
+                result.expiry_days()
+            );
+        }
+
+        let timestamp = chrono::Utc::now();
 
         Ok(CheckResult {
-            timestamp: chrono::Utc::now(),
-            time_elapsed: TimeDelta::zero(),
+            timestamp,
+            time_elapsed: timestamp - start_time,
             status,
             result_text,
         })
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Default)]
-pub(crate) enum TlsPeerStatus {
-    Ok,
-    #[default]
-    Unknown,
-    EndCertExpired,
-    CaCertExpired(DateTime<Utc>),
+#[derive(Deserialize, Serialize, Debug)]
+pub(crate) struct TlsPeerState {
+    cert_name_matches: bool,
+    end_cert_expiry: DateTime<Utc>,
+
+    intermediate_expired: bool,
+
+    servername: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Default)]
-pub(crate) struct TlsPeerState {
-    pub status: TlsPeerStatus,
-    pub expiry_tail: Option<DateTime<Utc>>,
+#[allow(dead_code)]
+impl TlsPeerState {
+    pub fn new(end_cert_expiry: DateTime<Utc>) -> Self {
+        Self {
+            end_cert_expiry,
+            cert_name_matches: false,
+            intermediate_expired: false,
+            servername: None,
+        }
+    }
+    pub fn set_intermediate_expired(&mut self) {
+        self.intermediate_expired = true;
+    }
+
+    pub fn servername_matches(&self) -> bool {
+        todo!();
+    }
+
+    /// Return if the cert has expired
+    pub fn cert_expired(&self) -> bool {
+        (self.end_cert_expiry - chrono::Utc::now()).num_seconds() <= 0
+    }
+
+    /// Return the number of days until the certificate expires
+    pub fn expiry_days(&self) -> i64 {
+        let now = chrono::Utc::now();
+        (self.end_cert_expiry - now).num_days()
+    }
 }
