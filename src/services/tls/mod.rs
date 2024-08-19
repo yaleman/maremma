@@ -112,16 +112,10 @@ impl ServiceTrait for TlsService {
             <= self.expiry_critical.unwrap_or(DEFAULT_CRITICAL_DAYS) as i64
         {
             status = ServiceStatus::Critical;
-            result_text = format!(
-                "CRITICAL: Certificate expires in {} days",
-                result.expiry_days()
-            );
+            result_text = format!("Certificate expires in {} days", result.expiry_days());
         } else if result.expiry_days() <= self.expiry_warn.unwrap_or(DEFAULT_WARNING_DAYS) as i64 {
             status = ServiceStatus::Warning;
-            result_text = format!(
-                "WARNING: Certificate expires in {} days",
-                result.expiry_days()
-            );
+            result_text = format!("Certificate expires in {} days", result.expiry_days());
         }
 
         let timestamp = chrono::Utc::now();
