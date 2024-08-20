@@ -104,7 +104,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, hostname);
-        assert_eq!(res.is_ok(), true);
+        assert!(res.is_ok());
     }
 
     #[test]

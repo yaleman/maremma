@@ -32,6 +32,6 @@ mod tests {
     #[tokio::test]
     async fn test_fakehost() {
         let host = FakeHost::try_from_config(json!({})).unwrap();
-        assert_eq!(host.check_up().await.unwrap(), true);
+        assert!(host.check_up().await.unwrap());
     }
 }

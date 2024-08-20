@@ -138,7 +138,7 @@ mod test {
         let res = example_com.check_up().await;
 
         assert!(res.is_ok());
-        assert_eq!(res.unwrap(), false);
+        assert!(!res.unwrap());
     }
 
     #[test]

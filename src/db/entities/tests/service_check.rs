@@ -217,7 +217,7 @@ async fn test_full_service_check() {
 
     info!("found service check {:?}", service_check);
 
-    assert!(service_check.len() > 0);
+    assert!(!service_check.is_empty());
 }
 
 #[tokio::test]

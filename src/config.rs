@@ -144,6 +144,14 @@ impl TryFrom<ConfigurationParser> for Configuration {
             None => None,
         };
 
+        let static_path = value.static_path.unwrap_or(PathBuf::from("./static"));
+
+        if !static_path.exists() {
+            return Err(Error::Configuration(
+                "Static path does not exist".to_string(),
+            ));
+        }
+
         Ok(Configuration {
             database_file: value.database_file,
             listen_address: value.listen_address,
@@ -157,7 +165,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_file: value.cert_file,
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
-            static_path: value.static_path.unwrap_or(PathBuf::from("./static")),
+            static_path,
         })
     }
 

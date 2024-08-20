@@ -249,7 +249,7 @@ mod tests {
         app.clone()
             .oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
             .await
-            .expect(&format!("Failed to GET {}", url));
+            .unwrap_or_else(|err| panic!("Failed to GET {} {:?}", url, err));
 
         let service_check = entities::service_check::Entity::find()
             .one(db.as_ref())
@@ -260,7 +260,7 @@ mod tests {
         let url = format!("/service_check/{}", service_check.id);
         app.oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
             .await
-            .expect(&format!("Failed to get {}", url));
+            .unwrap_or_else(|err| panic!("Failed to get {} {:?}", url, err));
     }
 
     #[tokio::test]
