@@ -3,11 +3,16 @@
   "title": "Configuration",
   "type": "object",
   "required": [
-    "hosts"
+    "hosts",
+    "static_path"
   ],
   "properties": {
     "database_file": {
       "default": "maremma.sqlite",
+      "type": "string"
+    },
+    "static_path": {
+      "description": "The path to the web server's static files, defaults to ./static",
       "type": "string"
     },
     "listen_address": {
@@ -173,7 +178,7 @@
       ],
       "properties": {
         "id": {
-          "default": "b2bc11e1-3210-4853-a4b8-143dd9c39510",
+          "default": "51507713-ffd7-4b4c-9544-0705e19061fb",
           "type": "string",
           "format": "uuid"
         },
@@ -212,7 +217,8 @@
         "cli",
         "ssh",
         "ping",
-        "http"
+        "http",
+        "tls"
       ]
     },
     "OidcConfig": {
