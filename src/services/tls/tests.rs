@@ -1,4 +1,5 @@
 use crate::db::tests::test_setup;
+use crate::services::tls::TlsService;
 use crate::setup_logging;
 
 #[tokio::test]
@@ -56,20 +57,19 @@ async fn test_expired_tls_service() {
 }
 
 #[tokio::test]
-async fn test_wrong_name() {
+async fn test_wrong_host_name() {
     use crate::prelude::*;
 
     let _ = setup_logging(true);
     let (_, _) = test_setup().await.expect("Failed to set up test");
 
-    let service = crate::services::tls::TlsService {
-        name: "test".to_string(),
-        cron_schedule: "0 0 * * * * *".parse().unwrap(),
-        port: 443,
-        expiry_critical: None,
-        expiry_warn: None,
-        timeout: None,
-    };
+    let service_def = serde_json::json! {{
+        "name": "test",
+        "cron_schedule": "0 0 * * *",
+        "port": 443,
+    }};
+
+    let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
     let host = entities::host::Model {
         name: "wrong.host.badssl.com".to_string(),
         check: crate::host::HostCheck::None,
