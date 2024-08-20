@@ -1,4 +1,9 @@
-// #![warn(missing_docs)]
+//! # Maremma
+//!
+//! Guarding your herd 🐐🐐 🐕
+//!
+
+#![warn(missing_docs)]
 #![deny(warnings)]
 #![forbid(unsafe_code)]
 #![deny(clippy::all)]
@@ -39,6 +44,7 @@ pub static DEFAULT_CONFIG_FILE: &str = "maremma.json";
 pub static LOCAL_SERVICE_HOST_NAME: &str = "Maremma Local Checks";
 
 #[inline]
+/// Sets up logging
 pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
     #[cfg(not(test))]
     if env::var("RUST_LOG").is_err() {

@@ -1,3 +1,5 @@
+//! Service check implementations
+
 pub mod cli;
 pub mod http;
 pub mod kubernetes;
@@ -20,6 +22,8 @@ use crate::errors::Error;
 )]
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
+/// The result of a service check
+#[allow(missing_docs)]
 pub enum ServiceStatus {
     #[sea_orm(string_value = "ok")]
     Ok,
@@ -62,7 +66,7 @@ impl Default for ServiceStatus {
 }
 
 impl ServiceStatus {
-    // Returns the cell background colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
+    /// Returns the cell background colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
     pub fn as_html_class_background(self) -> &'static str {
         match self {
             ServiceStatus::Ok => "success",
@@ -75,7 +79,7 @@ impl ServiceStatus {
         }
     }
 
-    // Returns the text colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
+    /// Returns the text colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
     pub fn as_html_class_text(self) -> &'static str {
         match self {
             ServiceStatus::Ok => "light",
@@ -275,6 +279,7 @@ impl TryFrom<&entities::service::Model> for Service {
 )]
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(5))")]
+/// The type of service
 pub enum ServiceType {
     /// CLI service
     #[sea_orm(string_value = "cli")]

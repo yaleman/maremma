@@ -1,13 +1,18 @@
+use std::path::PathBuf;
+
 use kube::Client;
 
 use crate::prelude::*;
 
+/// The default port we'll try and connect to
 pub(crate) fn kube_port_default() -> u16 {
     6443
 }
 
 #[derive(Default, Deserialize, Serialize, Debug)]
+/// A kubernetes host
 pub struct KubeHost {
+    /// Target hostname
     pub hostname: String,
     /// Defaults to 6443
     #[serde(default = "kube_port_default")]
@@ -16,10 +21,15 @@ pub struct KubeHost {
     pub kube_cluster: Option<String>,
 
     #[serde(default)]
+    /// Groups that this host is part of
     pub host_groups: Vec<String>,
+
+    /// CA certificate file for trusting the API
+    pub ca_cert: Option<PathBuf>,
 }
 
 impl KubeHost {
+    /// Create a new KubeHost from a hostname
     pub fn from_hostname(hostname: &str) -> Self {
         Self {
             hostname: hostname.to_string(),
@@ -27,15 +37,21 @@ impl KubeHost {
             ..Default::default()
         }
     }
+
+    /// Set the port for the API
     pub fn with_port(self, api_port: u16) -> Self {
         Self { api_port, ..self }
     }
+
+    /// Set the cluster to use from the configuration
     pub fn with_cluster(self, cluster: &str) -> Self {
         Self {
             kube_cluster: Some(cluster.to_string()),
             ..self
         }
     }
+
+    /// Getter for the resulting API URL
     pub fn api_url(&self) -> String {
         format!("https://{}:{}", self.hostname, self.api_port)
     }

@@ -3,7 +3,9 @@ use schemars::JsonSchema;
 use crate::prelude::*;
 
 #[derive(Deserialize, Default, Serialize, Debug, Clone, JsonSchema)]
+/// Used as part of local-only service checks
 pub struct FakeHost {
+    /// Services on this host
     pub services: Vec<String>,
 }
 

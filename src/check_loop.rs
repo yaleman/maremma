@@ -1,3 +1,5 @@
+//! Runs the service checks on a loop
+
 use crate::db::get_next_service_check;
 use crate::prelude::*;
 use entities::service_check::set_check_result;

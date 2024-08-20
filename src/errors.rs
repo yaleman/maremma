@@ -1,32 +1,57 @@
+//! Generic error things
+
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use croner::errors::CronError;
 use uuid::Uuid;
 
 #[derive(Debug, PartialEq)]
+/// Various errors that Maremma will throw
 pub enum Error {
+    /// We couldn't find the config file
     ConfigFileNotFound(String),
+    /// When the configuration is invalid
     Configuration(String),
+    /// When the connection to the database failed
     ConnectionFailed,
+    /// When the cron pattern is invalid
     CronParseError(String),
+    /// When the date is in the future
     DateIsInTheFuture,
+    /// Failed to deserialize a value
     Deserialization(String),
-    DNSFailed,
+    /// When the DNS lookup failed
+    DnsFailed,
+    /// When we haven't made up an error otherwise
     Generic(String),
+    /// When the host group is not found
     HostGroupNotFoundByName(String),
+    /// When the host is not found
     HostNotFound(Uuid),
+    /// When you've specified something wrong
     InvalidInput(String),
+    /// When the IO operation failed
     IoError(String),
+    /// Something you asked for isn't implemented yet
     NotImplemented,
+    /// When the OIDC token is invalid or some other error gets thrown
     Oidc(String),
     /// When something went wrong while invoking reqwest
     Reqwest(String),
+    /// When the service check is not found
     ServiceCheckNotFound(Uuid),
+    /// When the service is not found
     ServiceConfigNotFound(String),
+    /// When the service is not found
     ServiceNotFound(Uuid),
+    /// When the service is not found
     ServiceNotFoundByName(String),
+
+    /// When the SQL operation failed
     SqlError(sea_orm::error::DbErr),
+    /// When the TLS operation failed
     TlsError(String),
+    /// When the timeout is reached
     Timeout,
 }
 

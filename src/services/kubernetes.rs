@@ -1,12 +1,18 @@
+//! Kubernetes service
+
 use kube::Client;
 
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize)]
+/// KubernetesService is a service that checks the availability of a Kubernetes cluster
 pub struct KubernetesService {
+    /// Name of the service
     pub name: String,
+    /// Host to check
     pub host: Host,
     #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
+    /// Cron schedule for the service
     pub cron_schedule: Cron,
 }
 

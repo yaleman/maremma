@@ -1,3 +1,5 @@
+//! TLS service checks
+
 #[cfg(test)]
 mod tests;
 pub(crate) mod verifier;

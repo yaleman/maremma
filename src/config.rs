@@ -1,3 +1,5 @@
+//! Configuration handling for Maremma
+
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -67,6 +69,7 @@ pub struct ConfigurationParser {
     /// Should we enable OIDC authentication?
     pub oidc_enabled: bool,
 
+    /// OIDC configuration, see [OidcConfig]
     pub oidc_config: Option<OidcConfig>,
 
     #[serde(default)]
@@ -92,25 +95,30 @@ pub struct Configuration {
     pub static_path: PathBuf,
 
     #[serde(default = "default_listen_address")]
+    /// The listen address, eg `0.0.0.0` or `127.0.0.1``
     pub listen_address: String,
 
-    //// Defaults to 8888
+    /// Defaults to 8888
     pub listen_port: Option<u16>,
 
+    /// Host configuration
     pub hosts: HashMap<String, Host>,
 
     #[serde(default)]
+    /// Services to run locally
     pub local_services: FakeHost,
 
-    // This is something we need to deserialize later because it's messy
+    /// Service configuration
     pub services: Option<HashMap<String, Service>>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
     pub frontend_url: Option<String>,
 
     #[serde(default)]
+    /// Should we enable OIDC authentication?
     pub oidc_enabled: bool,
 
+    /// OIDC configuration, see [OidcConfig]
     pub oidc_config: Option<OidcConfig>,
 
     /// the TLS certificate matter
@@ -119,6 +127,7 @@ pub struct Configuration {
     pub cert_key: PathBuf,
 
     #[serde(default = "default_max_concurrent_checks")]
+    /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
 }
 
@@ -156,6 +165,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
 }
 
 impl Configuration {
+    /// New Configuration object from a file reference
     pub async fn new(filename: &PathBuf) -> Result<Self, Error> {
         if !filename.exists() {
             return Err(Error::ConfigFileNotFound(
@@ -166,6 +176,7 @@ impl Configuration {
         Self::new_from_string(&tokio::fs::read_to_string(filename).await?).await
     }
 
+    /// If you've got the file contents, use that to build a configuration
     pub async fn new_from_string(config: &str) -> Result<Self, Error> {
         let mut res: ConfigurationParser = serde_json::from_str(config)?;
 
@@ -206,23 +217,27 @@ impl Configuration {
         Arc::new(res)
     }
 
+    /// Getter for the frontend URL
     pub fn frontend_url(&self) -> String {
         self.frontend_url.clone().unwrap_or_else(|| {
-            let port = self.listen_port.unwrap_or(crate::constants::DEFAULT_PORT);
+            let port = self
+                .listen_port
+                .unwrap_or(crate::constants::WEB_SERVER_DEFAULT_PORT);
             format!("https://{}:{}", self.listen_address, port)
         })
     }
 
-    // returns the listen address and port as a string ie `127.0.0.1:8888`
+    /// returns the listen address and port as a string ie `127.0.0.1:8888`
     pub fn listen_addr(&self) -> String {
         format!(
             "{}:{}",
             self.listen_address,
-            self.listen_port.unwrap_or(crate::constants::DEFAULT_PORT)
+            self.listen_port
+                .unwrap_or(crate::constants::WEB_SERVER_DEFAULT_PORT)
         )
     }
 
-    // Pulls the groups from hosts and services in the config
+    /// Pulls the groups from hosts and services in the config
     pub fn groups(&self) -> Vec<String> {
         let mut groups: HashSet<String> = HashSet::new();
 
@@ -241,6 +256,7 @@ impl Configuration {
         groups.into_iter().collect()
     }
 
+    /// Prune the configuration based on the database, so we can serialize it back
     pub fn prune(&self, _db: &DatabaseConnection) -> Result<(), Error> {
         // check the hosts agsinst the config file
 

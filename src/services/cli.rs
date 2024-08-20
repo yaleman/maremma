@@ -1,17 +1,24 @@
+//! CLI-based service checks
+
 use crate::prelude::*;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 
 #[derive(Debug, Deserialize, Serialize)]
+/// A service that runs on the command line, typically on the Maremma server
 pub struct CliService {
+    /// Name of the service
     pub name: String,
+    /// Command line to run
     pub command_line: String,
     #[serde(default)]
+    /// If we should run the command in a shell
     pub run_in_shell: bool,
     #[serde(
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
+    /// Cron schedule for the service
     pub cron_schedule: Cron,
 }
 

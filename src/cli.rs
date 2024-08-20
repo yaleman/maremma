@@ -1,3 +1,5 @@
+//! Main app CLI-related things
+
 use std::path::PathBuf;
 
 use clap::*;

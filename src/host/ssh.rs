@@ -6,7 +6,9 @@ use serde::Deserialize;
 
 use crate::prelude::*;
 
+/// The default timeout
 pub const DEFAULT_SSH_TIMEOUT_SECONDS: u16 = 30;
+/// Guess?
 pub const DEFAULT_SSH_PORT: u16 = 22;
 
 fn default_ssh_port() -> u16 {
@@ -18,7 +20,9 @@ fn default_ssh_timeout_seconds() -> u16 {
 }
 
 #[derive(Default, Deserialize, Serialize, Debug)]
+/// An SSH-connected host
 pub struct SshHost {
+    /// The hostname
     pub hostname: String,
     /// Defaults to [DEFAULT_SSH_PORT] (22)
     #[serde(default = "default_ssh_port")]
@@ -33,25 +37,31 @@ pub struct SshHost {
     pub remote_user: Option<String>,
 
     #[serde(default)]
+    /// Groups that this host is part of
     pub host_groups: Vec<String>,
 
     #[serde(default)]
+    /// If this host is disabled
     pub disabled: bool,
 
     #[serde(skip)]
+    /// The last time we checked this host
     pub last_check: Option<DateTime<Utc>>,
 
     #[serde(skip)]
+    /// The list of service checks for this host
     pub service_checks: Vec<Box<dyn ServiceTrait>>,
 }
 
 impl SshHost {
+    /// Create a new SshHost from a hostname
     pub fn from_hostname(hostname: &str) -> Self {
         Self {
             hostname: hostname.to_string(),
             ..Default::default()
         }
     }
+    /// Update the timeout
     pub fn with_timeout(self, timeout_seconds: u16) -> Self {
         Self {
             timeout_seconds,
@@ -66,19 +76,19 @@ impl GenericHost for SshHost {
         let socket_address = match self.ip_address {
             Some(ip) => match (ip, self.port)
                 .to_socket_addrs()
-                .map_err(|_err| Error::DNSFailed)?
+                .map_err(|_err| Error::DnsFailed)?
                 .next()
             {
                 Some(sock) => sock,
-                None => return Err(Error::DNSFailed),
+                None => return Err(Error::DnsFailed),
             },
             None => match format!("{}:{}", self.hostname, self.port)
                 .to_socket_addrs()
-                .map_err(|_err| Error::DNSFailed)?
+                .map_err(|_err| Error::DnsFailed)?
                 .next()
             {
                 Some(val) => val,
-                None => return Err(Error::DNSFailed),
+                None => return Err(Error::DnsFailed),
             },
         };
         let result = std::net::TcpStream::connect_timeout(

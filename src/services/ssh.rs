@@ -1,3 +1,5 @@
+//! SSH-based service, SSH to a host and run a command
+
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 

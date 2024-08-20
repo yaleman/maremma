@@ -1,3 +1,5 @@
+//! Web server related functionality
+
 use std::str::FromStr;
 
 use crate::prelude::*;
