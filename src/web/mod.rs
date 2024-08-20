@@ -1,7 +1,9 @@
 //! Web server related functionality
 
+use std::path::PathBuf;
 use std::str::FromStr;
 
+use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
 use crate::prelude::*;
 
 use askama_axum::IntoResponse;
@@ -150,7 +152,13 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .route("/healthcheck", get(up))
         .nest_service(
             "/static",
-            ServeDir::new(&config.static_path).precompressed_br(),
+            ServeDir::new(
+                &config
+                    .static_path
+                    .clone()
+                    .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH)),
+            )
+            .precompressed_br(),
         )
         .layer(TraceLayer::new_for_http())
         .layer(session_layer);

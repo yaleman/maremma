@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use schemars::JsonSchema;
 
+use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
@@ -41,7 +42,7 @@ pub struct ConfigurationParser {
     /// Path to the database file (or `:memory:` for in-memory)
     pub database_file: String,
 
-    /// The path to the web server's static files, defaults to ./static
+    /// The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]
     pub static_path: Option<PathBuf>,
 
     #[serde(default = "default_listen_address")]
@@ -91,8 +92,8 @@ pub struct Configuration {
     /// Path to the database file (or `:memory:` for in-memory)
     pub database_file: String,
 
-    /// The path to the web server's static files, defaults to ./static
-    pub static_path: PathBuf,
+    /// The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]
+    pub static_path: Option<PathBuf>,
 
     #[serde(default = "default_listen_address")]
     /// The listen address, eg `0.0.0.0` or `127.0.0.1``
@@ -144,7 +145,9 @@ impl TryFrom<ConfigurationParser> for Configuration {
             None => None,
         };
 
-        let static_path = value.static_path.unwrap_or(PathBuf::from("./static"));
+        let static_path = value
+            .static_path
+            .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH));
 
         if !static_path.exists() {
             return Err(Error::Configuration(
@@ -165,7 +168,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_file: value.cert_file,
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
-            static_path,
+            static_path: Some(static_path),
         })
     }
 
