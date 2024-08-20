@@ -189,3 +189,56 @@ async fn test_tls_no_subject() {
 }
 
 // TODO: once we can generate arbitrary test certs, test for one that expires in x days
+
+#[tokio::test]
+async fn test_zero_port() {
+    use crate::prelude::*;
+
+    let _ = setup_logging(true);
+    let (_, _) = test_setup().await.expect("Failed to set up test");
+
+    let service_def = serde_json::json! {{
+        "name": "test",
+        "cron_schedule": "0 0 * * *",
+        "port": 0,
+    }};
+
+    let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
+    let bad_hostname = "no-subject.badssl.com".to_string();
+    let host = entities::host::Model {
+        name: bad_hostname.clone(),
+        check: crate::host::HostCheck::None,
+        id: Uuid::new_v4(),
+        hostname: bad_hostname,
+    };
+    let result = service.run(&host).await;
+    dbg!(&result);
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_timeout() {
+    use crate::prelude::*;
+
+    let _ = setup_logging(true);
+    let (_, _) = test_setup().await.expect("Failed to set up test");
+
+    let service_def = serde_json::json! {{
+        "name": "test",
+        "cron_schedule": "0 0 * * *",
+        "port": 12345,
+        "timeout" : Some(1),
+    }};
+
+    let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
+    let bad_hostname = "example.com".to_string();
+    let host = entities::host::Model {
+        name: bad_hostname.clone(),
+        check: crate::host::HostCheck::None,
+        id: Uuid::new_v4(),
+        hostname: bad_hostname,
+    };
+    let result = service.run(&host).await;
+    dbg!(&result);
+    assert!(result.is_err());
+}
