@@ -3,8 +3,10 @@ use tokio::net::lookup_host;
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize)]
+/// A service that pings things
 pub struct PingService {
     #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
+    /// The cron schedule for this service
     pub cron_schedule: Cron,
 }
 

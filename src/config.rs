@@ -22,55 +22,70 @@ fn default_max_concurrent_checks() -> usize {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
+/// OIDC Config
 pub struct OidcConfig {
+    /// OIDC issuer (url)
     pub issuer: String,
+    /// OIDC client_id
     pub client_id: String,
+    /// OIDC client_secret
     pub client_secret: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
+/// Parses configuration from the file
 pub struct ConfigurationParser {
     #[serde(default = "default_database_file")]
+    /// Path to the database file (or `:memory:` for in-memory)
     pub database_file: String,
 
     /// The path to the web server's static files, defaults to ./static
     pub static_path: Option<PathBuf>,
 
     #[serde(default = "default_listen_address")]
+    /// The listen address, eg `0.0.0.0` or `127.0.0.1`
     pub listen_address: String,
 
-    //// Defaults to 8888
+    /// Defaults to 8888
     pub listen_port: Option<u16>,
 
+    /// Target host configuration
     pub hosts: HashMap<String, Host>,
 
     #[serde(default)]
+    /// Services to run locally
     pub local_services: FakeHost,
 
-    // This is something we need to deserialize later because it's messy
     #[serde(skip_serializing)]
+    /// Service configuration
     pub services: Option<HashMap<String, Value>>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
     pub frontend_url: Option<String>,
 
     #[serde(default)]
+    /// Should we enable OIDC authentication?
     pub oidc_enabled: bool,
 
     pub oidc_config: Option<OidcConfig>,
 
     #[serde(default)]
-    pub cert_file: Option<PathBuf>,
+    /// The path to the TLS certificate
+    pub cert_file: PathBuf,
     #[serde(default)]
-    pub cert_key: Option<PathBuf>,
+    /// The path to the TLS key
+    pub cert_key: PathBuf,
 
     #[serde(default = "default_max_concurrent_checks")]
+    /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
+/// The result of parsing the configuration file, don't instantiate this directly!
 pub struct Configuration {
     #[serde(default = "default_database_file")]
+    /// Path to the database file (or `:memory:` for in-memory)
     pub database_file: String,
 
     /// The path to the web server's static files, defaults to ./static
@@ -98,10 +113,10 @@ pub struct Configuration {
 
     pub oidc_config: Option<OidcConfig>,
 
-    #[serde(default)]
-    pub cert_file: Option<PathBuf>,
-    #[serde(default)]
-    pub cert_key: Option<PathBuf>,
+    /// the TLS certificate matter
+    pub cert_file: PathBuf,
+    /// the TLS certificate matter
+    pub cert_key: PathBuf,
 
     #[serde(default = "default_max_concurrent_checks")]
     pub max_concurrent_checks: usize,

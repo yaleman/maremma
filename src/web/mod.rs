@@ -156,7 +156,8 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
     Ok(app.with_state(state))
 }
 
-#[cfg(not(tarpaulin_include))] // TODO: tarpaulin un-ignore for code coverage
+#[cfg(not(tarpaulin_include))]
+/// Starts up the web server
 pub async fn run_web_server(
     configuration: Arc<Configuration>,
     db: Arc<DatabaseConnection>,
@@ -180,41 +181,25 @@ pub async fn run_web_server(
     );
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
-    let cert_file = match &configuration.cert_file {
-        Some(cert_file) => {
-            if !cert_file.exists() {
-                return Err(Error::Generic(format!(
-                    "TLS is enabled but cert_file {:?} does not exist",
-                    cert_file
-                )));
-            }
-            cert_file
-        }
-        None => {
-            return Err(Error::Generic(
-                "TLS is enabled but no cert_file is provided".to_string(),
-            ))
-        }
+    if !configuration.cert_file.exists() {
+        return Err(Error::Generic(format!(
+            "TLS is enabled but cert_file {:?} does not exist",
+            configuration.cert_file
+        )));
+    }
+
+    if !configuration.cert_key.exists() {
+        return Err(Error::Generic(format!(
+            "TLS is enabled but cert_key {:?} does not exist",
+            configuration.cert_key
+        )));
     };
-    let cert_key = match &configuration.cert_key {
-        Some(cert_key) => {
-            if !cert_key.exists() {
-                return Err(Error::Generic(format!(
-                    "TLS is enabled but cert_key {:?} does not exist",
-                    cert_key
-                )));
-            }
-            cert_key
-        }
-        None => {
-            return Err(Error::Generic(
-                "TLS is enabled but no cert_key is provided".to_string(),
-            ))
-        }
-    };
-    let tls_config = RustlsConfig::from_pem_file(&cert_file.as_path(), &cert_key.as_path())
-        .await
-        .map_err(|err| Error::Generic(format!("Failed to load TLS config: {:?}", err)))?;
+    let tls_config = RustlsConfig::from_pem_file(
+        &configuration.cert_file.as_path(),
+        &configuration.cert_key.as_path(),
+    )
+    .await
+    .map_err(|err| Error::Generic(format!("Failed to load TLS config: {:?}", err)))?;
     bind_rustls(
         configuration.listen_addr().parse().map_err(|err| {
             Error::Generic(format!(

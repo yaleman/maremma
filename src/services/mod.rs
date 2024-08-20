@@ -88,9 +88,12 @@ impl ServiceStatus {
 }
 
 #[async_trait]
+/// The base trait for a service
 pub trait ServiceTrait: Debug + Sync + Send {
+    /// Run the service check
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error>;
 
+    /// Parse it from the configuration file
     fn from_config(config: &Value) -> Result<Self, Error>
     where
         Self: Sized + DeserializeOwned,
@@ -100,13 +103,19 @@ pub trait ServiceTrait: Debug + Sync + Send {
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
+/// Base service type
 pub struct Service {
     #[serde(default = "uuid::Uuid::new_v4")]
+    /// The internal ID of the service
     pub id: Uuid,
     /// This is pulled from the config file's key
     pub name: Option<String>,
+    /// Description of the service
     pub description: Option<String>,
+    /// Host groups to apply it to
     pub host_groups: Vec<String>,
+
+    /// What kind of service it is
     pub service_type: ServiceType,
     #[serde(
         deserialize_with = "crate::serde::deserialize_croner_cron",
@@ -121,11 +130,12 @@ pub struct Service {
     pub extra_config: HashMap<String, Value>,
 
     #[serde(skip)]
+    /// Internal configuration storage, don't specify this
     pub config: Option<Box<dyn ServiceTrait>>,
 }
 
 impl Service {
-    /// because services are stored in the database as a json field, we need to parse the config and store the type internally
+    /// Because services are stored in the database as a json field, we need to parse the config and store the type internally
     pub fn parse_config(self) -> Result<Self, Error> {
         let value = serde_json::to_value(&self)?;
         let service_identifier = self
@@ -266,14 +276,19 @@ impl TryFrom<&entities::service::Model> for Service {
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(5))")]
 pub enum ServiceType {
+    /// CLI service
     #[sea_orm(string_value = "cli")]
     Cli,
+    /// SSH service
     #[sea_orm(string_value = "ssh")]
     Ssh,
+    /// Ping service
     #[sea_orm(string_value = "ping")]
     Ping,
+    /// HTTP service
     #[sea_orm(string_value = "http")]
     Http,
+    /// TLS service
     #[sea_orm(string_value = "tls")]
     Tls,
 }

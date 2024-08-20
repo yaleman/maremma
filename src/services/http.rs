@@ -27,8 +27,8 @@ fn default_true() -> bool {
     true
 }
 
-const DEFAULT_TIMEOUT: u64 = 10;
-const DEFAULT_HTTP_STATUS: u16 = 200;
+pub static DEFAULT_TIMEOUT: u64 = 10;
+pub static DEFAULT_HTTP_STATUS: u16 = 200;
 
 #[derive(Debug, Deserialize)]
 pub struct HttpService {
@@ -55,6 +55,8 @@ pub struct HttpService {
 
     /// Connection timeout, defaults to 10 seconds ([DEFAULT_TIMEOUT])
     pub connect_timeout: Option<u64>,
+
+    pub port: Option<u16>,
 }
 
 #[async_trait]
@@ -63,12 +65,18 @@ impl ServiceTrait for HttpService {
         let start_time = chrono::Utc::now();
 
         let url = format!(
-            "https://{}/{}",
+            "https://{}{}/{}",
             host.hostname,
+            self.port.map_or("".to_string(), |p| format!(":{}", p)),
             &self.http_uri.clone().unwrap_or("".to_string())
         );
 
         let client = reqwest::ClientBuilder::new()
+            .user_agent(format!(
+                "{}/{}",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ))
             .danger_accept_invalid_certs(!self.validate_tls) // invert it
             .connect_timeout(std::time::Duration::from_secs(
                 self.connect_timeout.unwrap_or(DEFAULT_TIMEOUT),
@@ -89,7 +97,7 @@ impl ServiceTrait for HttpService {
                 if val.status() != expected_status_code {
                     (
                         format!(
-                            "CRITICAL: Expected status code {}, got {}",
+                            "Expected status code {}, got {}",
                             expected_status_code,
                             val.status()
                         ),
@@ -99,7 +107,7 @@ impl ServiceTrait for HttpService {
                     ("OK".to_string(), ServiceStatus::Ok)
                 }
             }
-            Err(err) => (format!("CRITICAL: {:?}", err), ServiceStatus::Critical),
+            Err(err) => (err.to_string(), ServiceStatus::Critical),
         };
 
         let time_elapsed = chrono::Utc::now() - start_time;
@@ -128,6 +136,7 @@ mod tests {
             http_status: None,
             validate_tls: true,
             connect_timeout: Some(5),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -151,6 +160,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "test_badssl")]
     async fn test_skip_tls_verify() {
         let service = super::HttpService {
             name: "test".to_string(),
@@ -159,7 +169,8 @@ mod tests {
             http_uri: None,
             http_status: Some(super::DEFAULT_HTTP_STATUS),
             validate_tls: false,
-            connect_timeout: Some(5),
+            connect_timeout: Some(15),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -170,6 +181,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
+        dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
 
@@ -180,7 +192,8 @@ mod tests {
             http_uri: None,
             http_status: None,
             validate_tls: false,
-            connect_timeout: Some(5),
+            connect_timeout: Some(15),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -191,6 +204,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
+        dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
 
@@ -204,6 +218,7 @@ mod tests {
             http_status: None,
             validate_tls: true,
             connect_timeout: Some(5),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
