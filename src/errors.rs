@@ -19,11 +19,15 @@ pub enum Error {
     IoError(String),
     NotImplemented,
     Oidc(String),
+    /// When something went wrong while invoking reqwest
+    Reqwest(String),
     ServiceCheckNotFound(Uuid),
     ServiceConfigNotFound(String),
     ServiceNotFound(Uuid),
     ServiceNotFoundByName(String),
     SqlError(sea_orm::error::DbErr),
+    TlsError(String),
+    Timeout,
 }
 
 impl From<serde_json::Error> for Error {
@@ -53,6 +57,18 @@ impl From<CronError> for Error {
 impl From<axum_oidc::error::Error> for Error {
     fn from(value: axum_oidc::error::Error) -> Self {
         Error::Oidc(value.to_string())
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(value: reqwest::Error) -> Self {
+        Self::Reqwest(value.to_string())
+    }
+}
+
+impl From<rustls::Error> for Error {
+    fn from(value: rustls::Error) -> Self {
+        Self::TlsError(value.to_string())
     }
 }
 

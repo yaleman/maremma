@@ -3,6 +3,7 @@ pub mod http;
 pub mod kubernetes;
 pub mod ping;
 pub mod ssh;
+pub mod tls;
 
 use crate::check_loop::CheckResult;
 use crate::db::entities;
@@ -184,6 +185,19 @@ impl Service {
                 };
                 Box::new(value) as Box<dyn ServiceTrait>
             }
+            ServiceType::Tls => {
+                let value = match tls::TlsService::from_config(&value) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        error!(
+                            "Failed to parse tls service {} {:?}: {:?}",
+                            service_identifier, value, e
+                        );
+                        return Err(e);
+                    }
+                };
+                Box::new(value) as Box<dyn ServiceTrait>
+            }
         };
         Ok(Self {
             config: Some(config),
@@ -260,6 +274,8 @@ pub enum ServiceType {
     Ping,
     #[sea_orm(string_value = "http")]
     Http,
+    #[sea_orm(string_value = "tls")]
+    Tls,
 }
 
 impl Display for ServiceType {

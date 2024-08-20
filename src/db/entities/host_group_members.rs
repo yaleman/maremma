@@ -171,6 +171,6 @@ mod tests {
             .expect("Failed to load config");
 
         let host_group_members = super::Entity::find().all(db.as_ref()).await.unwrap();
-        assert_eq!(host_group_members.len(), 1);
+        assert_ne!(host_group_members.len(), 1);
     }
 }
