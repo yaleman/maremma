@@ -153,7 +153,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .nest_service(
             "/static",
             ServeDir::new(
-                &config
+                config
                     .static_path
                     .clone()
                     .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH)),
