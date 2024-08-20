@@ -6,28 +6,7 @@ use rustls::server::ParsedCertificate;
 use rustls::SignatureScheme;
 
 #[derive(Debug, Default)]
-pub(crate) struct TlsCertVerifier {
-    /// How many days until the certificate expires, if we can validate it
-    #[allow(dead_code)]
-    pub expiry: Option<DateTime<Utc>>,
-}
-
-impl TlsCertVerifier {
-    pub fn new() -> Self {
-        Self { expiry: None }
-    }
-    #[allow(dead_code)]
-    /// Is the cert expired (or can we )
-    pub fn expired(&self) -> bool {
-        match self.expiry {
-            None => true,
-            Some(expiry) => {
-                let now = chrono::Utc::now();
-                expiry < now
-            }
-        }
-    }
-}
+pub(crate) struct TlsCertVerifier;
 
 impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
     #[instrument(level = "debug", skip(end_entity))]

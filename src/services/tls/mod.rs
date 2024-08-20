@@ -58,14 +58,26 @@ impl ServiceTrait for TlsService {
             .with_no_client_auth();
 
         //  we use our own verifier because we want all the datas
-        let tls_verifier = Arc::new(TlsCertVerifier::new());
+        let tls_verifier = Arc::new(TlsCertVerifier::default());
         config.dangerous().set_certificate_verifier(tls_verifier);
 
         let connector = TlsConnector::from(Arc::new(config));
-        let dnsname = ServerName::try_from(host.hostname.clone()).map_err(|err| {
-            error!("Failed to resolve {} {:?}", host.hostname, err);
-            Error::DNSFailed // TODO: this is a valid state, handle it better
-        })?;
+        let dnsname = match ServerName::try_from(host.hostname.clone()) {
+            Ok(val) => val,
+            Err(_err) => {
+                debug!(
+                    "Invalid hostname specified for TLS check hostname={}",
+                    host.hostname
+                );
+                let timestamp = chrono::Utc::now();
+                return Ok(CheckResult {
+                    time_elapsed: start_time - timestamp,
+                    timestamp: chrono::Utc::now(),
+                    status: ServiceStatus::Critical,
+                    result_text: format!("Invalid hostname '{}'", host.hostname),
+                });
+            }
+        };
 
         let timeout_duration = tokio::time::Duration::from_secs(self.timeout.unwrap_or(10) as u64);
         let stream = match tokio::time::timeout(
@@ -74,7 +86,25 @@ impl ServiceTrait for TlsService {
         )
         .await
         {
-            Ok(val) => val?,
+            Ok(val) => match val {
+                Ok(val) => val,
+                Err(err) => {
+                    debug!(
+                        "Failed to TcpStream::connect to hostname=\"{}\" error=\"{}\"",
+                        host.hostname, err
+                    );
+                    let timestamp = chrono::Utc::now();
+                    return Ok(CheckResult {
+                        time_elapsed: start_time - timestamp,
+                        timestamp: chrono::Utc::now(),
+                        status: ServiceStatus::Critical,
+                        result_text: format!(
+                            "Failed to connect to hostname=\"{}\" error=\"{}\"",
+                            host.hostname, err
+                        ),
+                    });
+                }
+            },
             Err(_) => return Err(Error::Timeout),
         };
 
@@ -100,7 +130,6 @@ impl ServiceTrait for TlsService {
 
         let mut status = ServiceStatus::Ok;
         let mut result_text = "OK".to_string();
-
         if result.cert_expired() {
             status = ServiceStatus::Critical;
             result_text = format!("Certificate expired {} days ago", -result.expiry_days());
@@ -135,13 +164,10 @@ impl ServiceTrait for TlsService {
 pub(crate) struct TlsPeerState {
     cert_name_matches: bool,
     end_cert_expiry: DateTime<Utc>,
-
     intermediate_expired: bool,
-
     servername: Option<String>,
 }
 
-#[allow(dead_code)]
 impl TlsPeerState {
     pub fn new(end_cert_expiry: DateTime<Utc>) -> Self {
         Self {
@@ -153,10 +179,6 @@ impl TlsPeerState {
     }
     pub fn set_intermediate_expired(&mut self) {
         self.intermediate_expired = true;
-    }
-
-    pub fn servername_matches(&self) -> bool {
-        todo!();
     }
 
     /// Return if the cert has expired
