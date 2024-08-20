@@ -2,7 +2,8 @@
     "hosts": {
         "example.com": {
             "host_groups": [
-                "check_ntp_time"
+                "check_ntp_time",
+                "check_tls"
             ]
         }
     },
