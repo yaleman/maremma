@@ -58,7 +58,7 @@ impl ServiceTrait for TlsService {
             .with_no_client_auth();
 
         //  we use our own verifier because we want all the datas
-        let tls_verifier = Arc::new(TlsCertVerifier::default());
+        let tls_verifier = Arc::new(TlsCertVerifier);
         config.dangerous().set_certificate_verifier(tls_verifier);
 
         let connector = TlsConnector::from(Arc::new(config));
