@@ -17,11 +17,11 @@ async fn test_working_tls_service() {
         expiry_warn: Some(3),
         timeout: None,
     };
-    let host = entities::host::Model {
-        name: "badssl.com".to_string(),
+    let host: entities::host::Model = entities::host::Model {
+        name: "example.com".to_string(),
         check: crate::host::HostCheck::None,
         id: Uuid::new_v4(),
-        hostname: "badssl.com".to_string(),
+        hostname: "example.com".to_string(),
     };
     let result = service.run(&host).await;
     dbg!(&result);
@@ -30,6 +30,7 @@ async fn test_working_tls_service() {
 }
 
 #[tokio::test]
+#[cfg(feature = "test_badssl")]
 async fn test_expired_tls_service() {
     use crate::prelude::*;
 
@@ -57,6 +58,7 @@ async fn test_expired_tls_service() {
 }
 
 #[tokio::test]
+#[cfg(feature = "test_badssl")]
 async fn test_wrong_cert_host_name() {
     use crate::prelude::*;
 
@@ -107,6 +109,7 @@ async fn test_nxdomain() {
     assert!(result.is_ok());
     assert!(result.unwrap().status == ServiceStatus::Critical);
 }
+
 #[tokio::test]
 async fn test_invalid_hostname() {
     use crate::prelude::*;
@@ -135,6 +138,7 @@ async fn test_invalid_hostname() {
 }
 
 #[tokio::test]
+#[cfg(feature = "test_badssl")]
 async fn test_tls_sha1_intermediate() {
     use crate::prelude::*;
 
@@ -227,7 +231,7 @@ async fn test_timeout() {
         "name": "test",
         "cron_schedule": "0 0 * * *",
         "port": 12345,
-        "timeout" : Some(1),
+        "timeout" : Some(0),
     }};
 
     let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
