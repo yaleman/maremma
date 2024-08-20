@@ -1,3 +1,5 @@
+//! Prometheus metrics magic
+
 use crate::prelude::*;
 use std::time::Duration;
 
@@ -9,6 +11,7 @@ use opentelemetry_sdk::resource::{
 use opentelemetry_sdk::Resource;
 use prometheus::Registry;
 
+/// Creates the metrics provider and registry for downstream use
 pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
     // create a new prometheus registry
     let registry = prometheus::Registry::new();

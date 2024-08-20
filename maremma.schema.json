@@ -1,25 +1,33 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Configuration",
+  "description": "The result of parsing the configuration file, don't instantiate this directly!",
   "type": "object",
   "required": [
-    "hosts",
-    "static_path"
+    "cert_file",
+    "cert_key",
+    "hosts"
   ],
   "properties": {
     "database_file": {
+      "description": "Path to the database file (or `:memory:` for in-memory)",
       "default": "maremma.sqlite",
       "type": "string"
     },
     "static_path": {
-      "description": "The path to the web server's static files, defaults to ./static",
-      "type": "string"
+      "description": "The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]",
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "listen_address": {
+      "description": "The listen address, eg `0.0.0.0` or `127.0.0.1``",
       "default": "127.0.0.1",
       "type": "string"
     },
     "listen_port": {
+      "description": "Defaults to 8888",
       "type": [
         "integer",
         "null"
@@ -28,12 +36,14 @@
       "minimum": 0.0
     },
     "hosts": {
+      "description": "Host configuration",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/definitions/Host"
       }
     },
     "local_services": {
+      "description": "Services to run locally",
       "default": {
         "services": []
       },
@@ -44,6 +54,7 @@
       ]
     },
     "services": {
+      "description": "Service configuration",
       "type": [
         "object",
         "null"
@@ -60,10 +71,12 @@
       ]
     },
     "oidc_enabled": {
+      "description": "Should we enable OIDC authentication?",
       "default": false,
       "type": "boolean"
     },
     "oidc_config": {
+      "description": "OIDC configuration, see [OidcConfig]",
       "anyOf": [
         {
           "$ref": "#/definitions/OidcConfig"
@@ -74,20 +87,15 @@
       ]
     },
     "cert_file": {
-      "default": null,
-      "type": [
-        "string",
-        "null"
-      ]
+      "description": "the TLS certificate matter",
+      "type": "string"
     },
     "cert_key": {
-      "default": null,
-      "type": [
-        "string",
-        "null"
-      ]
+      "description": "the TLS certificate matter",
+      "type": "string"
     },
     "max_concurrent_checks": {
+      "description": "The maximum concurrent checks we'll run at one time",
       "default": 10,
       "type": "integer",
       "format": "uint",
@@ -96,9 +104,11 @@
   },
   "definitions": {
     "Host": {
+      "description": "A generic host",
       "type": "object",
       "properties": {
         "check": {
+          "description": "The kind of check",
           "default": "ping",
           "allOf": [
             {
@@ -107,6 +117,7 @@
           ]
         },
         "hostname": {
+          "description": "The hostname",
           "default": null,
           "type": [
             "string",
@@ -114,6 +125,7 @@
           ]
         },
         "host_groups": {
+          "description": "Groups that this host is part of",
           "default": [],
           "type": "array",
           "items": {
@@ -124,6 +136,7 @@
       "additionalProperties": true
     },
     "HostCheck": {
+      "description": "The kind of check to perform to ensure the host is up",
       "oneOf": [
         {
           "description": "No checks done",
@@ -156,12 +169,14 @@
       ]
     },
     "FakeHost": {
+      "description": "Used as part of local-only service checks",
       "type": "object",
       "required": [
         "services"
       ],
       "properties": {
         "services": {
+          "description": "Services on this host",
           "type": "array",
           "items": {
             "type": "string"
@@ -170,6 +185,7 @@
       }
     },
     "Service": {
+      "description": "Base service type",
       "type": "object",
       "required": [
         "cron_schedule",
@@ -178,7 +194,8 @@
       ],
       "properties": {
         "id": {
-          "default": "51507713-ffd7-4b4c-9544-0705e19061fb",
+          "description": "The internal ID of the service",
+          "default": "0f8f85ea-785d-4a2d-aa09-5f0c4794a9d8",
           "type": "string",
           "format": "uuid"
         },
@@ -190,19 +207,26 @@
           ]
         },
         "description": {
+          "description": "Description of the service",
           "type": [
             "string",
             "null"
           ]
         },
         "host_groups": {
+          "description": "Host groups to apply it to",
           "type": "array",
           "items": {
             "type": "string"
           }
         },
         "service_type": {
-          "$ref": "#/definitions/ServiceType"
+          "description": "What kind of service it is",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ServiceType"
+            }
+          ]
         },
         "cron_schedule": {
           "description": "Cron schedule for the service, eg `@hourly`, `* * * * * *` or `0 0 * * *`",
@@ -212,16 +236,47 @@
       "additionalProperties": true
     },
     "ServiceType": {
-      "type": "string",
-      "enum": [
-        "cli",
-        "ssh",
-        "ping",
-        "http",
-        "tls"
+      "description": "The type of service",
+      "oneOf": [
+        {
+          "description": "CLI service",
+          "type": "string",
+          "enum": [
+            "cli"
+          ]
+        },
+        {
+          "description": "SSH service",
+          "type": "string",
+          "enum": [
+            "ssh"
+          ]
+        },
+        {
+          "description": "Ping service",
+          "type": "string",
+          "enum": [
+            "ping"
+          ]
+        },
+        {
+          "description": "HTTP service",
+          "type": "string",
+          "enum": [
+            "http"
+          ]
+        },
+        {
+          "description": "TLS service",
+          "type": "string",
+          "enum": [
+            "tls"
+          ]
+        }
       ]
     },
     "OidcConfig": {
+      "description": "OIDC Config",
       "type": "object",
       "required": [
         "client_id",
@@ -229,12 +284,15 @@
       ],
       "properties": {
         "issuer": {
+          "description": "OIDC issuer (url)",
           "type": "string"
         },
         "client_id": {
+          "description": "OIDC client_id",
           "type": "string"
         },
         "client_secret": {
+          "description": "OIDC client_secret",
           "type": [
             "string",
             "null"

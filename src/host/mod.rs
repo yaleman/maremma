@@ -1,3 +1,5 @@
+//! How the system represents hosts
+
 use schemars::JsonSchema;
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query;
@@ -5,35 +7,41 @@ use std::fmt::Display;
 
 use crate::prelude::*;
 
+/// Implements "Fakehost" which is used for local checks
 pub mod fakehost;
+/// Implements the Kubernetes host check
 pub mod kube;
+/// Implements the SSH-based host check
 pub mod ssh;
 
 #[derive(Deserialize, Serialize, Debug, Clone, JsonSchema)]
-
+/// A generic host
 pub struct Host {
     #[serde(skip, skip_serializing_if = "Option::is_none")]
+    /// Internal ID
     pub id: Option<Uuid>,
 
     #[serde(default)]
+    /// The kind of check
     pub check: HostCheck,
 
     #[serde(default)]
+    /// The hostname
     pub hostname: Option<String>,
 
     #[serde(default)]
+    /// Groups that this host is part of
     pub host_groups: Vec<String>,
 
-    // Capture all the other config fields
+    /// Captures all the other config fields, if any
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Host {
-    #[must_use]
+    /// Build a new host
     pub fn new(hostname: String, check: HostCheck) -> Self {
         let id = Uuid::new_v4();
-        debug!("Creating host: with id: {}", id.hyphenated());
         Self {
             hostname: Some(hostname),
             check,
@@ -71,6 +79,7 @@ impl From<crate::db::entities::host::Model> for Host {
 )]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(1))")]
 #[serde(rename_all = "lowercase")]
+/// The kind of check to perform to ensure the host is up
 pub enum HostCheck {
     /// No checks done
     #[sea_orm(string_value = "n")]
@@ -101,12 +110,15 @@ impl Display for HostCheck {
 }
 
 #[async_trait]
+/// Host-check type things
 pub trait GenericHost
 where
     Self: std::marker::Sized,
 {
+    /// Check if the host is available
     async fn check_up(&self) -> Result<bool, crate::errors::Error>;
 
+    /// Create this from [serde_json::Value]
     fn try_from_config(config: serde_json::Value) -> Result<Self, Error>
     where
         Self: Sized;

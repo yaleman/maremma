@@ -1,10 +1,14 @@
+//! Basic ping service
+
 use tokio::net::lookup_host;
 
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize)]
+/// A service that pings things
 pub struct PingService {
     #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
+    /// The cron schedule for this service
     pub cron_schedule: Cron,
 }
 
@@ -17,7 +21,7 @@ impl ServiceTrait for PingService {
         let hostname = lookup_host(format!("{}:80", host.hostname.clone()))
             .await?
             .next()
-            .ok_or(Error::DNSFailed)?;
+            .ok_or(Error::DnsFailed)?;
 
         let (_packet, duration) = match surge_ping::ping(hostname.ip(), &payload).await {
             Ok((packet, duration)) => (packet, duration),

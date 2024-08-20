@@ -1,3 +1,9 @@
+//! # Maremma
+//!
+//! Guarding your herd 🐐🐐 🐕
+//!
+
+#![warn(missing_docs)]
 #![deny(warnings)]
 #![forbid(unsafe_code)]
 #![deny(clippy::all)]
@@ -7,8 +13,8 @@
 #![deny(clippy::expect_used)]
 #![deny(clippy::panic)]
 #![deny(clippy::unreachable)]
-#![deny(clippy::await_holding_lock)]
 #![deny(clippy::needless_pass_by_value)]
+#![deny(clippy::await_holding_lock)]
 #![deny(clippy::trivially_copy_pass_by_ref)]
 
 #[cfg(not(test))]
@@ -32,11 +38,13 @@ pub mod services;
 pub(crate) mod tests;
 pub mod web;
 
+/// The default filename - `maremma.json`
 pub static DEFAULT_CONFIG_FILE: &str = "maremma.json";
 /// Used to give the "local" services a hostname
 pub static LOCAL_SERVICE_HOST_NAME: &str = "Maremma Local Checks";
 
 #[inline]
+/// Sets up logging
 pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
     #[cfg(not(test))]
     if env::var("RUST_LOG").is_err() {

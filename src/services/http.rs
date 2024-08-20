@@ -1,7 +1,11 @@
+//! HTTP Checks
+
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, Default, Copy, Clone)]
 #[serde(rename_all = "UPPERCASE")]
+/// HTTP Methods
+#[allow(missing_docs)]
 pub enum HttpMethod {
     #[default]
     Get,
@@ -27,16 +31,21 @@ fn default_true() -> bool {
     true
 }
 
-const DEFAULT_TIMEOUT: u64 = 10;
-const DEFAULT_HTTP_STATUS: u16 = 200;
+/// Default timeout for HTTP checks
+pub static DEFAULT_TIMEOUT: u64 = 10;
+/// Default expected status code for HTTP checks
+pub static DEFAULT_EXPECTED_HTTP_STATUS: u16 = 200;
 
 #[derive(Debug, Deserialize)]
+/// An HTTP(s) service check
 pub struct HttpService {
+    /// Name of the check
     pub name: String,
     #[serde(
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
+    /// Cron schedule for the service
     pub cron_schedule: Cron,
 
     /// Defaults to GET
@@ -55,6 +64,9 @@ pub struct HttpService {
 
     /// Connection timeout, defaults to 10 seconds ([DEFAULT_TIMEOUT])
     pub connect_timeout: Option<u64>,
+
+    /// Port to connect to, defaults to 443 (https)
+    pub port: Option<u16>,
 }
 
 #[async_trait]
@@ -63,12 +75,18 @@ impl ServiceTrait for HttpService {
         let start_time = chrono::Utc::now();
 
         let url = format!(
-            "https://{}/{}",
+            "https://{}{}/{}",
             host.hostname,
+            self.port.map_or("".to_string(), |p| format!(":{}", p)),
             &self.http_uri.clone().unwrap_or("".to_string())
         );
 
         let client = reqwest::ClientBuilder::new()
+            .user_agent(format!(
+                "{}/{}",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ))
             .danger_accept_invalid_certs(!self.validate_tls) // invert it
             .connect_timeout(std::time::Duration::from_secs(
                 self.connect_timeout.unwrap_or(DEFAULT_TIMEOUT),
@@ -78,18 +96,19 @@ impl ServiceTrait for HttpService {
         let (result_text, status) = match client.request(self.http_method.into(), url).send().await
         {
             Ok(val) => {
-                let expected_status_code =
-                    reqwest::StatusCode::from_u16(self.http_status.unwrap_or(DEFAULT_HTTP_STATUS))
-                        .map_err(|_| {
-                            Error::Generic(format!(
-                                "Invalid status code {} in service check",
-                                self.http_status.unwrap_or(DEFAULT_HTTP_STATUS)
-                            ))
-                        })?;
+                let expected_status_code = reqwest::StatusCode::from_u16(
+                    self.http_status.unwrap_or(DEFAULT_EXPECTED_HTTP_STATUS),
+                )
+                .map_err(|_| {
+                    Error::Generic(format!(
+                        "Invalid status code {} in service check",
+                        self.http_status.unwrap_or(DEFAULT_EXPECTED_HTTP_STATUS)
+                    ))
+                })?;
                 if val.status() != expected_status_code {
                     (
                         format!(
-                            "CRITICAL: Expected status code {}, got {}",
+                            "Expected status code {}, got {}",
                             expected_status_code,
                             val.status()
                         ),
@@ -99,7 +118,7 @@ impl ServiceTrait for HttpService {
                     ("OK".to_string(), ServiceStatus::Ok)
                 }
             }
-            Err(err) => (format!("CRITICAL: {:?}", err), ServiceStatus::Critical),
+            Err(err) => (err.to_string(), ServiceStatus::Critical),
         };
 
         let time_elapsed = chrono::Utc::now() - start_time;
@@ -128,6 +147,7 @@ mod tests {
             http_status: None,
             validate_tls: true,
             connect_timeout: Some(5),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -138,7 +158,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
-        assert_eq!(res.is_ok(), true);
+        assert!(res.is_ok());
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
         assert!(Service::try_from(&json! {
             {
@@ -151,15 +171,17 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "test_badssl")]
     async fn test_skip_tls_verify() {
         let service = super::HttpService {
             name: "test".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
-            http_status: Some(super::DEFAULT_HTTP_STATUS),
+            http_status: Some(super::DEFAULT_EXPECTED_HTTP_STATUS),
             validate_tls: false,
-            connect_timeout: Some(5),
+            connect_timeout: Some(15),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -170,6 +192,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
+        dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
 
@@ -180,7 +203,8 @@ mod tests {
             http_uri: None,
             http_status: None,
             validate_tls: false,
-            connect_timeout: Some(5),
+            connect_timeout: Some(15),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -191,6 +215,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
+        dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
 
@@ -204,6 +229,7 @@ mod tests {
             http_status: None,
             validate_tls: true,
             connect_timeout: Some(5),
+            port: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),

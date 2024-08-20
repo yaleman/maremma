@@ -1,3 +1,5 @@
+//! Runs the service checks on a loop
+
 use crate::db::get_next_service_check;
 use crate::prelude::*;
 use entities::service_check::set_check_result;
@@ -8,14 +10,20 @@ const DEFAULT_BACKOFF: std::time::Duration = tokio::time::Duration::from_millis(
 const MAX_BACKOFF_TIME: std::time::Duration = tokio::time::Duration::from_secs(1);
 
 #[derive(Clone, Debug)]
+/// The end result of a service check
 pub struct CheckResult {
+    /// When the check finished
     pub timestamp: chrono::DateTime<Utc>,
+    /// How long it took
     pub time_elapsed: Duration,
+    /// The result
     pub status: ServiceStatus,
+    /// Any explanatory/returned text
     pub result_text: String,
 }
 
 #[instrument(level = "INFO", skip(db))]
+/// Does what it says on the tin
 pub(crate) async fn run_service_check(
     db: Arc<DatabaseConnection>,
     service_check: entities::service_check::Model,
@@ -128,7 +136,9 @@ pub(crate) async fn run_service_check(
     }
     Ok(())
 }
-#[cfg(not(tarpaulin_include))] // TODO: tarpaulin un-ignore for code coverage
+
+#[cfg(not(tarpaulin_include))]
+/// Loop around and do the checks, keeping it to a limit based on `max_permits`
 pub async fn run_check_loop(
     db: Arc<DatabaseConnection>,
     max_permits: usize,

@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     protobuf-compiler \
     curl \
     git \
+    jq \
     build-essential \
     pkg-config \
     libssl-dev \
@@ -28,11 +29,7 @@ RUN mv /root/.cargo/bin/* /usr/local/bin/
 RUN --mount=type=cache,target=/maremma/target/release/deps cargo build --release --bin maremma
 RUN chmod +x /maremma/target/release/maremma
 
-RUN make plugins/extract
-RUN cd plugins/monitoring-plugins && ./configure \
-		--prefix="$(pwd)/../" \
-		--with-ipv6 --without-systemd \
-		&& make clean && make && make install
+RUN cd /maremma && ./scripts/build_plugins.sh && cd plugins/monitoring-plugins && make install
 
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
 FROM gcr.io/distroless/cc-debian12 AS maremma

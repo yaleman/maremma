@@ -1,3 +1,5 @@
+//! Main app CLI-related things
+
 use std::path::PathBuf;
 
 use clap::*;
@@ -5,8 +7,10 @@ use clap::*;
 use crate::DEFAULT_CONFIG_FILE;
 
 #[derive(Parser, Clone, Default)]
+/// Shared configuration options
 pub struct SharedOpts {
     #[clap(short, long,action = clap::ArgAction::SetTrue)]
+    /// Enable debug logging
     pub debug: Option<bool>,
     #[clap(short, long, help=format!("Path to the configuration file. Defaults to {}", crate::DEFAULT_CONFIG_FILE), default_value=crate::DEFAULT_CONFIG_FILE)]
     /// Defaults to [crate::DEFAULT_CONFIG_FILE]
@@ -23,16 +27,18 @@ pub struct Run {
 /// Show the parsed configuration
 pub struct ShowConfig {
     #[clap(flatten)]
+    /// Shared options
     pub sharedopts: SharedOpts,
-    // #[clap(short, long)]
-    // pub json: bool,
 }
 
+/// Sub commands
 #[derive(Subcommand, Clone)]
 pub enum Actions {
     #[clap(name = "run")]
+    /// Run the server
     Run(Run),
     #[clap(name = "show-config")]
+    /// Show the system configuration
     ShowConfig(ShowConfig),
     #[clap(name = "export-config-schema")]
     /// Export a JSON schema for the config file
@@ -40,12 +46,15 @@ pub enum Actions {
 }
 
 #[derive(Parser, Clone)]
+/// Maremma, protecting the herd.
 pub struct CliOpts {
+    /// Subcommands
     #[command(subcommand)]
     pub action: Actions,
 }
 
 impl CliOpts {
+    /// Gets the config path
     pub fn config(&self) -> PathBuf {
         match &self.action {
             Actions::Run(run) => run.sharedopts.config.clone(),
@@ -54,6 +63,7 @@ impl CliOpts {
         }
     }
 
+    /// Gets the debug field
     pub fn debug(&self) -> bool {
         match &self.action {
             Actions::Run(run) => run.sharedopts.debug.unwrap_or(false),

@@ -1,3 +1,5 @@
+//! TLS service checks
+
 #[cfg(test)]
 mod tests;
 pub(crate) mod verifier;
@@ -12,19 +14,23 @@ use tokio_rustls::TlsConnector;
 use crate::prelude::*;
 
 /// The IO error returns something like this and we want to find it: `IoError("unexpected error: {\"expiry\":\"2024-11-07T15:05:43Z\"}")`
-const UNEXPECTED_ERROR_PREFIX: &str = "unexpected error: ";
+pub const UNEXPECTED_ERROR_PREFIX: &str = "unexpected error: ";
 
-static DEFAULT_CRITICAL_DAYS: u16 = 0;
-static DEFAULT_WARNING_DAYS: u16 = 1;
+/// Default value for "expires in days" to trigger a critical alert
+pub static DEFAULT_CRITICAL_DAYS: u16 = 0;
+/// Default value for "expires in days" to trigger a warning alert
+pub static DEFAULT_WARNING_DAYS: u16 = 1;
 
 /// For when you want to check TLS things like certificate expiries etc
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TlsService {
+    /// Name of the service
     pub name: String,
     #[serde(
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
+    /// Schedule to run the check on
     pub cron_schedule: Cron,
 
     /// Port to connect to

@@ -1,14 +1,24 @@
+//! SSH-based service, SSH to a host and run a command
+
 use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize)]
+/// SSH-based service, SSH to a host and run a command
 pub struct SshService {
+    /// Name of the service
     pub name: String,
+
+    /// Command to run on the remote host
     pub command_line: String,
     #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
+    /// Schedule for the service
     pub cron_schedule: Cron,
+
+    /// Username to connect with
+    pub username: Option<String>,
 }
 
 // TODO: look at using this instead of shelling out https://crates.io/crates/ssh-rs
@@ -18,7 +28,12 @@ impl ServiceTrait for SshService {
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         // ssh to the target host and run the command
         let start_time = chrono::Utc::now();
-        let mut args = vec![host.hostname.clone()];
+        let mut args: Vec<String> = vec![];
+
+        if let Some(username) = &self.username {
+            args.extend(vec!["-l".to_string(), format!("{}", username)]);
+        }
+        args.push(host.hostname.clone());
 
         args.extend(
             self.command_line
@@ -78,6 +93,7 @@ mod tests {
             name: hostname.clone(),
             command_line: "ls -lah .".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            username: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -88,7 +104,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, hostname);
-        assert_eq!(res.is_ok(), true);
+        assert!(res.is_ok());
     }
 
     #[test]

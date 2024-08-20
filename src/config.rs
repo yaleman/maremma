@@ -1,8 +1,11 @@
+//! Configuration handling for Maremma
+
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use schemars::JsonSchema;
 
+use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
@@ -22,88 +25,110 @@ fn default_max_concurrent_checks() -> usize {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
+/// OIDC Config
 pub struct OidcConfig {
+    /// OIDC issuer (url)
     pub issuer: String,
+    /// OIDC client_id
     pub client_id: String,
+    /// OIDC client_secret
     pub client_secret: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
+/// Parses configuration from the file
 pub struct ConfigurationParser {
     #[serde(default = "default_database_file")]
+    /// Path to the database file (or `:memory:` for in-memory)
     pub database_file: String,
 
-    /// The path to the web server's static files, defaults to ./static
+    /// The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]
     pub static_path: Option<PathBuf>,
 
     #[serde(default = "default_listen_address")]
+    /// The listen address, eg `0.0.0.0` or `127.0.0.1`
     pub listen_address: String,
 
-    //// Defaults to 8888
+    /// Defaults to 8888
     pub listen_port: Option<u16>,
 
+    /// Target host configuration
     pub hosts: HashMap<String, Host>,
 
     #[serde(default)]
+    /// Services to run locally
     pub local_services: FakeHost,
 
-    // This is something we need to deserialize later because it's messy
     #[serde(skip_serializing)]
+    /// Service configuration
     pub services: Option<HashMap<String, Value>>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
     pub frontend_url: Option<String>,
 
     #[serde(default)]
+    /// Should we enable OIDC authentication?
     pub oidc_enabled: bool,
 
+    /// OIDC configuration, see [OidcConfig]
     pub oidc_config: Option<OidcConfig>,
 
     #[serde(default)]
-    pub cert_file: Option<PathBuf>,
+    /// The path to the TLS certificate
+    pub cert_file: PathBuf,
     #[serde(default)]
-    pub cert_key: Option<PathBuf>,
+    /// The path to the TLS key
+    pub cert_key: PathBuf,
 
     #[serde(default = "default_max_concurrent_checks")]
+    /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
+/// The result of parsing the configuration file, don't instantiate this directly!
 pub struct Configuration {
     #[serde(default = "default_database_file")]
+    /// Path to the database file (or `:memory:` for in-memory)
     pub database_file: String,
 
-    /// The path to the web server's static files, defaults to ./static
-    pub static_path: PathBuf,
+    /// The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]
+    pub static_path: Option<PathBuf>,
 
     #[serde(default = "default_listen_address")]
+    /// The listen address, eg `0.0.0.0` or `127.0.0.1``
     pub listen_address: String,
 
-    //// Defaults to 8888
+    /// Defaults to 8888
     pub listen_port: Option<u16>,
 
+    /// Host configuration
     pub hosts: HashMap<String, Host>,
 
     #[serde(default)]
+    /// Services to run locally
     pub local_services: FakeHost,
 
-    // This is something we need to deserialize later because it's messy
+    /// Service configuration
     pub services: Option<HashMap<String, Service>>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
     pub frontend_url: Option<String>,
 
     #[serde(default)]
+    /// Should we enable OIDC authentication?
     pub oidc_enabled: bool,
 
+    /// OIDC configuration, see [OidcConfig]
     pub oidc_config: Option<OidcConfig>,
 
-    #[serde(default)]
-    pub cert_file: Option<PathBuf>,
-    #[serde(default)]
-    pub cert_key: Option<PathBuf>,
+    /// the TLS certificate matter
+    pub cert_file: PathBuf,
+    /// the TLS certificate matter
+    pub cert_key: PathBuf,
 
     #[serde(default = "default_max_concurrent_checks")]
+    /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
 }
 
@@ -120,6 +145,16 @@ impl TryFrom<ConfigurationParser> for Configuration {
             None => None,
         };
 
+        let static_path = value
+            .static_path
+            .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH));
+
+        if !static_path.exists() {
+            return Err(Error::Configuration(
+                "Static path does not exist".to_string(),
+            ));
+        }
+
         Ok(Configuration {
             database_file: value.database_file,
             listen_address: value.listen_address,
@@ -133,7 +168,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_file: value.cert_file,
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
-            static_path: value.static_path.unwrap_or(PathBuf::from("./static")),
+            static_path: Some(static_path),
         })
     }
 
@@ -141,6 +176,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
 }
 
 impl Configuration {
+    /// New Configuration object from a file reference
     pub async fn new(filename: &PathBuf) -> Result<Self, Error> {
         if !filename.exists() {
             return Err(Error::ConfigFileNotFound(
@@ -151,6 +187,7 @@ impl Configuration {
         Self::new_from_string(&tokio::fs::read_to_string(filename).await?).await
     }
 
+    /// If you've got the file contents, use that to build a configuration
     pub async fn new_from_string(config: &str) -> Result<Self, Error> {
         let mut res: ConfigurationParser = serde_json::from_str(config)?;
 
@@ -191,23 +228,27 @@ impl Configuration {
         Arc::new(res)
     }
 
+    /// Getter for the frontend URL
     pub fn frontend_url(&self) -> String {
         self.frontend_url.clone().unwrap_or_else(|| {
-            let port = self.listen_port.unwrap_or(crate::constants::DEFAULT_PORT);
+            let port = self
+                .listen_port
+                .unwrap_or(crate::constants::WEB_SERVER_DEFAULT_PORT);
             format!("https://{}:{}", self.listen_address, port)
         })
     }
 
-    // returns the listen address and port as a string ie `127.0.0.1:8888`
+    /// returns the listen address and port as a string ie `127.0.0.1:8888`
     pub fn listen_addr(&self) -> String {
         format!(
             "{}:{}",
             self.listen_address,
-            self.listen_port.unwrap_or(crate::constants::DEFAULT_PORT)
+            self.listen_port
+                .unwrap_or(crate::constants::WEB_SERVER_DEFAULT_PORT)
         )
     }
 
-    // Pulls the groups from hosts and services in the config
+    /// Pulls the groups from hosts and services in the config
     pub fn groups(&self) -> Vec<String> {
         let mut groups: HashSet<String> = HashSet::new();
 
@@ -226,6 +267,7 @@ impl Configuration {
         groups.into_iter().collect()
     }
 
+    /// Prune the configuration based on the database, so we can serialize it back
     pub fn prune(&self, _db: &DatabaseConnection) -> Result<(), Error> {
         // check the hosts agsinst the config file
 
