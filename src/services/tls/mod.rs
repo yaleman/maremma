@@ -37,6 +37,8 @@ pub struct TlsService {
 
     /// Defaults to 10 seconds
     pub timeout: Option<u16>,
+    // TODO: CA cert
+    // TODO: sni/hostname to check
 }
 
 #[async_trait]
