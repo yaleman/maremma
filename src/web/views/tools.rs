@@ -131,4 +131,45 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(res.into_response().status(), StatusCode::UNAUTHORIZED)
     }
+
+    #[tokio::test]
+    async fn test_tools_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::tools(
+            State(state.clone()),
+            Some(test_user_claims()),
+            Query(ToolsQuery::default()),
+            Form(ToolsForm::default()),
+        )
+        .await;
+
+        assert_eq!(res.into_response().status(), StatusCode::OK)
+    }
+    #[tokio::test]
+    async fn test_tools_auth_setallurgent() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::tools(
+            State(state.clone()),
+            Some(test_user_claims()),
+            Query(ToolsQuery::default()),
+            Form(ToolsForm {
+                action: Some(FormAction::SetAllToUrgent),
+            }),
+        )
+        .await;
+
+        assert_eq!(res.into_response().status(), StatusCode::SEE_OTHER)
+    }
+
+    #[test]
+    fn test_actionstatus_display() {
+        use super::ActionStatus;
+        assert_eq!(ActionStatus::Success.to_string(), "success");
+        assert_eq!(ActionStatus::Error.to_string(), "danger");
+        assert_eq!(ActionStatus::Unknown.to_string(), "primary");
+    }
 }

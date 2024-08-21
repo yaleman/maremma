@@ -59,6 +59,8 @@ pub(crate) async fn index(
 #[cfg(test)]
 mod tests {
 
+    use crate::web::views::tools::test_user_claims;
+
     use super::*;
 
     #[tokio::test]
@@ -71,6 +73,23 @@ mod tests {
             }),
             State(state),
             None,
+        )
+        .await;
+        assert!(res.is_ok());
+
+        assert!(res.unwrap().to_string().contains("Maremma"));
+    }
+
+    #[tokio::test]
+    async fn test_index_auth() {
+        let state = WebState::test().await;
+        let res = index(
+            Query(IndexQueries {
+                ord: None,
+                field: None,
+            }),
+            State(state),
+            Some(test_user_claims()),
         )
         .await;
         assert!(res.is_ok());
