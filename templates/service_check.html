@@ -1,0 +1,51 @@
+{% extends "base_template.html" %}
+
+{% block content %}
+
+{% if let Some(message) = message %}
+<div class="alert alert-{{ status }}" <div
+    class="alert alert-secondary" role="alert">
+    {{ message }}
+</div>
+{% endif %}
+
+<div class="container">
+    <div class="row">
+        <h1> Service Check: {{service_check.id}} </h1>
+        {% if let Some(latest) = service_check_history.first() %}
+        <h3>Last status: {{ latest.status }}</h3>
+        {% endif %}
+        <p>
+            <strong>Host:</strong> <a href="/host/{{host.id}}">{{ host.hostname
+                }}</a><br />
+            <strong>Service: </strong><a href="/service/{{service.id}}">{{
+                service.name
+                }}</a><br />
+            {% if let Some(description) = service.description %}
+            <strong>Description:</strong> {{ description }}<br />
+            {% endif %}
+            <strong>Type: </strong>{{service.service_type}}
+
+        </p>
+
+        <table class="table table-striped caption-top">
+            <caption>History (last {{ service_check_history.len() }}
+                checks)</caption>
+            <thead class="table-ligh">
+                <th scope="col">Time</th>
+                <th scope="col">Result</th>
+                <th scope="col">Text</th>
+            </thead>
+            {% for entry in service_check_history %}
+            <tr>
+                <td>{{entry.timestamp}}</td>
+                <td>{{entry.status}}</td>
+                <td>{{entry.result_text}}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+</div>
+
+{% endblock content %}

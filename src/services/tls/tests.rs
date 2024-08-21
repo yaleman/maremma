@@ -166,6 +166,7 @@ async fn test_tls_sha1_intermediate() {
 }
 
 #[tokio::test]
+#[cfg(feature = "test_badssl")]
 async fn test_tls_no_subject() {
     use crate::prelude::*;
 

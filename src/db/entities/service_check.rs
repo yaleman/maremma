@@ -42,7 +42,7 @@ impl Model {
     }
 }
 
-#[instrument(skip_all, fields(service_check_id = model.id.to_string()))]
+#[instrument(skip_all, fields(service_check_id = model.id.to_string(), status=format!("{}", status)))]
 pub async fn set_check_result(
     model: Model,
     service: &service::Model,

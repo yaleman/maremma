@@ -3,7 +3,7 @@ use sea_orm::prelude::Expr;
 
 use super::prelude::*;
 
-#[derive(Template)]
+#[derive(Template, Debug)]
 #[template(path = "tools.html")]
 pub(crate) struct ToolsTemplate {
     title: String,
@@ -18,7 +18,7 @@ pub(crate) enum FormAction {
     SetAllToUrgent,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Debug)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum ActionStatus {
     Success,
@@ -37,11 +37,11 @@ impl std::fmt::Display for ActionStatus {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub(crate) struct ToolsForm {
     action: Option<FormAction>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub(crate) struct ToolsQuery {
     result: Option<String>,
     #[serde(default)]
@@ -90,4 +90,86 @@ pub(crate) async fn tools(
         message: results.result,
         status: results.status,
     })
+}
+
+#[cfg(test)]
+use openidconnect::{IssuerUrl, StandardClaims, SubjectIdentifier};
+#[cfg(test)]
+use reqwest::Url;
+#[cfg(test)]
+use std::str::FromStr;
+
+#[cfg(test)]
+/// Use this when you want to be "authenticated"
+pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
+    OidcClaims::<EmptyAdditionalClaims>(openidconnect::IdTokenClaims::new(
+        IssuerUrl::from_url(Url::from_str("https://example.com").expect("Failed to parse URL")),
+        vec![],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+        chrono::Utc::now(),
+        StandardClaims::new(SubjectIdentifier::new("testuser@example.com".to_string())),
+        EmptyAdditionalClaims {},
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn test_tools_noauth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::tools(
+            State(state.clone()),
+            None,
+            Query(ToolsQuery::default()),
+            Form(ToolsForm::default()),
+        )
+        .await;
+
+        // dbg!(&res);
+        assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::UNAUTHORIZED)
+    }
+
+    #[tokio::test]
+    async fn test_tools_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::tools(
+            State(state.clone()),
+            Some(test_user_claims()),
+            Query(ToolsQuery::default()),
+            Form(ToolsForm::default()),
+        )
+        .await;
+
+        assert_eq!(res.into_response().status(), StatusCode::OK)
+    }
+    #[tokio::test]
+    async fn test_tools_auth_setallurgent() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::tools(
+            State(state.clone()),
+            Some(test_user_claims()),
+            Query(ToolsQuery::default()),
+            Form(ToolsForm {
+                action: Some(FormAction::SetAllToUrgent),
+            }),
+        )
+        .await;
+
+        assert_eq!(res.into_response().status(), StatusCode::SEE_OTHER)
+    }
+
+    #[test]
+    fn test_actionstatus_display() {
+        use super::ActionStatus;
+        assert_eq!(ActionStatus::Success.to_string(), "success");
+        assert_eq!(ActionStatus::Error.to_string(), "danger");
+        assert_eq!(ActionStatus::Unknown.to_string(), "primary");
+    }
 }

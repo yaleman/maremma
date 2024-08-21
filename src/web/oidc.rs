@@ -11,6 +11,7 @@ use axum_oidc::AdditionalClaims;
 use axum_oidc::OidcClaims;
 use axum_oidc::OidcRpInitiatedLogout;
 
+#[cfg(not(tarpaulin_include))] // Can't test this because we can't sub the `OidcRpInitiatedLogout`
 pub async fn logout(
     logout: OidcRpInitiatedLogout,
     State(state): State<WebState>,
@@ -25,6 +26,7 @@ pub async fn logout(
     Ok(logout.with_post_logout_redirect(url).into_response())
 }
 
+#[derive(Debug)]
 pub(crate) struct User {
     username: Option<String>,
 }

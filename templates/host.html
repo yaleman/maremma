@@ -29,7 +29,8 @@
             {{check.status}}
         </td>
         <td>{{check.last_check}}</td>
-        <td>{{check.service_check_id}}</td>
+        <td><a
+                href="/service_check/{{check.service_check_id}}">{{check.service_check_id}}</a></td>
         <td>
             {% if check.status == crate::web::ServiceStatus::Disabled %}
             <form action="/service_check/{{check.service_check_id}}/enable"
