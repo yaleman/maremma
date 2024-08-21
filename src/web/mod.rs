@@ -79,9 +79,9 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
     let session_store = MemoryStore::default();
 
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_secure(false)
+        .with_secure(true)
         .with_same_site(SameSite::Lax)
-        .with_expiry(Expiry::OnInactivity(Duration::seconds(3600)));
+        .with_expiry(Expiry::OnInactivity(Duration::seconds(1800)));
 
     let mut app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
@@ -138,6 +138,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         app = app.layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
+                    error!("Failed to handle OIDC: {:?}", e);
                     e.into_response()
                 }))
                 .layer(
@@ -154,7 +155,10 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
                             .collect(),
                     )
                     .await
-                    .map_err(Error::from)?,
+                    .map_err(|err| {
+                        error!("Failed to set up OIDC: {:?}", err);
+                        Error::from(err)
+                    })?,
                 ),
         );
     }
