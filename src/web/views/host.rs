@@ -8,17 +8,18 @@ use super::prelude::*;
 use crate::host::HostCheck;
 use crate::web::oidc::User;
 
-#[derive(Template)] // this will generate the code...
+#[derive(Template, Debug)] // this will generate the code...
 #[template(path = "host.html")] // using the template in this path, relative
                                 // to the `templates` dir in the crate root
 pub(crate) struct HostTemplate {
     title: String,
+    username: Option<String>,
+
     checks: Vec<entities::service_check::FullServiceCheck>,
     hostname: String,
     check: HostCheck,
     host_groups: Vec<host_group::Model>,
     host_id: Uuid,
-    username: Option<String>,
     page_refresh: u64,
 }
 
@@ -40,11 +41,21 @@ pub(crate) enum OrderFields {
     Check,
 }
 
+/// Host view
 pub(crate) async fn host(
     Path(host_id): Path<Uuid>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<HostTemplate, impl IntoResponse> {
+) -> Result<HostTemplate, (StatusCode, String)> {
+    let user = claims.ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "You must be logged in to view this page".to_string(),
+        )
+    })?;
+
+    let user: User = user.into();
+
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(state.db.as_ref())
         .await
@@ -104,7 +115,51 @@ pub(crate) async fn host(
         check: host.check,
         host_groups,
         host_id: host.id,
-        username: claims.map(|u| User::from(u).username()),
+        username: Some(user.username()),
         page_refresh: 30,
     })
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[tokio::test]
+    async fn test_view_host_with_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let host = entities::host::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to get service check")
+            .expect("No service checks found");
+
+        let res = super::host(
+            Path(host.id),
+            State(state.clone()),
+            Some(crate::web::views::tools::test_user_claims()),
+        )
+        .await
+        .expect("Failed to auth!");
+
+        let res = res.to_string();
+
+        dbg!(&res);
+
+        assert!(res.contains("Maremma"))
+    }
+    #[tokio::test]
+    async fn test_view_host_without_auth() {
+        use super::*;
+        let state = WebState::test().await;
+        let host = entities::host::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to get service check")
+            .expect("No service checks found");
+        let res = super::host(Path(host.id), State(state.clone()), None).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
+    }
 }

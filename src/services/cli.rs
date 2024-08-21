@@ -2,6 +2,7 @@
 
 use crate::prelude::*;
 use std::os::unix::process::ExitStatusExt;
+use std::path::PathBuf;
 use std::process::Stdio;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -32,8 +33,19 @@ impl ServiceTrait for CliService {
             Some(c) => c,
             None => return Err(Error::Generic("No command specified!".to_string())),
         };
+
+        if !(PathBuf::from(cmd)).exists() {
+            // check if the command exists
+            return Ok(CheckResult {
+                timestamp: chrono::Utc::now(),
+                result_text: format!("Command not found: {}", cmd),
+                status: ServiceStatus::Critical,
+                time_elapsed: chrono::Utc::now() - start_time,
+            });
+        }
+
         let args = cmd_split.collect::<Vec<&str>>();
-        // let stdout = Stdio::piped();
+
         let child = tokio::process::Command::new(cmd)
             .args(args)
             .kill_on_drop(true)

@@ -300,7 +300,13 @@ pub enum ServiceType {
 
 impl Display for ServiceType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Self::Cli => write!(f, "CLI"),
+            Self::Ssh => write!(f, "SSH"),
+            Self::Ping => write!(f, "Ping"),
+            Self::Http => write!(f, "HTTP"),
+            Self::Tls => write!(f, "TLS"),
+        }
     }
 }
 
@@ -401,10 +407,11 @@ mod tests {
 
     #[test]
     fn test_display_service_type() {
-        assert_eq!(format!("{}", ServiceType::Cli), "Cli");
-        assert_eq!(format!("{}", ServiceType::Ssh), "Ssh");
+        assert_eq!(format!("{}", ServiceType::Cli), "CLI");
+        assert_eq!(format!("{}", ServiceType::Ssh), "SSH");
         assert_eq!(format!("{}", ServiceType::Ping), "Ping");
-        assert_eq!(format!("{}", ServiceType::Http), "Http");
+        assert_eq!(format!("{}", ServiceType::Http), "HTTP");
+        assert_eq!(format!("{}", ServiceType::Tls), "TLS");
     }
 
     #[test]

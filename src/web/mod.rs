@@ -24,6 +24,7 @@ use tower_sessions::{
     cookie::{time::Duration, SameSite},
     Expiry, MemoryStore, SessionManagerLayer,
 };
+use views::service_check::service_check_get;
 
 pub(crate) mod oidc;
 pub(crate) mod views;
@@ -89,7 +90,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
             post(views::service_check::set_service_check_enabled),
         )
         .route("/host/:host_id", get(views::host::host))
-        .route("/service_check/:service_check_id", get(notimplemented))
+        .route("/service_check/:service_check_id", get(service_check_get))
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(notimplemented))
         .route("/tools", get(views::tools::tools).post(views::tools::tools));

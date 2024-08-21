@@ -91,3 +91,23 @@ pub(crate) async fn tools(
         status: results.status,
     })
 }
+
+#[cfg(test)]
+use openidconnect::{IssuerUrl, StandardClaims, SubjectIdentifier};
+#[cfg(test)]
+use reqwest::Url;
+#[cfg(test)]
+use std::str::FromStr;
+
+#[cfg(test)]
+/// Use this when you want to be "authenticated"
+pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
+    OidcClaims::<EmptyAdditionalClaims>(openidconnect::IdTokenClaims::new(
+        IssuerUrl::from_url(Url::from_str("https://example.com").expect("Failed to parse URL")),
+        vec![],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+        chrono::Utc::now(),
+        StandardClaims::new(SubjectIdentifier::new("testuser@example.com".to_string())),
+        EmptyAdditionalClaims {},
+    ))
+}
