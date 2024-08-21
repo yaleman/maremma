@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Template)]
+#[derive(Template, Debug)]
 #[template(path = "profile.html")]
 pub(crate) struct ProfileTemplate {
     title: String,
@@ -26,4 +26,35 @@ pub(crate) async fn profile(
         username: Some(user.username()),
         profile_user: user,
     })
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[tokio::test]
+    async fn test_view_profile() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::profile(
+            State(state.clone()),
+            Some(crate::web::views::tools::test_user_claims()),
+        )
+        .await;
+
+        dbg!(&res);
+        // assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::OK)
+    }
+    #[tokio::test]
+    async fn test_view_profile_noauth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::profile(State(state.clone()), None).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::UNAUTHORIZED)
+    }
 }

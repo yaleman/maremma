@@ -56,6 +56,15 @@ impl WebState {
             .expect("Failed to set up test");
         Self::new(db, &config, None)
     }
+    #[cfg(test)]
+    pub fn with_registry(self) -> Self {
+        let (_provider, registry) =
+            crate::metrics::new().expect("Failed to set up metrics provider");
+        Self {
+            registry: Some(Arc::new(registry)),
+            ..self
+        }
+    }
 }
 
 async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {

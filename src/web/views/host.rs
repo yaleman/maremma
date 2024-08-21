@@ -161,5 +161,31 @@ mod tests {
 
         dbg!(&res);
         assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::UNAUTHORIZED)
+    }
+    #[tokio::test]
+    async fn test_view_missing_host_with_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let mut host_id = Uuid::new_v4();
+        while entities::host::Entity::find_by_id(host_id)
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for host")
+            .is_some()
+        {
+            host_id = Uuid::new_v4();
+        }
+        let res = super::host(
+            Path(host_id),
+            State(state.clone()),
+            Some(crate::web::views::tools::test_user_claims()),
+        )
+        .await;
+
+        dbg!(&res);
+        assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::NOT_FOUND)
     }
 }

@@ -3,7 +3,7 @@ use sea_orm::prelude::Expr;
 
 use super::prelude::*;
 
-#[derive(Template)]
+#[derive(Template, Debug)]
 #[template(path = "tools.html")]
 pub(crate) struct ToolsTemplate {
     title: String,
@@ -18,7 +18,7 @@ pub(crate) enum FormAction {
     SetAllToUrgent,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Debug)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum ActionStatus {
     Success,
@@ -37,11 +37,11 @@ impl std::fmt::Display for ActionStatus {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub(crate) struct ToolsForm {
     action: Option<FormAction>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub(crate) struct ToolsQuery {
     result: Option<String>,
     #[serde(default)]
@@ -110,4 +110,25 @@ pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
         StandardClaims::new(SubjectIdentifier::new("testuser@example.com".to_string())),
         EmptyAdditionalClaims {},
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn test_tools_noauth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::tools(
+            State(state.clone()),
+            None,
+            Query(ToolsQuery::default()),
+            Form(ToolsForm::default()),
+        )
+        .await;
+
+        // dbg!(&res);
+        assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::UNAUTHORIZED)
+    }
 }

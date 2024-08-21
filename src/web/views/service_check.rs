@@ -4,7 +4,7 @@ use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_LIMIT;
 
 use super::prelude::*;
 
-#[derive(Template)]
+#[derive(Template, Debug)]
 #[template(path = "service_check.html")]
 pub(crate) struct ServiceCheckTemplate {
     title: String,
@@ -281,5 +281,31 @@ mod tests {
         assert!(res.is_ok());
         let res = set_service_check_enabled(Path(Uuid::new_v4()), State(state)).await;
         assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_view_missing_service_check_with_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let mut service_check_id = Uuid::new_v4();
+        while entities::service_check::Entity::find_by_id(service_check_id)
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for service_check")
+            .is_some()
+        {
+            service_check_id = Uuid::new_v4();
+        }
+        let res = super::service_check_get(
+            Path(service_check_id),
+            State(state.clone()),
+            Some(crate::web::views::tools::test_user_claims()),
+        )
+        .await;
+
+        dbg!(&res);
+        assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::NOT_FOUND)
     }
 }
