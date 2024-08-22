@@ -13,15 +13,15 @@ pub struct IndexTemplate {
     pub username: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
-pub(crate) struct IndexQueries {
+#[derive(Deserialize, Debug, Default)]
+pub(crate) struct SortQueries {
     pub ord: Option<Order>,
     pub field: Option<OrderFields>,
 }
 
 #[instrument(level = "info", skip(state, claims), fields(http.uri="/", ))]
 pub(crate) async fn index(
-    Query(queries): Query<IndexQueries>,
+    Query(queries): Query<SortQueries>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<IndexTemplate, (StatusCode, String)> {
@@ -67,7 +67,7 @@ mod tests {
     async fn test_index() {
         let state = WebState::test().await;
         let res = index(
-            Query(IndexQueries {
+            Query(SortQueries {
                 ord: None,
                 field: None,
             }),
@@ -84,7 +84,7 @@ mod tests {
     async fn test_index_auth() {
         let state = WebState::test().await;
         let res = index(
-            Query(IndexQueries {
+            Query(SortQueries {
                 ord: None,
                 field: None,
             }),
