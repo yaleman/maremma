@@ -1,5 +1,5 @@
 use entities::service_check;
-use sea_orm::QuerySelect;
+use sea_orm::{QuerySelect, TransactionTrait};
 
 use crate::prelude::*;
 
@@ -56,18 +56,32 @@ impl Entity {
         for check in service_checks {
             info!("Service check: {}", check.id.hyphenated());
             // check if there's enough to trim
-            let sc_count = Self::find()
-                .filter(Column::ServiceCheckId.eq(check.id))
-                .count(db)
-                .await?;
-            if sc_count <= count {
-                continue;
-            }
-            // TODO: implement the actual trimming
-            // update trimmed variable with how many were stripped
-            trimmed += 1;
+            trimmed += db
+                .transaction::<_, usize, DbErr>(|tx| {
+                    Box::pin(async move {
+                        let to_delete = Self::find()
+                            .filter(Column::ServiceCheckId.eq(check.id))
+                            .offset(count)
+                            .all(tx)
+                            .await
+                            .expect("Oh No!");
+                        let num_records = to_delete.len();
+                        if to_delete.is_empty() {
+                            debug!("Less than {} entries for {}", count, check.id);
+                        } else {
+                            debug!("Deleting {} records", num_records);
+                            for record in to_delete {
+                                record.delete(tx).await?;
+                            }
+                        }
+
+                        Ok(num_records)
+                    })
+                })
+                .await
+                .map_err(|err| Error::Generic(err.to_string()))?;
         }
-        error!("Haven't done the trimming bit yet!");
+        info!("Removed {} records", trimmed);
         Ok(trimmed)
     }
 
