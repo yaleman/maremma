@@ -41,7 +41,7 @@ impl SessionStore for ModelStore {
 
         record.id = Id(id.as_u128() as i128);
 
-        // if the timetamp nanos overflows then you've been real weird.
+        // if the timestamp nanos overflows then you've been real weird.
         record.expiry_date = time::OffsetDateTime::from_unix_timestamp_nanos(
             expiry.timestamp_nanos_opt().unwrap_or(0).into(),
         )

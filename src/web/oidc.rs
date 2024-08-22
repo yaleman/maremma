@@ -63,3 +63,38 @@ where
         Self { username }
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use tower::ServiceExt;
+
+    use crate::db::tests::test_setup;
+    use crate::web::build_app;
+
+    #[tokio::test]
+    async fn test_logout() {
+        let (db, config) = test_setup().await.expect("Failed to setup test");
+
+        let app = build_app(
+            crate::web::WebState::new(db.clone(), &config, None),
+            &config,
+        )
+        .await
+        .expect("Failed to build app");
+
+        let res = app
+            .oneshot(
+                axum::http::Request::get("/auth/logout")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await;
+
+        assert!(res.is_ok());
+
+        let res = res.expect("Errored out");
+
+        assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
+    }
+}

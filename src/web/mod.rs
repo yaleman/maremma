@@ -75,11 +75,16 @@ async fn up(State(_state): State<WebState>) -> impl IntoResponse {
     (StatusCode::OK, "OK")
 }
 
+/// Create the database-backed session store
+pub fn get_session_store(
+    db: &Arc<DatabaseConnection>,
+    config: &Configuration,
+) -> entities::session::ModelStore {
+    crate::db::entities::session::ModelStore::new(db.clone(), config.web_session_length_minutes)
+}
+
 pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result<Router, Error> {
-    let session_store = crate::db::entities::session::ModelStore::new(
-        state.db.clone(),
-        config.web_session_length_minutes,
-    );
+    let session_store = get_session_store(&state.db, config);
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(true)
@@ -105,16 +110,16 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .route("/service_check/:service_check_id", get(service_check_get))
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(notimplemented))
-        .route("/tools", get(views::tools::tools).post(views::tools::tools));
+        .route("/tools", get(views::tools::tools).post(views::tools::tools))
+        .route("/auth/logout", get(oidc::logout));
     if config.oidc_enabled {
         let oidc_login_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
-                error!("Failed to handle OIDC lotout: {:?}", e);
+                error!("Failed to handle OIDC logout: {:?}", e);
                 e.into_response()
             }))
             .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
         app = app
-            .route("/auth/logout", get(oidc::logout))
             .route("/auth/rp-logout", get(oidc::rp_logout))
             .layer(oidc_login_service);
     }

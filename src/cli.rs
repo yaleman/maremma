@@ -119,6 +119,10 @@ mod tests {
                 "maremma show-config",
                 PathBuf::from(crate::DEFAULT_CONFIG_FILE),
             ),
+            (
+                "maremma export-config-schema",
+                PathBuf::from(crate::DEFAULT_CONFIG_FILE),
+            ),
         ];
 
         for (args, expected_config) in test_list {
@@ -129,5 +133,23 @@ mod tests {
         }
     }
 
-    // TOOD: work out how to run the export subcommand, capture the result and confirm it's doing what it says
+    // TODO: work out how to run the export subcommand, capture the result and confirm it's doing what it says
+
+    #[test]
+    fn test_db_debug() {
+        let test_list = vec![
+            ("maremma run --db-debug", true),
+            ("maremma run", false),
+            ("maremma show-config --db-debug", true),
+            ("maremma show-config", false),
+            ("maremma export-config-schema", false),
+        ];
+
+        for (args, db_debug) in test_list {
+            let args = args.split_whitespace().collect::<Vec<&str>>();
+            let opts = CliOpts::parse_from(args);
+
+            assert_eq!(opts.db_debug(), db_debug);
+        }
+    }
 }
