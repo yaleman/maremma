@@ -1,14 +1,19 @@
 //! Basic ping service
 
+use schemars::JsonSchema;
 use tokio::net::lookup_host;
 
 use crate::prelude::*;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 /// A service that pings things
 pub struct PingService {
-    #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
+    #[serde(
+        deserialize_with = "crate::serde::deserialize_croner_cron",
+        serialize_with = "crate::serde::serialize_croner_cron"
+    )]
     /// The cron schedule for this service
+    #[schemars(with = "String")]
     pub cron_schedule: Cron,
 }
 

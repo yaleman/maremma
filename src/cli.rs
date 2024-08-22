@@ -4,9 +4,10 @@ use std::path::PathBuf;
 
 use clap::*;
 
+use crate::prelude::ServiceType;
 use crate::DEFAULT_CONFIG_FILE;
 
-#[derive(Parser, Clone, Default)]
+#[derive(Parser, Clone, Default, Debug)]
 /// Shared configuration options
 pub struct SharedOpts {
     #[clap(short, long,action = clap::ArgAction::SetTrue)]
@@ -35,6 +36,24 @@ pub struct ShowConfig {
     pub sharedopts: SharedOpts,
 }
 
+#[derive(Parser, Clone, Debug)]
+/// Run a single check manually and exit
+pub struct OneShotCmd {
+    #[clap(flatten)]
+    /// Shared options
+    pub sharedopts: SharedOpts,
+    /// The check to run
+    pub check: ServiceType,
+    /// Hostname to target
+    pub hostname: String,
+    /// Extra configuration, parsed as JSON
+    pub service_config: String,
+
+    /// Show the config options for the service
+    #[clap(long)]
+    pub show_config: bool,
+}
+
 /// Sub commands
 #[derive(Subcommand, Clone)]
 pub enum Actions {
@@ -47,6 +66,9 @@ pub enum Actions {
     #[clap(name = "export-config-schema")]
     /// Export a JSON schema for the config file
     ExportConfigSchema,
+    #[clap(name = "oneshot")]
+    /// Run a single check manually and exit
+    OneShot(OneShotCmd),
 }
 
 #[derive(Parser, Clone)]
@@ -63,6 +85,7 @@ impl CliOpts {
         match &self.action {
             Actions::Run(run) => run.sharedopts.config.clone(),
             Actions::ShowConfig(run) => run.sharedopts.config.clone(),
+            Actions::OneShot(run) => run.sharedopts.config.clone(),
             Actions::ExportConfigSchema => PathBuf::from(DEFAULT_CONFIG_FILE),
         }
     }
@@ -72,6 +95,7 @@ impl CliOpts {
         match &self.action {
             Actions::Run(run) => run.sharedopts.debug.unwrap_or(false),
             Actions::ShowConfig(run) => run.sharedopts.debug.unwrap_or(false),
+            Actions::OneShot(run) => run.sharedopts.debug.unwrap_or(false),
             Actions::ExportConfigSchema => false,
         }
     }
@@ -80,6 +104,7 @@ impl CliOpts {
         match &self.action {
             Actions::Run(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::ShowConfig(run) => run.sharedopts.db_debug.unwrap_or(false),
+            Actions::OneShot(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::ExportConfigSchema => false,
         }
     }

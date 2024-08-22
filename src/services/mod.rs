@@ -3,6 +3,7 @@
 pub mod cli;
 pub mod http;
 pub mod kubernetes;
+pub mod oneshot;
 pub mod ping;
 pub mod ssh;
 pub mod tls;
@@ -12,7 +13,7 @@ use crate::db::entities;
 use crate::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
 
-use schemars::JsonSchema;
+use clap::ValueEnum;
 use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
 use serde::de::DeserializeOwned;
 
@@ -138,6 +139,35 @@ pub struct Service {
     pub config: Option<Box<dyn ServiceTrait>>,
 }
 
+pub(crate) fn service_config_parse(
+    service_identifier: &str,
+    service_type: &ServiceType,
+    value: &Value,
+) -> Result<Box<dyn ServiceTrait>, Error> {
+    Ok(match service_type {
+        ServiceType::Cli => Box::new(
+            cli::CliService::from_config(value)
+                .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
+        ) as Box<dyn ServiceTrait>,
+        ServiceType::Ssh => Box::new(
+            ssh::SshService::from_config(value)
+                .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
+        ) as Box<dyn ServiceTrait>,
+        ServiceType::Ping => Box::new(
+            ping::PingService::from_config(value)
+                .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
+        ) as Box<dyn ServiceTrait>,
+        ServiceType::Http => Box::new(
+            http::HttpService::from_config(value)
+                .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
+        ) as Box<dyn ServiceTrait>,
+        ServiceType::Tls => Box::new(
+            tls::TlsService::from_config(value)
+                .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
+        ) as Box<dyn ServiceTrait>,
+    })
+}
+
 impl Service {
     /// Because services are stored in the database as a json field, we need to parse the config and store the type internally
     pub fn parse_config(self) -> Result<Self, Error> {
@@ -146,73 +176,7 @@ impl Service {
             .name
             .clone()
             .unwrap_or(self.id.hyphenated().to_string());
-        let config = match self.service_type {
-            ServiceType::Cli => {
-                let value = match cli::CliService::from_config(&value) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        error!(
-                            "Failed to parse cli service {} {:?}: {:?}",
-                            service_identifier, value, e
-                        );
-                        return Err(e);
-                    }
-                };
-                Box::new(value) as Box<dyn ServiceTrait>
-            }
-            ServiceType::Ssh => {
-                let value = match ssh::SshService::from_config(&value) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        error!(
-                            "Failed to parse ssh service {} {:?}: {:?}",
-                            service_identifier, value, e
-                        );
-                        return Err(e);
-                    }
-                };
-                Box::new(value) as Box<dyn ServiceTrait>
-            }
-            ServiceType::Ping => {
-                let value = match ping::PingService::from_config(&value) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        error!(
-                            "Failed to parse ping service {} {:?}: {:?}",
-                            service_identifier, value, e
-                        );
-                        return Err(e);
-                    }
-                };
-                Box::new(value) as Box<dyn ServiceTrait>
-            }
-            ServiceType::Http => {
-                let value = match http::HttpService::from_config(&value) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        error!(
-                            "Failed to parse http service {} {:?}: {:?}",
-                            service_identifier, value, e
-                        );
-                        return Err(e);
-                    }
-                };
-                Box::new(value) as Box<dyn ServiceTrait>
-            }
-            ServiceType::Tls => {
-                let value = match tls::TlsService::from_config(&value) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        error!(
-                            "Failed to parse tls service {} {:?}: {:?}",
-                            service_identifier, value, e
-                        );
-                        return Err(e);
-                    }
-                };
-                Box::new(value) as Box<dyn ServiceTrait>
-            }
-        };
+        let config = service_config_parse(&service_identifier, &self.service_type, &value)?;
         Ok(Self {
             config: Some(config),
             ..self
@@ -276,6 +240,7 @@ impl TryFrom<&entities::service::Model> for Service {
     EnumIter,
     Iden,
     JsonSchema,
+    ValueEnum,
 )]
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(5))")]

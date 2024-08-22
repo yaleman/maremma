@@ -35,6 +35,8 @@ pub enum Error {
     IoError(String),
     /// Something you asked for isn't implemented yet
     NotImplemented,
+    /// Oneshot command failed
+    OneShotFailed,
     /// When the OIDC token is invalid or some other error gets thrown
     Oidc(String),
     /// When something went wrong while invoking reqwest
@@ -49,7 +51,6 @@ pub enum Error {
     ServiceNotFound(Uuid),
     /// When the service is not found
     ServiceNotFoundByName(String),
-
     /// When the SQL operation failed
     SqlError(sea_orm::error::DbErr),
     /// When the TLS operation failed
