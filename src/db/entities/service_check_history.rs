@@ -63,8 +63,7 @@ impl Entity {
                             .filter(Column::ServiceCheckId.eq(check.id))
                             .offset(count)
                             .all(tx)
-                            .await
-                            .expect("Oh No!");
+                            .await?;
                         let num_records = to_delete.len();
                         if to_delete.is_empty() {
                             debug!("Less than {} entries for {}", count, check.id);
