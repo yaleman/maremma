@@ -55,6 +55,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[cfg(feature = "test_badssl")]
     async fn test_run_oneshot() {
         let cmd = OneShotCmd {
             sharedopts: SharedOpts::default(),
