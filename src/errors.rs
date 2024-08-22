@@ -82,30 +82,35 @@ impl From<CronError> for Error {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl From<axum_oidc::error::Error> for Error {
     fn from(value: axum_oidc::error::Error) -> Self {
         Error::Oidc(value.to_string())
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
         Self::Reqwest(value.to_string())
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl From<rustls::Error> for Error {
     fn from(value: rustls::Error) -> Self {
         Self::TlsError(value.to_string())
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl From<tower_sessions::session_store::Error> for Error {
     fn from(value: tower_sessions::session_store::Error) -> Self {
         Self::Session(value.to_string())
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl IntoResponse for Error {
     fn into_response(self) -> askama_axum::Response {
         error!("Response error occurred: {:?}", self);

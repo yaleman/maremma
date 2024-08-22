@@ -35,7 +35,9 @@ async fn main() -> Result<(), ExitCode> {
                 ExitCode::FAILURE
             })?);
 
-            update_db_from_config(db.clone(), config.clone()).await?;
+            if let Err(_) = update_db_from_config(db.clone(), config.clone()).await {
+                return Err(ExitCode::FAILURE);
+            };
 
             // start up the metrics provider
             let (provider, registry) = maremma::metrics::new().map_err(|err| {

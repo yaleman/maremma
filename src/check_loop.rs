@@ -82,6 +82,7 @@ pub(crate) async fn run_service_check(
         }
     };
 
+    #[cfg(not(tarpaulin_include))]
     let config = check.config.ok_or_else(|| {
         error!(
             "Failed to get service config for {}",
