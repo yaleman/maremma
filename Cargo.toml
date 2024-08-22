@@ -86,6 +86,7 @@ uuid = { version = "1.10.0", features = ["serde", "v4"] }
 webpki-roots = "0.26.3"
 x509-parser = "0.16.0"
 time = "0.3.36"
+rand = "0.8.5"
 
 [dev-dependencies]
 rand = "0.8.5"

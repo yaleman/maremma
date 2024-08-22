@@ -76,15 +76,12 @@ async fn up(State(_state): State<WebState>) -> impl IntoResponse {
 }
 
 /// Create the database-backed session store
-pub fn get_session_store(
-    db: &Arc<DatabaseConnection>,
-    config: &Configuration,
-) -> entities::session::ModelStore {
-    crate::db::entities::session::ModelStore::new(db.clone(), config.web_session_length_minutes)
+pub fn get_session_store(db: &Arc<DatabaseConnection>) -> entities::session::ModelStore {
+    crate::db::entities::session::ModelStore::new(db.clone())
 }
 
 pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result<Router, Error> {
-    let session_store = get_session_store(&state.db, config);
+    let session_store = get_session_store(&state.db);
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(true)

@@ -2,7 +2,7 @@ use sea_orm::entity::prelude::*;
 use tower_sessions::session::{Id, Record};
 use tower_sessions::SessionStore;
 
-use crate::constants::{SESSION_EXPIRY_DEFAULT_MINUTES, SESSION_EXPIRY_WINDOW_HOURS};
+use crate::constants::SESSION_EXPIRY_WINDOW_HOURS;
 use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
@@ -22,7 +22,28 @@ impl ActiveModelBehavior for ActiveModel {}
 #[derive(Debug, Clone)]
 pub struct ModelStore {
     db: Arc<DatabaseConnection>,
-    session_length_minutes: Option<u32>,
+}
+
+fn id_to_uuid(input: &Id) -> Result<Uuid, Error> {
+    if input.0 <= 0 {
+        return Err(Error::InvalidInput(format!(
+            "Input value {} can't be lower than or equal to 0",
+            input.0
+        )));
+    }
+    Ok(Uuid::from_u128(input.0 as u128))
+}
+
+#[test]
+fn test_to_uuid() {
+    let id = Id(1);
+    let uuid = id_to_uuid(&id).unwrap();
+    assert_eq!(uuid, Uuid::from_u128(1));
+
+    let big_id = Id(u128::MAX as i128 + 1);
+    let big_uuid = id_to_uuid(&big_id);
+    dbg!(&big_uuid);
+    assert!(big_uuid.is_err());
 }
 
 #[async_trait]
@@ -32,34 +53,28 @@ impl SessionStore for ModelStore {
         &self,
         record: &mut Record,
     ) -> Result<(), tower_sessions::session_store::Error> {
-        let id = Uuid::new_v4();
-        let expiry = chrono::Utc::now()
-            + Duration::minutes(
-                self.session_length_minutes
-                    .unwrap_or(SESSION_EXPIRY_DEFAULT_MINUTES) as i64,
-            );
-
-        record.id = Id(id.as_u128() as i128);
-
-        // if the timestamp nanos overflows then you've been real weird.
-        record.expiry_date = time::OffsetDateTime::from_unix_timestamp_nanos(
-            expiry.timestamp_nanos_opt().unwrap_or(0).into(),
-        )
-        .map_err(|err| tower_sessions::session_store::Error::Encode(err.to_string()))?;
+        while record.id.0 <= 0 {
+            record.id = Id(rand::random());
+        }
 
         // now we do the database-side things
         let mut dbrecord = ActiveModel::new();
-        dbrecord.id.set_if_not_equals(id);
+        let id_uuid = id_to_uuid(&record.id)
+            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
+        dbrecord.id.set_if_not_equals(id_uuid);
         dbrecord.data.set_if_not_equals(
             serde_json::to_value(&record.data)
                 .map_err(|err| tower_sessions::session_store::Error::Encode(err.to_string()))?,
         );
+        let chrono_expiry = record.expiry_date.unix_timestamp_nanos();
+        let expiry = chrono::DateTime::from_timestamp_nanos(chrono_expiry as i64);
+
         dbrecord.expiry.set_if_not_equals(expiry);
         dbrecord
             .insert(self.db.as_ref())
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
-        // done!
+        debug!("Created session with id={} uuid={}", record.id.0, id_uuid);
         Ok(())
     }
 
@@ -71,7 +86,8 @@ impl SessionStore for ModelStore {
         let data: Json = serde_json::to_value(&session_record.data)
             .map_err(|err| tower_sessions::session_store::Error::Encode(err.to_string()))?;
 
-        let id = Uuid::from_u128(session_record.id.0 as u128);
+        let id = id_to_uuid(&session_record.id)
+            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
 
         let mut session = match Entity::find_by_id(id)
             .one(self.db.as_ref())
@@ -80,9 +96,13 @@ impl SessionStore for ModelStore {
         {
             Some(session) => session,
             None => {
+                debug!(
+                    "Record not found in the backend for id={} when trying to save",
+                    id
+                );
                 return Err(tower_sessions::session_store::Error::Backend(
                     "Record not found in the backend!".to_string(),
-                ))
+                ));
             }
         }
         .into_active_model();
@@ -99,6 +119,9 @@ impl SessionStore for ModelStore {
                 .save(self.db.as_ref())
                 .await
                 .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
+            debug!("Saved session with id={}", session_record.id.0);
+        } else {
+            warn!("No changes to save for session id={}", session_record.id.0);
         }
         Ok(())
     }
@@ -108,14 +131,18 @@ impl SessionStore for ModelStore {
         &self,
         session_id: &Id,
     ) -> Result<Option<Record>, tower_sessions::session_store::Error> {
-        let id = Uuid::from_u128(session_id.0 as u128);
+        let id = id_to_uuid(session_id)
+            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
         let session = match Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?
         {
             Some(session) => session,
-            None => return Ok(None),
+            None => {
+                debug!("No session found for id {}", session_id.0);
+                return Ok(None);
+            }
         };
 
         let id = session.id.as_u128();
@@ -137,23 +164,22 @@ impl SessionStore for ModelStore {
 
     #[instrument(level = "debug", skip(self))]
     async fn delete(&self, session_id: &Id) -> Result<(), tower_sessions::session_store::Error> {
-        let id = Uuid::from_u128(session_id.0 as u128);
-
-        Entity::delete_by_id(id)
-            .exec(self.db.as_ref())
-            .await
-            .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
+        Entity::delete_by_id(
+            id_to_uuid(session_id).map_err(|err| {
+                tower_sessions::session_store::Error::Encode(format!("{:?}", err))
+            })?,
+        )
+        .exec(self.db.as_ref())
+        .await
+        .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
         Ok(())
     }
 }
 
 impl ModelStore {
     #[must_use]
-    pub fn new(db: Arc<DatabaseConnection>, session_length_minutes: Option<u32>) -> Self {
-        Self {
-            db,
-            session_length_minutes,
-        }
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
     }
 
     /// Cleans up old/expired sessions
@@ -171,18 +197,19 @@ impl ModelStore {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use sea_orm::{ActiveModelTrait, IntoActiveModel};
+    use time::Duration;
+    use tower_sessions::SessionStore;
 
     #[tokio::test]
     async fn test_cleanup() {
-        let (db, config) = crate::db::tests::test_setup()
+        let (db, _config) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up maremma test db");
 
-        let store = crate::db::entities::session::ModelStore {
-            db: db.clone(),
-            session_length_minutes: config.web_session_length_minutes,
-        };
+        let store = crate::db::entities::session::ModelStore { db: db.clone() };
 
         let session = crate::db::entities::session::Model {
             id: uuid::Uuid::new_v4(),
@@ -207,5 +234,36 @@ mod tests {
             .await
             .expect("Failed to cleanup sessions");
         assert_eq!(res, 0);
+    }
+
+    #[tokio::test]
+    async fn test_lifecycle() {
+        let (db, _config) = crate::db::tests::test_setup()
+            .await
+            .expect("Failed to set up maremma test db");
+
+        let store = crate::db::entities::session::ModelStore::new(db.clone());
+
+        let id = tower_sessions::session::Id(1);
+
+        store
+            .create(&mut tower_sessions::session::Record {
+                id,
+                expiry_date: time::OffsetDateTime::now_utc() + Duration::minutes(100),
+                data: HashMap::new(),
+            })
+            .await
+            .expect("Failed to create session");
+
+        let loaded = store.load(&id).await;
+
+        let mut session = loaded
+            .expect("Failed to get session")
+            .expect("Failed to find session");
+
+        session
+            .data
+            .insert("hello".to_string(), serde_json::json! {"world"});
+        store.save(&session).await.expect("Failed to save session");
     }
 }

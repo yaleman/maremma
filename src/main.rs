@@ -35,7 +35,10 @@ async fn main() -> Result<(), ExitCode> {
                 ExitCode::FAILURE
             })?);
 
-            if let Err(_) = update_db_from_config(db.clone(), config.clone()).await {
+            if update_db_from_config(db.clone(), config.clone())
+                .await
+                .is_err()
+            {
                 return Err(ExitCode::FAILURE);
             };
 
