@@ -132,7 +132,7 @@ impl SessionStore for ModelStore {
         session_id: &Id,
     ) -> Result<Option<Record>, tower_sessions::session_store::Error> {
         let id = id_to_uuid(session_id)
-            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
+            .map_err(|err| tower_sessions::session_store::Error::Decode(format!("{:?}", err)))?;
         let session = match Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await
