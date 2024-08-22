@@ -47,7 +47,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ping_service_localhost() {
-        let _ = setup_logging(true);
+        let _ = setup_logging(true, true);
         let test_service = super::PingService {
             cron_schedule: Cron::new("* * * * *").parse().unwrap(),
         };

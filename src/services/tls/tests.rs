@@ -1,12 +1,13 @@
+use serde_json::json;
+use uuid::Uuid;
+
 use crate::db::tests::test_setup;
 use crate::services::tls::TlsService;
-use crate::setup_logging;
 
 #[tokio::test]
 async fn test_working_tls_service() {
     use crate::prelude::*;
 
-    let _ = setup_logging(true);
     let (_, _) = test_setup().await.expect("Failed to set up test");
 
     let service = crate::services::tls::TlsService {
@@ -87,7 +88,6 @@ async fn test_wrong_cert_host_name() {
 async fn test_nxdomain() {
     use crate::prelude::*;
 
-    let _ = setup_logging(true);
     let (_, _) = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
@@ -114,7 +114,6 @@ async fn test_nxdomain() {
 async fn test_invalid_hostname() {
     use crate::prelude::*;
 
-    let _ = setup_logging(true);
     let (_, _) = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
@@ -199,7 +198,6 @@ async fn test_tls_no_subject() {
 async fn test_zero_port() {
     use crate::prelude::*;
 
-    let _ = setup_logging(true);
     let (_, _) = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
@@ -209,6 +207,7 @@ async fn test_zero_port() {
     }};
 
     let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
+
     let bad_hostname = "no-subject.badssl.com".to_string();
     let host = entities::host::Model {
         name: bad_hostname.clone(),
@@ -225,7 +224,6 @@ async fn test_zero_port() {
 async fn test_timeout() {
     use crate::prelude::*;
 
-    let _ = setup_logging(true);
     let (_, _) = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
@@ -246,4 +244,51 @@ async fn test_timeout() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_err());
+}
+
+#[test]
+fn test_service_parser() {
+    let mut extra_config = std::collections::HashMap::new();
+
+    extra_config.insert("port".to_string(), json! {1234});
+    let service = super::Service {
+        id: Uuid::new_v4(),
+        name: Some("Hello world".to_string()),
+        description: None,
+        host_groups: vec![],
+        service_type: super::ServiceType::Tls,
+        cron_schedule: "* * * * *".parse().expect("Failed to parse cron"),
+        extra_config,
+        config: Some(Box::new(TlsService {
+            name: "tls_service".to_string(),
+            cron_schedule: croner::Cron::new("* * * * *"),
+            port: 1234,
+            expiry_critical: Some(1),
+            expiry_warn: Some(7),
+            timeout: Some(5),
+        })),
+    };
+    let _ = service.parse_config().expect("Failed to parse config!");
+}
+
+#[test]
+fn test_failed_service_parser() {
+    let service = super::Service {
+        id: Uuid::new_v4(),
+        name: Some("Hello world".to_string()),
+        description: None,
+        host_groups: vec![],
+        service_type: super::ServiceType::Tls,
+        cron_schedule: "* * * * *".parse().expect("Failed to parse cron"),
+        extra_config: std::collections::HashMap::new(),
+        config: Some(Box::new(TlsService {
+            name: "tls_service".to_string(),
+            cron_schedule: croner::Cron::new("* * * * *"),
+            port: 1234,
+            expiry_critical: Some(1),
+            expiry_warn: Some(7),
+            timeout: Some(5),
+        })),
+    };
+    assert!(service.parse_config().is_err());
 }

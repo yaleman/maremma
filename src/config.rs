@@ -269,7 +269,7 @@ impl Configuration {
 
     /// Prune the configuration based on the database, so we can serialize it back
     pub fn prune(&self, _db: &DatabaseConnection) -> Result<(), Error> {
-        // check the hosts agsinst the config file
+        // check the hosts against the config file
 
         // check the groups against the config file
 

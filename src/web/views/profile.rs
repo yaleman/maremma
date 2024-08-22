@@ -22,7 +22,7 @@ pub(crate) async fn profile(
     let user: User = user.into();
 
     Ok(ProfileTemplate {
-        title: user.username().clone(),
+        title: user.username(),
         username: Some(user.username()),
         profile_user: user,
     })

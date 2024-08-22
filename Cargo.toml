@@ -42,7 +42,7 @@ opentelemetry_sdk = { version = "0.24.1", features = [
     "url",
 ] }
 prometheus = "0.13.4"
-reqwest = { version = "0.12.5", features = ["http2"] }
+reqwest = { version = "0.12.7", features = ["http2"] }
 rustls = { version = "0.23.12", features = ["zlib"] }
 schemars = { version = "0.8.21", features = [
     "uuid1",
@@ -85,6 +85,8 @@ tracing = { version = "0.1.40", features = ["release_max_level_debug"] }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
 webpki-roots = "0.26.3"
 x509-parser = "0.16.0"
+time = "0.3.36"
+rand = "0.8.5"
 
 [dev-dependencies]
 rand = "0.8.5"

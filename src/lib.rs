@@ -45,7 +45,7 @@ pub static LOCAL_SERVICE_HOST_NAME: &str = "Maremma Local Checks";
 
 #[inline]
 /// Sets up logging
-pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
+pub fn setup_logging(debug: bool, db_debug: bool) -> Result<(), log::SetLoggerError> {
     #[cfg(not(test))]
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
@@ -55,8 +55,12 @@ pub fn setup_logging(debug: bool) -> Result<(), log::SetLoggerError> {
         builder.filter_level(LevelFilter::Debug);
     }
 
-    #[cfg(not(all(test, debug_assertions)))]
-    builder.filter(Some("sqlx::query"), LevelFilter::Warn);
+    if !db_debug {
+        // We don't always want to see the SQL queries in the logs
+        builder.filter(Some("sea_orm::driver::sqlx_sqlite"), LevelFilter::Warn);
+        builder.filter(Some("sqlx::query"), LevelFilter::Warn);
+    }
+
     builder.filter(Some("tracing::span"), LevelFilter::Warn);
     #[cfg(not(test))]
     builder.target(Target::Stdout);

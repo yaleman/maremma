@@ -15,7 +15,7 @@ use std::process::ExitCode;
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), ExitCode> {
     let cli = CliOpts::parse();
-    if let Err(err) = setup_logging(cli.debug()) {
+    if let Err(err) = setup_logging(cli.debug(), cli.db_debug()) {
         println!("Failed to setup logging: {:?}", err);
         return Err(ExitCode::from(1));
     };
@@ -35,7 +35,12 @@ async fn main() -> Result<(), ExitCode> {
                 ExitCode::FAILURE
             })?);
 
-            update_db_from_config(db.clone(), config.clone()).await?;
+            if update_db_from_config(db.clone(), config.clone())
+                .await
+                .is_err()
+            {
+                return Err(ExitCode::FAILURE);
+            };
 
             // start up the metrics provider
             let (provider, registry) = maremma::metrics::new().map_err(|err| {
@@ -77,8 +82,8 @@ mod tests {
 
     #[test]
     fn test_setup_logging() {
-        assert!(setup_logging(false).is_ok());
+        assert!(setup_logging(false, true).is_ok());
         // it'll throw an error because we're trying to re-init the logger
-        assert!(setup_logging(true).is_err());
+        assert!(setup_logging(true, true).is_err());
     }
 }
