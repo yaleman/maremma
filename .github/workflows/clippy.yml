@@ -6,6 +6,8 @@ name: Clippy
   push:
     paths-ignore:
       - docs/**
+      - static/**
+      - plugins/**
 
 env:
   SCCACHE_GHA_ENABLED: "true"
@@ -23,6 +25,15 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.5
         with:
           version: "v0.4.2"
-      - name: "Run clippy (ignores errors, this is just a check)"
+      - name: "Run clippy"
         run: cargo clippy
-        continue-on-error: true
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
+        with:
+          version: "v0.4.2"
+      - name: "Run fmt"
+        run: cargo fmt
