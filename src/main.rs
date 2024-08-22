@@ -14,6 +14,8 @@ use std::process::ExitCode;
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), ExitCode> {
+    use maremma::services::oneshot::run_oneshot;
+
     let cli = CliOpts::parse();
     if let Err(err) = setup_logging(cli.debug(), cli.db_debug()) {
         println!("Failed to setup logging: {:?}", err);
@@ -68,6 +70,12 @@ async fn main() -> Result<(), ExitCode> {
                     .unwrap_or(format!("Failed to serialize config: {:?}", &config))
             );
         }
+        Actions::OneShot(cmd) => match run_oneshot(cmd, config).await {
+            Err(maremma::errors::Error::OneShotFailed) => return Err(ExitCode::from(1)),
+            Err(err) => error!("Failed to run oneshot: {:?}", err),
+            Ok(_) => {}
+        },
+
         Actions::ExportConfigSchema => {
             let schema = schemars::schema_for!(Configuration);
             println!("{}", serde_json::to_string_pretty(&schema).unwrap());

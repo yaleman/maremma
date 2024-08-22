@@ -1,11 +1,13 @@
 //! CLI-based service checks
 
+use schemars::JsonSchema;
+
 use crate::prelude::*;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::Stdio;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, clap::Parser, JsonSchema)]
 /// A service that runs on the command line, typically on the Maremma server
 pub struct CliService {
     /// Name of the service
@@ -19,6 +21,7 @@ pub struct CliService {
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
+    #[schemars(with = "String")]
     /// Cron schedule for the service
     pub cron_schedule: Cron,
 }

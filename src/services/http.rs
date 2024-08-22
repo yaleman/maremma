@@ -1,5 +1,7 @@
 //! HTTP Checks
 
+use schemars::JsonSchema;
+
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, Default, Copy, Clone)]
@@ -36,20 +38,23 @@ pub static DEFAULT_TIMEOUT: u64 = 10;
 /// Default expected status code for HTTP checks
 pub static DEFAULT_EXPECTED_HTTP_STATUS: u16 = 200;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 /// An HTTP(s) service check
 pub struct HttpService {
     /// Name of the check
     pub name: String,
+
     #[serde(
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
+    #[schemars(with = "String")]
     /// Cron schedule for the service
     pub cron_schedule: Cron,
 
     /// Defaults to GET
     #[serde(default)]
+    #[schemars(with = "String")]
     pub http_method: HttpMethod,
 
     /// Defaults to nothing (ie, no additional path)

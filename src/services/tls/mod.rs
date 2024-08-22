@@ -4,6 +4,7 @@
 mod tests;
 pub(crate) mod verifier;
 
+use schemars::JsonSchema;
 use verifier::TlsCertVerifier;
 
 use rustls::pki_types::ServerName;
@@ -22,7 +23,7 @@ pub static DEFAULT_CRITICAL_DAYS: u16 = 0;
 pub static DEFAULT_WARNING_DAYS: u16 = 1;
 
 /// For when you want to check TLS things like certificate expiries etc
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, JsonSchema)]
 pub struct TlsService {
     /// Name of the service
     pub name: String,
@@ -30,6 +31,7 @@ pub struct TlsService {
         deserialize_with = "crate::serde::deserialize_croner_cron",
         serialize_with = "crate::serde::serialize_croner_cron"
     )]
+    #[schemars(with = "String")]
     /// Schedule to run the check on
     pub cron_schedule: Cron,
 

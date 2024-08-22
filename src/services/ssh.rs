@@ -5,7 +5,7 @@ use std::process::Stdio;
 
 use crate::prelude::*;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 /// SSH-based service, SSH to a host and run a command
 pub struct SshService {
     /// Name of the service
@@ -13,8 +13,13 @@ pub struct SshService {
 
     /// Command to run on the remote host
     pub command_line: String,
-    #[serde(deserialize_with = "crate::serde::deserialize_croner_cron")]
+
     /// Schedule for the service
+    #[serde(
+        deserialize_with = "crate::serde::deserialize_croner_cron",
+        serialize_with = "crate::serde::serialize_croner_cron"
+    )]
+    #[schemars(with = "String")]
     pub cron_schedule: Cron,
 
     /// Username to connect with
