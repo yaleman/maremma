@@ -83,6 +83,9 @@ pub struct ConfigurationParser {
     #[serde(default = "default_max_concurrent_checks")]
     /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
+
+    /// Falls back to [crate::constants::SESSION_EXPIRY_DEFAULT_MINUTES]
+    pub web_session_length_minutes: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
@@ -130,6 +133,9 @@ pub struct Configuration {
     #[serde(default = "default_max_concurrent_checks")]
     /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
+
+    /// Falls back to [crate::constants::SESSION_EXPIRY_DEFAULT_MINUTES]
+    pub web_session_length_minutes: Option<u32>,
 }
 
 impl TryFrom<ConfigurationParser> for Configuration {
@@ -169,6 +175,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
             static_path: Some(static_path),
+            web_session_length_minutes: None,
         })
     }
 

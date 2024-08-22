@@ -12,6 +12,10 @@ pub struct SharedOpts {
     #[clap(short, long,action = clap::ArgAction::SetTrue)]
     /// Enable debug logging
     pub debug: Option<bool>,
+    #[clap(long,action = clap::ArgAction::SetTrue)]
+    /// Enable database debug logging because it's SUPER noisy
+    pub db_debug: Option<bool>,
+
     #[clap(short, long, help=format!("Path to the configuration file. Defaults to {}", crate::DEFAULT_CONFIG_FILE), default_value=crate::DEFAULT_CONFIG_FILE)]
     /// Defaults to [crate::DEFAULT_CONFIG_FILE]
     pub config: PathBuf,
@@ -68,6 +72,14 @@ impl CliOpts {
         match &self.action {
             Actions::Run(run) => run.sharedopts.debug.unwrap_or(false),
             Actions::ShowConfig(run) => run.sharedopts.debug.unwrap_or(false),
+            Actions::ExportConfigSchema => false,
+        }
+    }
+    /// Gets the db_debug field
+    pub fn db_debug(&self) -> bool {
+        match &self.action {
+            Actions::Run(run) => run.sharedopts.db_debug.unwrap_or(false),
+            Actions::ShowConfig(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::ExportConfigSchema => false,
         }
     }

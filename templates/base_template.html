@@ -30,19 +30,19 @@
                     {% if let Some(username) = username %}
                     <li class="nav"><a href="/tools"
                             class="nav-link text-white">Tools</a></li>
-                    <li class="nav">
-                        <a class="nav-link text-white"
-                            href="/auth/logout">Logout</a>
-                    </li>
 
                     <li class="nav">
                         <a href="/auth/profile"
-                            class="nav-link text-white">Logged in as:
+                            class="nav-link text-white">
                             {{username}}</a></li>
+                    <li class="nav">
+                        <a class="nav-link text-white"
+                            href="/auth/logout">Log out</a>
+                    </li>
                     {% else %}
                     <li class="nav">
                         <a class="nav-link text-white"
-                            href="/auth/login">Login</a>
+                            href="/auth/login">Log in</a>
                     </li>
                     {% endif %}
 

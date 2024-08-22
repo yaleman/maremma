@@ -7,6 +7,7 @@ pub mod host_group_members;
 pub mod service;
 pub mod service_check;
 pub mod service_check_history;
+pub mod session;
 #[cfg(test)]
 pub mod tests;
 pub mod user;

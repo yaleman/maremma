@@ -22,7 +22,7 @@ use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tower_sessions::{
     cookie::{time::Duration, SameSite},
-    Expiry, MemoryStore, SessionManagerLayer,
+    Expiry, SessionManagerLayer,
 };
 use views::service_check::service_check_get;
 
@@ -76,7 +76,10 @@ async fn up(State(_state): State<WebState>) -> impl IntoResponse {
 }
 
 pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result<Router, Error> {
-    let session_store = MemoryStore::default();
+    let session_store = crate::db::entities::session::ModelStore::new(
+        state.db.clone(),
+        config.web_session_length_minutes,
+    );
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(true)
@@ -104,13 +107,16 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .route("/host_group/:group_id", get(notimplemented))
         .route("/tools", get(views::tools::tools).post(views::tools::tools));
     if config.oidc_enabled {
-        app = app.route("/auth/logout", get(oidc::logout)).layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
-                    e.into_response()
-                }))
-                .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new()),
-        );
+        let oidc_login_service = ServiceBuilder::new()
+            .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
+                error!("Failed to handle OIDC lotout: {:?}", e);
+                e.into_response()
+            }))
+            .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
+        app = app
+            .route("/auth/logout", get(oidc::logout))
+            .route("/auth/rp-logout", get(oidc::rp_logout))
+            .layer(oidc_login_service);
     }
     // after here, the routers don't *require* auth
 
@@ -125,7 +131,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
                 oidc_config.client_secret.clone(),
             )
         } else {
-            return Err(Error::Generic(
+            return Err(Error::Configuration(
                 "OIDC is enabled but no OIDC config is provided".to_string(),
             ));
         };
@@ -133,7 +139,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         let frontend_url = config
             .frontend_url
             .clone()
-            .ok_or_else(|| Error::Generic("Frontend URL is required for OIDC".to_string()))?;
+            .ok_or_else(|| Error::Configuration("Frontend URL is required for OIDC".to_string()))?;
 
         app = app.layer(
             ServiceBuilder::new()
@@ -144,7 +150,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
                 .layer(
                     OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
                         Uri::from_str(&frontend_url).map_err(|err| {
-                            Error::Generic(format!("Failed to parse base_url: {:?}", err))
+                            Error::Configuration(format!("Failed to parse base_url: {:?}", err))
                         })?,
                         issuer,
                         client_id,
@@ -162,6 +168,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
                 ),
         );
     }
+    // after here, the URLs cannot have auth
     app = app
         .route("/healthcheck", get(up))
         .nest_service(

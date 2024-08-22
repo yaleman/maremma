@@ -3,6 +3,7 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use croner::errors::CronError;
+use tracing::error;
 use uuid::Uuid;
 
 #[derive(Debug, PartialEq)]
@@ -38,6 +39,8 @@ pub enum Error {
     Oidc(String),
     /// When something went wrong while invoking reqwest
     Reqwest(String),
+    /// Something relating to the backend session store went wrong
+    Session(String),
     /// When the service check is not found
     ServiceCheckNotFound(Uuid),
     /// When the service is not found
@@ -97,8 +100,15 @@ impl From<rustls::Error> for Error {
     }
 }
 
+impl From<tower_sessions::session_store::Error> for Error {
+    fn from(value: tower_sessions::session_store::Error) -> Self {
+        Self::Session(value.to_string())
+    }
+}
+
 impl IntoResponse for Error {
     fn into_response(self) -> askama_axum::Response {
+        error!("Response error occurred: {:?}", self);
         (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self)).into_response()
     }
 }
