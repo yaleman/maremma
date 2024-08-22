@@ -3,6 +3,7 @@ use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use tracing::error;
 use uuid::Uuid;
 
+use super::index::SortQueries;
 use super::prelude::*;
 
 use crate::host::HostCheck;
@@ -45,6 +46,7 @@ pub(crate) enum OrderFields {
 pub(crate) async fn host(
     Path(host_id): Path<Uuid>,
     State(state): State<WebState>,
+    Query(queries): Query<SortQueries>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostTemplate, (StatusCode, String)> {
     let user = claims.ok_or_else(|| {
@@ -55,6 +57,19 @@ pub(crate) async fn host(
     })?;
 
     let user: User = user.into();
+    let order_field = queries
+        .field
+        .unwrap_or(crate::web::views::prelude::OrderFields::LastUpdated);
+    let order_column = match order_field {
+        crate::web::views::prelude::OrderFields::LastUpdated => {
+            entities::service_check::Column::LastUpdated
+        }
+        crate::web::views::prelude::OrderFields::Host => entities::service_check::Column::HostId,
+        crate::web::views::prelude::OrderFields::Status => entities::service_check::Column::Status,
+        crate::web::views::prelude::OrderFields::Check => {
+            entities::service_check::Column::LastCheck
+        }
+    };
 
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(state.db.as_ref())
@@ -81,10 +96,7 @@ pub(crate) async fn host(
     use crate::db::entities::service_check::FullServiceCheck;
     let checks = FullServiceCheck::all_query()
         .filter(entities::service_check::Column::HostId.eq(host.id))
-        .order_by(
-            entities::service_check::Column::LastUpdated,
-            sea_orm::Order::Desc, // TODO: make this configurable
-        )
+        .order_by(order_column, queries.ord.unwrap_or_default().into())
         .into_model::<FullServiceCheck>()
         .all(state.db.as_ref())
         .await
@@ -137,6 +149,7 @@ mod tests {
         let res = super::host(
             Path(host.id),
             State(state.clone()),
+            Query(SortQueries::default()),
             Some(crate::web::views::tools::test_user_claims()),
         )
         .await
@@ -157,7 +170,14 @@ mod tests {
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
-        let res = super::host(Path(host.id), State(state.clone()), None).await;
+
+        let res = super::host(
+            Path(host.id),
+            State(state.clone()),
+            Query(SortQueries::default()),
+            None,
+        )
+        .await;
 
         dbg!(&res);
         assert!(res.is_err());
@@ -180,6 +200,7 @@ mod tests {
         let res = super::host(
             Path(host_id),
             State(state.clone()),
+            Query(SortQueries::default()),
             Some(crate::web::views::tools::test_user_claims()),
         )
         .await;
