@@ -159,7 +159,9 @@ impl TryFrom<ConfigurationParser> for Configuration {
         // handle the case where the frontend URL is set but doesn't start with https
         if let Some(url) = &value.frontend_url {
             // parse the URL
-            let url = Url::parse(url).map_err(|e| Error::Configuration(e.to_string()))?;
+            let url = Url::parse(url).map_err(|e| {
+                Error::Configuration(format!("Failed to parse frontend url: {}", e))
+            })?;
 
             if url.scheme() != "https" {
                 return Err(Error::Configuration(
