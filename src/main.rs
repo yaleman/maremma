@@ -15,6 +15,7 @@ use std::process::ExitCode;
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), ExitCode> {
     use maremma::services::oneshot::run_oneshot;
+    use maremma::shepherd::shepherd;
 
     let cli = CliOpts::parse();
     if let Err(err) = setup_logging(cli.debug(), cli.db_debug()) {
@@ -58,7 +59,10 @@ async fn main() -> Result<(), ExitCode> {
                     error!("Check loop bailed: {:?}", check_loop_result);
                 },
                 web_server_result = run_web_server(config.clone(), db.clone(), Arc::new(registry)) => {
-                    info!("Web server bailed: {:?}", web_server_result);
+                    error!("Web server bailed: {:?}", web_server_result);
+                },
+                shepherd_result = shepherd(db.clone(), config.clone()) => {
+                    error!("Shepherd bailed: {:?}", shepherd_result);
                 }
 
             }
