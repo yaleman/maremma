@@ -95,7 +95,7 @@ pub async fn shepherd(
         task: Box::new(ServiceCheckCleanTask {}),
     };
 
-    // TODO: run the session clean up check every x hours
+    // run the session clean up check every hour
     let mut session_cleaner = CronTask {
         cron: Cron::new("10 1 * * *").parse()?,
         last_run: Utc::now(),

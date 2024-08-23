@@ -203,8 +203,6 @@ pub async fn run_check_loop(
         };
         // we did a thing, so we can reset the back-off time
         backoff = DEFAULT_BACKOFF;
-
-        // TODO: auto-cleanup service checks stuck in "checking state"
     }
 }
 

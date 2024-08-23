@@ -56,7 +56,7 @@ pub(crate) async fn tools(
     Form(form): Form<ToolsForm>,
 ) -> Result<ToolsTemplate, impl IntoResponse> {
     if claims.is_none() {
-        // TODO: admin checks
+        // TODO: check that the user is an admin
         return Err(StatusCode::UNAUTHORIZED.into_response());
     }
 
