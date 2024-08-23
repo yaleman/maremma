@@ -1,3 +1,4 @@
+use axum::Form;
 use sea_orm::{ModelTrait, QuerySelect};
 
 use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_LIMIT;
@@ -173,6 +174,44 @@ pub(crate) async fn set_service_check_status(
     };
     // TODO: make it so we can redirect to... elsewhere based on a query string?
     Ok(Redirect::to(&format!("/host/{}", host_id.hyphenated())))
+}
+
+/// For when you want to redirect people back to where they came from
+#[derive(Deserialize, Debug)]
+pub(crate) struct RedirectTo {
+    redirect_to: Option<String>,
+}
+
+/// Want to delete a service check? Woo!
+pub(crate) async fn service_check_delete(
+    Path(service_check_id): Path<Uuid>,
+    State(state): State<WebState>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(redirect_form): Form<RedirectTo>,
+) -> Result<Redirect, (StatusCode, String)> {
+    let _user = claims.ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "You must be logged in to view this page".to_string(),
+        )
+    })?;
+
+    entities::service_check::Entity::delete_by_id(service_check_id)
+        .exec(state.db.as_ref())
+        .await
+        .map_err(|err| {
+            error!(
+                "Failed to delete service check {}: {:?}",
+                service_check_id, err
+            );
+            Error::from(err)
+        })?;
+
+    if let Some(redirect_to) = redirect_form.redirect_to {
+        Ok(Redirect::to(&redirect_to))
+    } else {
+        Ok(Redirect::to("/"))
+    }
 }
 
 #[cfg(test)]
