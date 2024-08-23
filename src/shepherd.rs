@@ -23,6 +23,16 @@ struct CronTask {
 }
 
 impl CronTask {
+    async fn run_task(&mut self, db: &DatabaseConnection) -> Result<bool, Error> {
+        if self.should_run()? {
+            self.task.run(db).await?;
+            self.has_run();
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     fn should_run(&self) -> Result<bool, Error> {
         let next_occurrence = self.cron.find_next_occurrence(&self.last_run, false)?;
         Ok(next_occurrence <= chrono::Utc::now())
@@ -105,14 +115,9 @@ pub async fn shepherd(
     loop {
         debug!("The shepherd is checking the herd...");
 
-        if service_check_clean.should_run()? {
-            service_check_clean.task.run(db.as_ref()).await?;
-            service_check_clean.has_run();
-        }
-        if session_cleaner.should_run()? {
-            session_cleaner.task.run(db.as_ref()).await?;
-            session_cleaner.has_run();
-        }
+        service_check_clean.run_task(db.as_ref()).await?;
+        session_cleaner.run_task(db.as_ref()).await?;
+
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
 }
