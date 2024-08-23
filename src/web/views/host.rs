@@ -1,10 +1,10 @@
+use super::index::SortQueries;
+use super::prelude::*;
+use crate::errors::Error;
 use entities::host_group;
 use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use tracing::error;
 use uuid::Uuid;
-
-use super::index::SortQueries;
-use super::prelude::*;
 
 use crate::host::HostCheck;
 use crate::web::oidc::User;
@@ -74,22 +74,14 @@ pub(crate) async fn host(
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(state.db.as_ref())
         .await
+        .map_err(Error::from)?
     {
-        Ok(val) => match val {
-            Some(host) => host,
-            None => {
-                return Err((
-                    StatusCode::NOT_FOUND,
-                    format!("Host with id={} not found", host_id),
-                ))
-            }
-        },
-        Err(err) => {
-            error!("Failed to search for host: {:?}", err);
+        Some(host) => host,
+        None => {
             return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Database error".to_string(),
-            ));
+                StatusCode::NOT_FOUND,
+                format!("Host with id={} not found", host_id),
+            ))
         }
     };
 
@@ -102,10 +94,7 @@ pub(crate) async fn host(
         .await
         .map_err(|err| {
             error!("Failed to look up service checks for host={host_id} error={err:?}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Database error".to_string(),
-            )
+            Error::from(err)
         })?;
 
     let host_groups = host
@@ -114,10 +103,7 @@ pub(crate) async fn host(
         .await
         .map_err(|err| {
             error!("Failed to find linked: {:?}", err);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to complete request".to_string(),
-            )
+            Error::from(err)
         })?;
 
     Ok(HostTemplate {

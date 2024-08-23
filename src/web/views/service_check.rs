@@ -132,26 +132,23 @@ pub(crate) async fn set_service_check_status(
     service_check_id: Uuid,
     state: WebState,
     status: ServiceStatus,
-) -> Result<Redirect, impl IntoResponse> {
+) -> Result<Redirect, (StatusCode, String)> {
     let service_check = match entities::service_check::Entity::find_by_id(service_check_id)
         .one(state.db.as_ref())
         .await
-    {
-        Ok(val) => match val {
-            Some(service_check) => service_check,
-            None => {
-                return Err((
-                    StatusCode::NOT_FOUND,
-                    format!("Service check with id={} not found", service_check_id),
-                ))
-            }
-        },
-        Err(err) => {
+        .map_err(|err| {
             error!(
                 "Failed to search for service check {}: {:?}",
                 service_check_id, err
             );
-            return Err(Error::from(err).into());
+            Error::from(err)
+        })? {
+        Some(service_check) => service_check,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                format!("Service check with id={} not found", service_check_id),
+            ))
         }
     };
 
