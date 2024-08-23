@@ -133,7 +133,7 @@ pub(crate) async fn set_service_check_status(
     state: WebState,
     status: ServiceStatus,
 ) -> Result<Redirect, (StatusCode, String)> {
-    let service_check = match entities::service_check::Entity::find_by_id(service_check_id)
+    let service_check = entities::service_check::Entity::find_by_id(service_check_id)
         .one(state.db.as_ref())
         .await
         .map_err(|err| {
@@ -142,7 +142,9 @@ pub(crate) async fn set_service_check_status(
                 service_check_id, err
             );
             Error::from(err)
-        })? {
+        })?;
+
+    let service_check = match service_check {
         Some(service_check) => service_check,
         None => {
             return Err((
