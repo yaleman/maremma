@@ -1,6 +1,7 @@
 //! SSH-based service, SSH to a host and run a command
 
 use std::os::unix::process::ExitStatusExt;
+use std::path::PathBuf;
 use std::process::Stdio;
 
 use crate::prelude::*;
@@ -21,6 +22,9 @@ pub struct SshService {
 
     /// Username to connect with
     pub username: Option<String>,
+
+    /// SSH key to use
+    pub ssh_key: Option<PathBuf>,
 }
 
 // TODO: look at using this instead of shelling out https://crates.io/crates/ssh-rs
@@ -36,6 +40,21 @@ impl ServiceTrait for SshService {
             args.extend(vec!["-l".to_string(), format!("{}", username)]);
         }
         args.push(host.hostname.clone());
+
+        if let Some(ssh_key) = &self.ssh_key {
+            if !ssh_key.exists() {
+                return Ok(CheckResult {
+                    timestamp: start_time,
+                    result_text: format!("SSH key not found: {}", ssh_key.display()),
+                    status: ServiceStatus::Critical,
+                    time_elapsed: chrono::Utc::now() - start_time,
+                });
+            }
+            args.extend(vec![
+                "-i".to_string(),
+                ssh_key.to_string_lossy().to_string(),
+            ]);
+        }
 
         args.extend(
             self.command_line
@@ -96,6 +115,7 @@ mod tests {
             command_line: "ls -lah .".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             username: None,
+            ssh_key: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
