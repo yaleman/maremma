@@ -24,7 +24,8 @@ use tower_sessions::{
     cookie::{time::Duration, SameSite},
     Expiry, SessionManagerLayer,
 };
-use views::service_check::service_check_get;
+use views::handler_404;
+use views::service_check::{service_check_delete, service_check_get};
 
 pub(crate) mod oidc;
 pub(crate) mod views;
@@ -103,8 +104,12 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
             "/service_check/:service_check_id/enable",
             post(views::service_check::set_service_check_enabled),
         )
-        .route("/host/:host_id", get(views::host::host))
+        .route(
+            "/service_check/:service_check_id/delete",
+            post(service_check_delete),
+        )
         .route("/service_check/:service_check_id", get(service_check_get))
+        .route("/host/:host_id", get(views::host::host))
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(notimplemented))
         .route("/tools", get(views::tools::tools).post(views::tools::tools))
@@ -183,6 +188,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
             )
             .precompressed_br(),
         )
+        .fallback(handler_404)
         .layer(TraceLayer::new_for_http())
         .layer(session_layer);
     // here... we... go!
