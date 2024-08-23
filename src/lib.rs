@@ -34,6 +34,7 @@ pub mod metrics;
 pub mod prelude;
 pub(crate) mod serde;
 pub mod services;
+pub mod shepherd;
 #[cfg(test)]
 pub(crate) mod tests;
 pub mod web;

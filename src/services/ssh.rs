@@ -15,10 +15,7 @@ pub struct SshService {
     pub command_line: String,
 
     /// Schedule for the service
-    #[serde(
-        deserialize_with = "crate::serde::deserialize_croner_cron",
-        serialize_with = "crate::serde::serialize_croner_cron"
-    )]
+    #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     pub cron_schedule: Cron,
 

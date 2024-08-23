@@ -11,3 +11,6 @@ pub static DEFAULT_SERVICE_CHECK_HISTORY_LIMIT: u64 = 50;
 
 /// Expiry time + x hours is when we clean up old sessions from the DB
 pub(crate) static SESSION_EXPIRY_WINDOW_HOURS: i64 = 8;
+
+/// How many minutes a check will be in "Checking" state before we consider it stuck
+pub static STUCK_CHECK_MINUTES: i64 = 5;

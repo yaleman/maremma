@@ -111,6 +111,16 @@ impl From<tower_sessions::session_store::Error> for Error {
     }
 }
 
+impl From<Error> for (StatusCode, String) {
+    fn from(value: Error) -> Self {
+        error!("{:?}", value);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Please see server logs".to_string(),
+        )
+    }
+}
+
 #[cfg(not(tarpaulin_include))]
 impl IntoResponse for Error {
     fn into_response(self) -> askama_axum::Response {

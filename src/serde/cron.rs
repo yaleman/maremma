@@ -1,6 +1,6 @@
 use croner::Cron;
 
-pub(crate) fn deserialize_croner_cron<'de, D>(deserializer: D) -> Result<Cron, D::Error>
+pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Cron, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -11,7 +11,7 @@ where
     Cron::new(&s).parse().map_err(serde::de::Error::custom)
 }
 
-pub(crate) fn serialize_croner_cron<S>(cron: &Cron, serializer: S) -> Result<S::Ok, S::Error>
+pub(crate) fn serialize<S>(cron: &Cron, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -21,7 +21,6 @@ where
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use crate::prelude::*;
     use chrono::Timelike;
     use croner::Cron;
@@ -30,10 +29,7 @@ mod tests {
     fn test_serde_croner() {
         #[derive(Deserialize, Serialize)]
         struct CronTest {
-            #[serde(
-                serialize_with = "serialize_croner_cron",
-                deserialize_with = "deserialize_croner_cron"
-            )]
+            #[serde(with = "super")]
             cronvalue: Cron,
         }
 
