@@ -287,6 +287,8 @@ mod tests {
     use crate::db::tests::test_setup;
 
     use schemars::schema_for;
+
+    use super::ConfigurationParser;
     #[tokio::test]
     async fn test_config_new() {
         assert!(Configuration::new(
@@ -328,5 +330,14 @@ mod tests {
         let schema = schema_for!(Configuration);
 
         println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+    }
+
+    #[test]
+    // This tries setting a static path that shouldn't exist, so it can throw an error
+    fn test_config_static_missing() {
+        let mut cfg = ConfigurationParser::default();
+
+        cfg.static_path = Some("/tmp/does-not-exist".parse().unwrap());
+        assert!(Configuration::try_from(cfg).is_err());
     }
 }
