@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use reqwest::Url;
 use schemars::JsonSchema;
 
 use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
@@ -155,6 +156,20 @@ impl TryFrom<ConfigurationParser> for Configuration {
             ));
         }
 
+        // handle the case where the frontend URL is set but doesn't start with https
+        if let Some(url) = &value.frontend_url {
+            // parse the URL
+            let url = Url::parse(url).map_err(|e| {
+                Error::Configuration(format!("Failed to parse frontend url: {}", e))
+            })?;
+
+            if url.scheme() != "https" {
+                return Err(Error::Configuration(
+                    "Frontend URL must start with https".to_string(),
+                ));
+            }
+        }
+
         Ok(Configuration {
             database_file: value.database_file,
             listen_address: value.listen_address,
@@ -198,14 +213,6 @@ impl Configuration {
             );
         }
 
-        // handle the case where the frontend URL is set but doesn't start with https
-        if let Some(url) = &res.frontend_url {
-            if !url.starts_with("https") {
-                return Err(Error::Configuration(
-                    "Frontend URL must start with https".to_string(),
-                ));
-            }
-        }
         res.try_into()
     }
 
@@ -287,6 +294,8 @@ mod tests {
     use crate::db::tests::test_setup;
 
     use schemars::schema_for;
+
+    use super::ConfigurationParser;
     #[tokio::test]
     async fn test_config_new() {
         assert!(Configuration::new(
@@ -307,6 +316,8 @@ mod tests {
         .to_string();
         let config = Configuration::new_from_string(&config).await.unwrap();
         assert_eq!(config.hosts.len(), 1);
+
+        assert_eq!(config.listen_addr(), "127.0.0.1:8888");
     }
 
     #[tokio::test]
@@ -328,5 +339,27 @@ mod tests {
         let schema = schema_for!(Configuration);
 
         println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+    }
+
+    #[test]
+    // This tries setting a static path that shouldn't exist, so it can throw an error
+    fn test_config_static_missing() {
+        let mut cfg = ConfigurationParser::default();
+
+        cfg.static_path = Some("/tmp/does-not-exist".parse().unwrap());
+        assert!(Configuration::try_from(cfg).is_err());
+    }
+
+    #[test]
+    // Testing when the config has incorrect frontend URLs
+    fn test_config_invalid_frontend() {
+        let mut cfg = ConfigurationParser::default();
+
+        cfg.frontend_url = Some("http://example.com".to_string());
+        assert!(Configuration::try_from(cfg).is_err());
+        let mut cfg = ConfigurationParser::default();
+
+        cfg.frontend_url = Some("ftp://example.com".to_string());
+        assert!(Configuration::try_from(cfg).is_err());
     }
 }

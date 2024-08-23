@@ -1,6 +1,8 @@
 use entities::service_check::FullServiceCheck;
 use sea_orm::{Order as SeaOrmOrder, QueryOrder};
 
+use crate::errors::Error;
+
 use super::prelude::*;
 
 #[derive(Template)]
@@ -45,14 +47,14 @@ pub(crate) async fn index(
         .into_model()
         .all(state.db.as_ref())
         .await
-        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+        .map_err(Error::from)?;
 
     Ok(IndexTemplate {
         title: "".to_string(),
         num_checks: checks.len(),
         checks,
         page_refresh: 90,
-        username: claims.map(|c: OidcClaims<EmptyAdditionalClaims>| User::from(c).username()),
+        username: claims.map(|c| User::from(c).username()),
     })
 }
 
