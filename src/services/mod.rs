@@ -123,8 +123,7 @@ pub struct Service {
     /// What kind of service it is
     pub service_type: ServiceType,
     #[serde(
-        deserialize_with = "crate::serde::deserialize_croner_cron",
-        serialize_with = "crate::serde::serialize_croner_cron"
+        with = "crate::serde::cron"
     )]
     #[schemars(with = "String")]
     /// Cron schedule for the service, eg `@hourly`, `* * * * * *` or `0 0 * * *`

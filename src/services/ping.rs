@@ -9,8 +9,7 @@ use crate::prelude::*;
 /// A service that pings things
 pub struct PingService {
     #[serde(
-        deserialize_with = "crate::serde::deserialize_croner_cron",
-        serialize_with = "crate::serde::serialize_croner_cron"
+        with = "crate::serde::cron"
     )]
     /// The cron schedule for this service
     #[schemars(with = "String")]
