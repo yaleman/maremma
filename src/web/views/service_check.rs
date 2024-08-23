@@ -1,6 +1,7 @@
 use sea_orm::{ModelTrait, QuerySelect};
 
 use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_LIMIT;
+use crate::web::Error;
 
 use super::prelude::*;
 
@@ -64,11 +65,7 @@ pub(crate) async fn service_check_get(
                 "Failed to search for service check {}: {:?}",
                 service_check.id, err
             );
-
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Error querying host for service_check={}", service_check_id),
-            )
+            Error::from(err)
         })?
         .ok_or_else(|| {
             (
@@ -82,13 +79,11 @@ pub(crate) async fn service_check_get(
         .one(state.db.as_ref())
         .await
         .map_err(|err| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!(
-                    "Error querying service for service_check={} error={}",
-                    service_check_id, err
-                ),
-            )
+            error!(
+                "Error querying service for service_check={} error={}",
+                service_check_id, err
+            );
+            Error::from(err)
         })?
         .ok_or_else(|| {
             (
@@ -156,10 +151,7 @@ pub(crate) async fn set_service_check_status(
                 "Failed to search for service check {}: {:?}",
                 service_check_id, err
             );
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Database error".to_string(),
-            ));
+            return Err(Error::from(err).into());
         }
     };
 
@@ -177,10 +169,7 @@ pub(crate) async fn set_service_check_status(
                 "Failed to set service_check_id={} to status={}: {:?}",
                 service_check_id, status, err
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Database error".to_string(),
-            )
+            Error::from(err)
         })?;
     };
     // TODO: make it so we can redirect to... elsewhere based on a query string?
