@@ -116,3 +116,52 @@ pub async fn shepherd(
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use croner::Cron;
+
+    use crate::db::tests::test_setup;
+    use crate::shepherd::{CronTask, CronTaskTrait, ServiceCheckCleanTask, SessionCleanTask};
+
+    #[tokio::test]
+    async fn test_servicecheckcleantask() {
+        let (db, _config) = test_setup().await.expect("Failed to set up tests");
+
+        let mut scct = ServiceCheckCleanTask {};
+        scct.run(&db)
+            .await
+            .expect("Failed to run ServiceCheckCleanTask");
+    }
+    #[tokio::test]
+    async fn test_sessioncleantask() {
+        let (db, _config) = test_setup().await.expect("Failed to set up tests");
+
+        let mut crontask = CronTask {
+            task: Box::new(SessionCleanTask {}),
+            cron: Cron::new("* * * * *")
+                .parse()
+                .expect("Failed to create cron"),
+            last_run: chrono::Utc::now(),
+        };
+
+        crontask
+            .task
+            .run(&db)
+            .await
+            .expect("Failed to run SessionCleanTask");
+    }
+
+    #[tokio::test]
+    async fn test_shepherd() {
+        let (db, config) = test_setup().await.expect("Failed to set up tests");
+
+        let res = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            super::shepherd(db, config),
+        )
+        .await;
+
+        eprintln!("{:?}", res);
+    }
+}
