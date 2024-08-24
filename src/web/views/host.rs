@@ -32,16 +32,6 @@ pub(crate) enum Order {
     Desc,
 }
 
-#[derive(Default, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum OrderFields {
-    #[default]
-    LastUpdated,
-    Host,
-    Status,
-    Check,
-}
-
 /// Host view
 pub(crate) async fn host(
     Path(host_id): Path<Uuid>,
@@ -61,14 +51,11 @@ pub(crate) async fn host(
         .field
         .unwrap_or(crate::web::views::prelude::OrderFields::LastUpdated);
     let order_column = match order_field {
-        crate::web::views::prelude::OrderFields::LastUpdated => {
-            entities::service_check::Column::LastUpdated
-        }
-        crate::web::views::prelude::OrderFields::Host => entities::service_check::Column::HostId,
-        crate::web::views::prelude::OrderFields::Status => entities::service_check::Column::Status,
-        crate::web::views::prelude::OrderFields::Check => {
-            entities::service_check::Column::LastCheck
-        }
+        OrderFields::LastUpdated => entities::service_check::Column::LastUpdated,
+        OrderFields::Host => entities::service_check::Column::HostId,
+        OrderFields::Status => entities::service_check::Column::Status,
+        OrderFields::Check => entities::service_check::Column::LastCheck,
+        OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
     let host = match entities::host::Entity::find_by_id(host_id)
