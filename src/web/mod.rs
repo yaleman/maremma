@@ -25,6 +25,7 @@ use tower_sessions::{
     Expiry, SessionManagerLayer,
 };
 use views::handler_404;
+use views::host_group::{host_group, host_group_member_delete, host_groups};
 use views::service_check::{service_check_delete, service_check_get};
 
 pub(crate) mod oidc;
@@ -111,7 +112,12 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .route("/service_check/:service_check_id", get(service_check_get))
         .route("/host/:host_id", get(views::host::host))
         .route("/service/:service_id", get(notimplemented))
-        .route("/host_group/:group_id", get(notimplemented))
+        .route("/host_group/:group_id", get(host_group))
+        .route(
+            "/host_group/:group_id/member/:host_id/delete",
+            post(host_group_member_delete),
+        )
+        .route("/host_groups", get(host_groups))
         .route("/tools", get(views::tools::tools).post(views::tools::tools))
         .route("/auth/logout", get(oidc::logout));
     if config.oidc_enabled {
@@ -150,9 +156,9 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
 
         app = app.layer(
             ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
-                    error!("Failed to handle OIDC: {:?}", e);
-                    e.into_response()
+                .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
+                    error!("Failed to handle OIDC in middleware: {:?}", &e);
+                    Redirect::to("/auth/logout").into_response()
                 }))
                 .layer(
                     OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(

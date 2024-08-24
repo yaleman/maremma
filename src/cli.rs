@@ -60,6 +60,9 @@ pub enum Actions {
     #[clap(name = "run")]
     /// Run the server
     Run(Run),
+    #[clap(name = "check-config")]
+    /// Checks the system configuration is valid
+    CheckConfig(ShowConfig),
     #[clap(name = "show-config")]
     /// Show the system configuration
     ShowConfig(ShowConfig),
@@ -84,6 +87,7 @@ impl CliOpts {
     pub fn config(&self) -> PathBuf {
         match &self.action {
             Actions::Run(run) => run.sharedopts.config.clone(),
+            Actions::CheckConfig(run) => run.sharedopts.config.clone(),
             Actions::ShowConfig(run) => run.sharedopts.config.clone(),
             Actions::OneShot(run) => run.sharedopts.config.clone(),
             Actions::ExportConfigSchema => PathBuf::from(DEFAULT_CONFIG_FILE),
@@ -94,6 +98,7 @@ impl CliOpts {
     pub fn debug(&self) -> bool {
         match &self.action {
             Actions::Run(run) => run.sharedopts.debug.unwrap_or(false),
+            Actions::CheckConfig(run) => run.sharedopts.debug.unwrap_or(false),
             Actions::ShowConfig(run) => run.sharedopts.debug.unwrap_or(false),
             Actions::OneShot(run) => run.sharedopts.debug.unwrap_or(false),
             Actions::ExportConfigSchema => false,
@@ -103,6 +108,7 @@ impl CliOpts {
     pub fn db_debug(&self) -> bool {
         match &self.action {
             Actions::Run(run) => run.sharedopts.db_debug.unwrap_or(false),
+            Actions::CheckConfig(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::ShowConfig(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::OneShot(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::ExportConfigSchema => false,

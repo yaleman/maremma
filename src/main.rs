@@ -67,6 +67,9 @@ async fn main() -> Result<(), ExitCode> {
 
             }
         }
+        Actions::CheckConfig(_show_config) => {
+            todo!()
+        }
         Actions::ShowConfig(_show_config) => {
             println!(
                 "{}",
