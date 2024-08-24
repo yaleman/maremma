@@ -4,7 +4,7 @@ use maremma::config::Configuration;
 use maremma::prelude::*;
 use maremma::web::run_web_server;
 
-use maremma::setup_logging;
+use maremma::log::setup_logging;
 
 use maremma::check_loop::run_check_loop;
 use maremma::db::update_db_from_config;
@@ -86,16 +86,4 @@ async fn main() -> Result<(), ExitCode> {
         }
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use maremma::setup_logging;
-
-    #[test]
-    fn test_setup_logging() {
-        assert!(setup_logging(false, true).is_ok());
-        // it'll throw an error because we're trying to re-init the logger
-        assert!(setup_logging(true, true).is_err());
-    }
 }

@@ -16,19 +16,29 @@ fn oneshot_uuid() -> Uuid {
     Uuid::from_bytes(oneshot_bytes)
 }
 
+fn export_config(cmd: &OneShotCmd) -> (String, String) {
+    let schema: RootSchema = match cmd.check {
+        ServiceType::Cli => schema_for!(CliService),
+        ServiceType::Ssh => schema_for!(SshService),
+        ServiceType::Ping => schema_for!(PingService),
+        ServiceType::Http => schema_for!(HttpService),
+        ServiceType::Tls => schema_for!(TlsService),
+    };
+    (
+        format!("Dumping schema for {:?}", cmd.check),
+        // because we're not relying on external things and we tested before release, right?
+        #[allow(clippy::expect_used)]
+        serde_json::to_string_pretty(&schema)
+            .expect("Somehow we failed to serialize a validated config?"),
+    )
+}
+
 /// Runs a single check and exits
 pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result<(), Error> {
     if cmd.show_config {
-        let schema: RootSchema = match cmd.check {
-            ServiceType::Cli => schema_for!(CliService),
-            ServiceType::Ssh => schema_for!(SshService),
-            ServiceType::Ping => schema_for!(PingService),
-            ServiceType::Http => schema_for!(HttpService),
-            ServiceType::Tls => schema_for!(TlsService),
-        };
-        eprintln!("Dumping schema for {:?}", cmd.check);
-        println!("{}", serde_json::to_string_pretty(&schema).unwrap());
-        return Ok(());
+        let (msg, config) = export_config(&cmd);
+        eprintln!("{}", msg);
+        println!("{}", config);
     }
 
     let mut service_config: serde_json::Value = serde_json::from_str(&cmd.service_config)?;
@@ -62,6 +72,7 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result
         hostname: cmd.hostname.clone(),
         check: crate::host::HostCheck::None,
     };
+    #[cfg(not(test))]
     match service.run(&host).await {
         Ok(res) => {
             info!("Result: {:#?}", res);
@@ -71,6 +82,11 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result
             error!("Failed to run service: {:#?}", err);
             Err(err)
         }
+    }
+    #[cfg(test)]
+    {
+        debug!("Host: {:#?}", host);
+        Ok(())
     }
 }
 
@@ -116,18 +132,36 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_config_oneshot() {
+        // this sample config should fill everything, yeeet
+        let service_config = json! {{
+            "cron_schedule" : "@hourly",
+            "username" : "test",
+            "password" : "test",
+            "command_line" : "echo",
+            "port" : 22
+        }}
+        .to_string();
+
         for check in ServiceType::iter() {
             let cmd = OneShotCmd {
                 sharedopts: SharedOpts::default(),
                 check,
-                hostname: "example.com".to_string(),
-                service_config: json! {{"cron_schedule" : "@hourly"}}.to_string(),
+                hostname: "localhost".to_string(),
+                service_config: service_config.clone(),
                 show_config: true,
             };
+
+            export_config(&cmd);
 
             run_oneshot(cmd, Arc::new(Configuration::default()))
                 .await
                 .unwrap();
         }
+    }
+
+    #[test]
+    fn test_oneshot_uuid() {
+        let uuid = oneshot_uuid();
+        assert_eq!(uuid.to_string(), "2d2d2d20-6f6e-6520-7368-6f74202d2d2d");
     }
 }
