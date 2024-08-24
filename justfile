@@ -28,6 +28,7 @@ codespell:
     codespell -c \
     --ignore-words .codespell_ignore \
     --skip='./target' \
+    --skip='./Cargo.lock' \
     --skip='./tarpaulin-report.html' \
     --skip='./static/*' \
     --skip='./docs/*,./.git' \
