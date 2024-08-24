@@ -1,0 +1,22 @@
+{% extends "base_template.html" %}
+
+{% block content %}
+
+<h1>{{host_group.name}}</h1>
+
+<h3>Hosts</h3>
+<table class="checktable">
+    <thead>
+        <th>Group Member</th>
+        <th>&nbsp;</th>
+    </thead>
+    {% for member in members %}
+    <tr>
+        <td><a href="/host/{{member.id}}">{{member.name}}</a></td>
+        <td><form method="post"
+                action="/host_group/{{host_group.id}}/member/{{member.id}}/delete"><input
+                    type="submit" value="Remove Member" /></form></td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock content %}

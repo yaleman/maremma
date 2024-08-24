@@ -1,6 +1,7 @@
-use reqwest::StatusCode;
+use axum::http::StatusCode;
 
 pub(crate) mod host;
+pub(crate) mod host_group;
 pub(crate) mod index;
 pub(crate) mod metrics;
 pub(crate) mod prelude;

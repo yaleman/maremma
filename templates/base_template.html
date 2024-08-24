@@ -27,10 +27,11 @@
                 <ul
                     class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
 
-                    {% if let Some(username) = username %}
                     <li class="nav"><a href="/tools"
                             class="nav-link text-white">Tools</a></li>
-
+                    <li class="nav"><a href="/host_groups"
+                            class="nav-link text-white">Groups</a></li>
+                    {% if let Some(username) = username %}
                     <li class="nav">
                         <a href="/auth/profile"
                             class="nav-link text-white">

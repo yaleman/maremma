@@ -1,0 +1,11 @@
+{% extends "base_template.html" %}
+
+{% block content %}
+
+<ul>
+    {% for group in host_groups %}
+    <li><a href="/host_group/{{group.id}}">{{group.name}}</a></li>
+    {% endfor %}
+</ul>
+
+{% endblock content %}
