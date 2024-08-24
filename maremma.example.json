@@ -13,6 +13,11 @@
         ]
     },
     "services": {
+        "ping_check": {
+            "service_type": "ping",
+            "host_groups": ["check_ntp_time"],
+            "cron_schedule": "* * * * *"
+        },
         "local_lslah": {
             "service_type": "cli",
             "host_groups": ["local_lslah"],

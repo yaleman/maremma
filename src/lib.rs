@@ -54,6 +54,9 @@ pub fn setup_logging(debug: bool, db_debug: bool) -> Result<(), log::SetLoggerEr
     let mut builder = Builder::from_default_env();
     if debug {
         builder.filter_level(LevelFilter::Debug);
+    } else {
+        // ssh-rs is super noisy at info level
+        builder.filter(Some("ssh::"), LevelFilter::Warn);
     }
 
     if !db_debug {

@@ -98,6 +98,12 @@ pub trait ServiceTrait: Debug + Sync + Send {
     /// Run the service check
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error>;
 
+    /// Validate the configuration against some extra rules
+    fn validate(&self) -> Result<(), Error> {
+        debug!("You're using the default always-ok validation for this service");
+        Ok(())
+    }
+
     /// Parse it from the configuration file
     fn from_config(config: &Value) -> Result<Self, Error>
     where
@@ -122,9 +128,7 @@ pub struct Service {
 
     /// What kind of service it is
     pub service_type: ServiceType,
-    #[serde(
-        with = "crate::serde::cron"
-    )]
+    #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     /// Cron schedule for the service, eg `@hourly`, `* * * * * *` or `0 0 * * *`
     pub cron_schedule: Cron,
@@ -143,7 +147,7 @@ pub(crate) fn service_config_parse(
     service_type: &ServiceType,
     value: &Value,
 ) -> Result<Box<dyn ServiceTrait>, Error> {
-    Ok(match service_type {
+    let res = match service_type {
         ServiceType::Cli => Box::new(
             cli::CliService::from_config(value)
                 .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
@@ -164,7 +168,11 @@ pub(crate) fn service_config_parse(
             tls::TlsService::from_config(value)
                 .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
         ) as Box<dyn ServiceTrait>,
-    })
+    };
+
+    res.validate()?;
+
+    Ok(res)
 }
 
 impl Service {
@@ -338,6 +346,7 @@ mod tests {
             .expect("Failed to set up test environment");
 
         let service = entities::service::Entity::find()
+            .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
             .one(db.as_ref())
             .await
             .unwrap()
@@ -426,7 +435,9 @@ mod tests {
             "service_type": "ssh",
             "host_groups": ["test"],
             "command_line": "ls -lah .",
-            "cron_schedule": "@hourly"
+            "cron_schedule": "@hourly",
+            "username" : "test",
+            "password" : "oh no this isn't a password!"
         }"#;
         let value: Value = serde_json::from_str(config).expect("Failed to parse config");
         let service = Service::try_from(&value).expect("Failed to parse service");
