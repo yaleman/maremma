@@ -132,6 +132,18 @@ mod tests {
         assert_eq!(
             res.into_response().status(),
             axum::http::StatusCode::UNAUTHORIZED
+        );
+
+        let res = super::host_group_member_delete(
+            Path((Uuid::new_v4(), Uuid::new_v4())),
+            State(state.clone()),
+            None,
+        )
+        .await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.into_response().status(),
+            axum::http::StatusCode::UNAUTHORIZED
         )
     }
 }
