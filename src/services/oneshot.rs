@@ -9,6 +9,13 @@ use crate::services::service_config_parse;
 use crate::services::ssh::SshService;
 use crate::services::tls::TlsService;
 
+/// Because I'm fancy and silly
+fn oneshot_uuid() -> Uuid {
+    let mut oneshot_bytes: [u8; 16] = [0; 16];
+    oneshot_bytes.copy_from_slice("--- one shot ---".as_bytes());
+    Uuid::from_bytes(oneshot_bytes)
+}
+
 /// Runs a single check and exits
 pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result<(), Error> {
     if cmd.show_config {
@@ -24,9 +31,30 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result
         return Ok(());
     }
 
-    let service_config: serde_json::Value = serde_json::from_str(&cmd.service_config)?;
+    let mut service_config: serde_json::Value = serde_json::from_str(&cmd.service_config)?;
 
-    let service = service_config_parse(&Uuid::new_v4().to_string(), &cmd.check, &service_config)?;
+    let service_config = match service_config.as_object_mut() {
+        Some(obj) => {
+            obj.insert("name".to_string(), "oneshot".to_string().into());
+            obj.insert("cron_schedule".to_string(), "* * * * *".to_string().into());
+            debug!("{:?}", obj);
+            serde_json::to_value(obj)?
+        }
+        None => {
+            return Err(Error::Configuration(
+                "Service config must be a map of key-value pairs".to_string(),
+            ))
+        }
+    };
+
+    debug!("Service config: {:#?}", service_config);
+
+    let service = service_config_parse(&oneshot_uuid().to_string(), &cmd.check, &service_config)?;
+
+    if let Err(err) = service.validate() {
+        error!("Failed to validate service configuration: {:#?}", err);
+        return Err(err);
+    }
 
     let host = entities::host::Model {
         id: Uuid::new_v4(),
