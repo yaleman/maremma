@@ -61,10 +61,7 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result
 
     let service = service_config_parse(&oneshot_uuid().to_string(), &cmd.check, &service_config)?;
 
-    if let Err(err) = service.validate() {
-        error!("Failed to validate service configuration: {:#?}", err);
-        return Err(err);
-    }
+    service.validate()?;
 
     let host = entities::host::Model {
         id: Uuid::new_v4(),
@@ -95,6 +92,7 @@ mod tests {
     use sea_orm::Iterable;
 
     use crate::cli::SharedOpts;
+    use crate::db::tests::test_setup;
 
     use super::*;
 
@@ -163,5 +161,44 @@ mod tests {
     fn test_oneshot_uuid() {
         let uuid = oneshot_uuid();
         assert_eq!(uuid.to_string(), "2d2d2d20-6f6e-6520-7368-6f74202d2d2d");
+    }
+
+    #[tokio::test]
+    async fn test_invalid_oneshot() {
+        let (_, config) = test_setup().await.expect("Failed to set up test");
+        let service_config = json!("{}").to_string();
+        let cmd = OneShotCmd {
+            sharedopts: SharedOpts::default(),
+            check: ServiceType::Ping,
+            hostname: "localhost".to_string(),
+            service_config,
+            show_config: false,
+        };
+        let res = run_oneshot(cmd, config.clone()).await;
+
+        assert_eq!(
+            res,
+            Err(Error::Configuration(
+                "Service config must be a map of key-value pairs".to_string()
+            ))
+        );
+        // ssh expects a password or key amongst other things
+        let service_config =
+            json!({"username":"lol", "command_line" : "lol", "foo": "bar"}).to_string();
+        let cmd = OneShotCmd {
+            sharedopts: SharedOpts::default(),
+            check: ServiceType::Ssh,
+            hostname: "localhost".to_string(),
+            service_config,
+            show_config: false,
+        };
+        let res = run_oneshot(cmd, config).await;
+        dbg!(&res);
+        assert_eq!(
+            res,
+            Err(Error::Configuration(
+                "No SSH key or password provided, auth is going to fail!".to_string()
+            ))
+        );
     }
 }

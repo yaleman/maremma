@@ -127,7 +127,6 @@ mod tests {
         )
         .await;
 
-        // dbg!(&res);
         assert!(res.is_err());
         assert_eq!(res.into_response().status(), StatusCode::UNAUTHORIZED)
     }

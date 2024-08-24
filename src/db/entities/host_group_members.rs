@@ -48,11 +48,17 @@ impl Linked for HostToGroups {
 pub struct GroupToHosts;
 
 impl Linked for GroupToHosts {
-    type ToEntity = entities::host::Entity;
-    type FromEntity = entities::host_group::Entity;
+    type FromEntity = super::host_group::Entity;
+    type ToEntity = super::host::Entity;
 
     fn link(&self) -> Vec<RelationDef> {
-        vec![Relation::Host.def().rev(), Relation::HostGroup.def()]
+        vec![
+            Relation::HostGroup.def().rev(),
+            Entity::belongs_to(super::host::Entity)
+                .from(Column::HostId)
+                .to(super::host::Column::Id)
+                .into(),
+        ]
     }
 }
 

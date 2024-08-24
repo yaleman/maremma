@@ -134,7 +134,7 @@ impl ServiceTrait for SshService {
     /// Validate the configuration
     fn validate(&self) -> Result<(), Error> {
         if self.private_key.is_none() && self.password.is_none() {
-            return Err(Error::Generic(
+            return Err(Error::Configuration(
                 "No SSH key or password provided, auth is going to fail!".to_string(),
             ));
         }

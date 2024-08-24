@@ -32,16 +32,6 @@ pub(crate) enum Order {
     Desc,
 }
 
-#[derive(Default, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum OrderFields {
-    #[default]
-    LastUpdated,
-    Host,
-    Status,
-    Check,
-}
-
 /// Host view
 pub(crate) async fn host(
     Path(host_id): Path<Uuid>,
@@ -61,14 +51,11 @@ pub(crate) async fn host(
         .field
         .unwrap_or(crate::web::views::prelude::OrderFields::LastUpdated);
     let order_column = match order_field {
-        crate::web::views::prelude::OrderFields::LastUpdated => {
-            entities::service_check::Column::LastUpdated
-        }
-        crate::web::views::prelude::OrderFields::Host => entities::service_check::Column::HostId,
-        crate::web::views::prelude::OrderFields::Status => entities::service_check::Column::Status,
-        crate::web::views::prelude::OrderFields::Check => {
-            entities::service_check::Column::LastCheck
-        }
+        OrderFields::LastUpdated => entities::service_check::Column::LastUpdated,
+        OrderFields::Host => entities::service_check::Column::HostId,
+        OrderFields::Status => entities::service_check::Column::Status,
+        OrderFields::Check => entities::service_check::Column::LastCheck,
+        OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
     let host = match entities::host::Entity::find_by_id(host_id)
@@ -115,6 +102,69 @@ pub(crate) async fn host(
         host_id: host.id,
         username: Some(user.username()),
         page_refresh: 30,
+    })
+}
+
+#[derive(Template)]
+#[template(path = "hosts.html")]
+pub(crate) struct HostsTemplate {
+    title: String,
+    username: Option<String>,
+    hosts: Vec<entities::host::Model>,
+    search_string: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub(crate) struct HostsQuery {
+    search: Option<String>,
+    #[serde(flatten)]
+    queries: SortQueries,
+}
+
+pub(crate) async fn hosts(
+    State(state): State<WebState>,
+    Query(queries): Query<HostsQuery>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+) -> Result<HostsTemplate, (StatusCode, String)> {
+    let user = claims.ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "You must be logged in to view this page".to_string(),
+        )
+    })?;
+    let user: User = user.into();
+
+    let mut hosts = entities::host::Entity::find();
+    if let Some(search_string) = queries.search.clone() {
+        if !search_string.trim().is_empty() {
+            let search_string = format!("%{}%", search_string.trim().replace(" ", "%"));
+            hosts = hosts.filter(
+                entities::host::Column::Hostname
+                    .like(search_string.clone())
+                    .or(entities::host::Column::Name.like(search_string)),
+            );
+        }
+    }
+
+    let ord = queries.queries.ord.unwrap_or(super::prelude::Order::Asc);
+    let order_column = match queries.queries.field.unwrap_or_default() {
+        OrderFields::Host => entities::host::Column::Hostname,
+        OrderFields::LastUpdated => entities::host::Column::Hostname,
+        OrderFields::NextCheck => entities::host::Column::Hostname,
+        OrderFields::Status => entities::host::Column::Check,
+        OrderFields::Check => entities::host::Column::Check,
+    };
+    let hosts = hosts
+        .order_by(order_column, ord.into())
+        .all(state.db.as_ref())
+        .await
+        .map_err(Error::from)?;
+
+    Ok(HostsTemplate {
+        title: "Hosts".to_string(),
+        username: Some(user.username()),
+        hosts,
+        search_string: queries.search.unwrap_or_default(),
     })
 }
 
