@@ -105,6 +105,69 @@ pub(crate) async fn host(
     })
 }
 
+#[derive(Template)]
+#[template(path = "hosts.html")]
+pub(crate) struct HostsTemplate {
+    title: String,
+    username: Option<String>,
+    hosts: Vec<entities::host::Model>,
+    search_string: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub(crate) struct HostsQuery {
+    search: Option<String>,
+    #[serde(flatten)]
+    queries: SortQueries,
+}
+
+pub(crate) async fn hosts(
+    State(state): State<WebState>,
+    Query(queries): Query<HostsQuery>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+) -> Result<HostsTemplate, (StatusCode, String)> {
+    let user = claims.ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "You must be logged in to view this page".to_string(),
+        )
+    })?;
+    let user: User = user.into();
+
+    let mut hosts = entities::host::Entity::find();
+    if let Some(search_string) = queries.search.clone() {
+        if !search_string.trim().is_empty() {
+            let search_string = format!("%{}%", search_string.trim().replace(" ", "%"));
+            hosts = hosts.filter(
+                entities::host::Column::Hostname
+                    .like(search_string.clone())
+                    .or(entities::host::Column::Name.like(search_string)),
+            );
+        }
+    }
+
+    let ord = queries.queries.ord.unwrap_or(super::prelude::Order::Asc);
+    let order_column = match queries.queries.field.unwrap_or_default() {
+        OrderFields::Host => entities::host::Column::Hostname,
+        OrderFields::LastUpdated => entities::host::Column::Hostname,
+        OrderFields::NextCheck => entities::host::Column::Hostname,
+        OrderFields::Status => entities::host::Column::Check,
+        OrderFields::Check => entities::host::Column::Check,
+    };
+    let hosts = hosts
+        .order_by(order_column, ord.into())
+        .all(state.db.as_ref())
+        .await
+        .map_err(Error::from)?;
+
+    Ok(HostsTemplate {
+        title: "Hosts".to_string(),
+        username: Some(user.username()),
+        hosts,
+        search_string: queries.search.unwrap_or_default(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
 

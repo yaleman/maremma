@@ -110,6 +110,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
             post(service_check_delete),
         )
         .route("/service_check/:service_check_id", get(service_check_get))
+        .route("/hosts", get(views::host::hosts))
         .route("/host/:host_id", get(views::host::host))
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(host_group))
