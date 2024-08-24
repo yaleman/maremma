@@ -18,18 +18,16 @@ use crate::prelude::*;
 pub const UNEXPECTED_ERROR_PREFIX: &str = "unexpected error: ";
 
 /// Default value for "expires in days" to trigger a critical alert
-pub static DEFAULT_CRITICAL_DAYS: u16 = 0;
+pub const DEFAULT_CRITICAL_DAYS: u16 = 0;
 /// Default value for "expires in days" to trigger a warning alert
-pub static DEFAULT_WARNING_DAYS: u16 = 1;
+pub const DEFAULT_WARNING_DAYS: u16 = 1;
 
 /// For when you want to check TLS things like certificate expiries etc
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 pub struct TlsService {
     /// Name of the service
     pub name: String,
-    #[serde(
-        with = "crate::serde::cron"
-    )]
+    #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     /// Schedule to run the check on
     pub cron_schedule: Cron,
