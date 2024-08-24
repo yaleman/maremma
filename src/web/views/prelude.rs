@@ -43,6 +43,7 @@ pub(crate) enum OrderFields {
     Host,
     Status,
     Check,
+    NextCheck,
 }
 
 #[derive(Eq, PartialEq)]

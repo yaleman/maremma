@@ -41,6 +41,9 @@ pub(crate) async fn index(
             checks.order_by(entities::service_check::Column::LastUpdated, sort_order)
         }
         OrderFields::Check => checks.order_by(entities::service::Column::Name, sort_order),
+        OrderFields::NextCheck => {
+            checks.order_by(entities::service_check::Column::NextCheck, sort_order)
+        }
     };
 
     let checks = checks
