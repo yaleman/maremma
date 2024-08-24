@@ -8,9 +8,7 @@ use crate::prelude::*;
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 /// A service that pings things
 pub struct PingService {
-    #[serde(
-        with = "crate::serde::cron"
-    )]
+    #[serde(with = "crate::serde::cron")]
     /// The cron schedule for this service
     #[schemars(with = "String")]
     pub cron_schedule: Cron,
@@ -45,7 +43,7 @@ impl ServiceTrait for PingService {
 
 #[cfg(test)]
 mod tests {
-    use crate::setup_logging;
+    use crate::log::setup_logging;
 
     use super::*;
 

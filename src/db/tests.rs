@@ -1,7 +1,7 @@
 use crate::db::get_next_service_check;
 use crate::prelude::*;
 
-use crate::setup_logging;
+use crate::log::setup_logging;
 
 #[tokio::test]
 async fn test_next_service_check() {

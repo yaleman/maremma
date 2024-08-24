@@ -34,9 +34,9 @@ fn default_true() -> bool {
 }
 
 /// Default timeout for HTTP checks
-pub static DEFAULT_TIMEOUT: u64 = 10;
+pub const DEFAULT_TIMEOUT: u64 = 10;
 /// Default expected status code for HTTP checks
-pub static DEFAULT_EXPECTED_HTTP_STATUS: u16 = 200;
+pub const DEFAULT_EXPECTED_HTTP_STATUS: u16 = 200;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 /// An HTTP(s) service check
@@ -44,9 +44,7 @@ pub struct HttpService {
     /// Name of the check
     pub name: String,
 
-    #[serde(
-        with = "crate::serde::cron"
-    )]
+    #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     /// Cron schedule for the service
     pub cron_schedule: Cron,
