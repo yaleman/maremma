@@ -2,12 +2,23 @@
 
 {% block content %}
 
-<h1>{{host_group.name}}</h1>
+{% if let Some(message) = message %}
+<div class="alert alert-success" role="alert">
+    {{ message }}
+</div>
+{% endif %}
+
+<h1>Host Group: {{host_group.name}}</h1>
 
 <h3>Hosts</h3>
+
 <table class="checktable">
     <thead>
-        <th>Group Member</th>
+        <th>
+            <a href="?ord={{crate::web::views::prelude::Order::Asc}}">Hostname
+                &nbsp;&nbsp;⬆️</a>&nbsp;
+            <a href="?ord={{crate::web::views::prelude::Order::Desc}}">⬇️</a>
+        </th>
         <th>&nbsp;</th>
     </thead>
     {% for member in members %}

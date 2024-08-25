@@ -26,6 +26,15 @@ pub(crate) enum Order {
     Desc,
 }
 
+impl std::fmt::Display for Order {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Order::Asc => write!(f, "asc"),
+            Order::Desc => write!(f, "desc"),
+        }
+    }
+}
+
 impl From<Order> for sea_orm::Order {
     fn from(value: Order) -> Self {
         match value {
