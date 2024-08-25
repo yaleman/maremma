@@ -2,7 +2,7 @@
 
 use crate::prelude::*;
 use migrator::Migrator;
-use sea_orm::{Database, DatabaseConnection, QueryOrder};
+use sea_orm::{Database, DatabaseConnection, QueryOrder, TransactionTrait};
 use sea_orm_migration::prelude::*;
 use tracing::{info, instrument};
 
@@ -32,32 +32,35 @@ pub async fn connect(config: &Configuration) -> Result<DatabaseConnection, sea_o
     };
 
     let db = Database::connect(connect_string).await?;
-
-    Migrator::up(&db, None).await?;
+    // start a transaction so if it doesn't work, we can roll back.
+    let db_transaction = db.begin().await?;
+    Migrator::up(&db_transaction, None).await?;
+    db_transaction.commit().await?;
 
     Ok(db)
 }
 
 pub async fn update_db_from_config(
-    db: Arc<DatabaseConnection>,
+    db: &DatabaseConnection,
     config: Arc<Configuration>,
 ) -> Result<(), Error> {
     // let's go through and update the DB
-    entities::host::Model::update_db_from_config(db.clone(), config.clone())
+
+    entities::host::Model::update_db_from_config(db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update hosts DB from config: {:?}", err);
         })?;
     info!("Updated hosts");
 
-    entities::host_group::Model::update_db_from_config(db.clone(), config.clone())
+    entities::host_group::Model::update_db_from_config(db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update host_groups DB from config: {:?}", err);
         })?;
     info!("Updated host_groups");
 
-    entities::host_group_members::Model::update_db_from_config(db.clone(), config.clone())
+    entities::host_group_members::Model::update_db_from_config(db, config.clone())
         .await
         .inspect_err(|err| {
             error!(
@@ -67,14 +70,14 @@ pub async fn update_db_from_config(
         })?;
     info!("Updated host_group_members");
 
-    entities::service::Model::update_db_from_config(db.clone(), config.clone())
+    entities::service::Model::update_db_from_config(db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update services DB from config: {:?}", err);
         })?;
     info!("Updated services");
 
-    entities::service_check::Model::update_db_from_config(db.clone(), config.clone())
+    entities::service_check::Model::update_db_from_config(db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update service_checks DB from config: {:?}", err);

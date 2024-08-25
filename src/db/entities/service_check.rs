@@ -117,12 +117,12 @@ impl Related<service_check_history::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {}
 
 async fn update_local_services_from_db(
-    db: Arc<DatabaseConnection>,
+    db: &DatabaseConnection,
     config: Arc<Configuration>,
 ) -> Result<(), Error> {
     let local_host_id = match host::Entity::find()
         .filter(host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
-        .one(db.as_ref())
+        .one(db)
         .await
         .map_err(Error::from)?
         .map(|h| h.id)
@@ -138,7 +138,7 @@ async fn update_local_services_from_db(
                 }
                 .into_active_model(),
             )
-            .exec_with_returning(db.as_ref())
+            .exec_with_returning(db)
             .await?
             .id
         }
@@ -150,7 +150,7 @@ async fn update_local_services_from_db(
 
         let service_id = service::Entity::find()
             .filter(service::Column::Name.eq(service.as_str()))
-            .one(db.as_ref())
+            .one(db)
             .await
             .map_err(Error::from)?
             .ok_or_else(|| Error::ServiceNotFoundByName(service.clone()))?
@@ -160,7 +160,7 @@ async fn update_local_services_from_db(
         if Entity::find()
             .filter(Column::HostId.eq(local_host_id))
             .filter(Column::ServiceId.eq(service_id))
-            .one(db.as_ref())
+            .one(db)
             .await
             .map_err(Error::from)?
             .is_none()
@@ -178,7 +178,7 @@ async fn update_local_services_from_db(
                 }
                 .into_active_model(),
             )
-            .exec(db.as_ref())
+            .exec(db)
             .await
             .map_err(Error::from)?;
         };
@@ -189,19 +189,22 @@ async fn update_local_services_from_db(
 
 #[async_trait]
 impl MaremmaEntity for Model {
+    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+        todo!()
+    }
     /// This updates all the service checks. It really needs to be run after you've added all the hosts and services and host_groups!
     async fn update_db_from_config(
-        db: Arc<DatabaseConnection>,
+        db: &DatabaseConnection,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
         debug!("Starting update of service checks");
         // the easy ones are the locals.
         info!("Starting local updates...");
-        update_local_services_from_db(db.clone(), config).await?;
+        update_local_services_from_db(db, config).await?;
 
         info!("Starting remote updates...");
         // now we're doing the other services!
-        let services = service::Entity::find().all(db.as_ref()).await?;
+        let services = service::Entity::find().all(db).await?;
 
         if services.is_empty() {
             error!("No services found, skipping service check update");
@@ -227,7 +230,7 @@ impl MaremmaEntity for Model {
             for host_group in host_groups {
                 info!("Service {} checking group {}", service.name, host_group);
                 // get the group data
-                let group = match host_group::find_by_name(&host_group, db.as_ref()).await {
+                let group = match host_group::Model::find_by_name(&host_group, db).await {
                     Ok(Some(group)) => group,
                     Ok(None) => {
                         error!("Host group {} not found, this should already have been sorted by the update_db_from_config for host_groups", host_group);
@@ -241,7 +244,7 @@ impl MaremmaEntity for Model {
 
                 let host_group_members = match host_group_members::Entity::find()
                     .filter(host_group_members::Column::GroupId.eq(group.id))
-                    .all(db.as_ref())
+                    .all(db)
                     .await
                 {
                     Ok(hosts) => hosts,
@@ -253,7 +256,7 @@ impl MaremmaEntity for Model {
                 for host_group_member in host_group_members {
                     // let's just check we should have that member
                     let host = host::Entity::find_by_id(host_group_member.host_id)
-                        .one(db.as_ref())
+                        .one(db)
                         .await?;
                     if host.is_none() {
                         error!(
@@ -267,7 +270,7 @@ impl MaremmaEntity for Model {
                     match Entity::find()
                         .filter(Column::HostId.eq(host_group_member.host_id))
                         .filter(Column::ServiceId.eq(service.id))
-                        .one(db.as_ref())
+                        .one(db)
                         .await
                         .map_err(Error::from)?
                     {
@@ -286,7 +289,7 @@ impl MaremmaEntity for Model {
                                 last_updated: Set(chrono::Utc::now()),
                             };
                             debug!("Inserting... {:?}", model);
-                            model.insert(db.as_ref()).await.map_err(Error::from)?;
+                            model.insert(db).await.map_err(Error::from)?;
                             debug!("Done!");
                         }
                         Some(service_check) => {
@@ -303,12 +306,11 @@ impl MaremmaEntity for Model {
                                         service_check
                                             .status
                                             .set_if_not_equals(ServiceStatus::Unknown);
-                                        // service_check.save(db.as_ref()).await.map_err(Error::from)?;
                                     }
                                 }
 
                                 if service_check.is_changed() {
-                                    service_check.save(db.as_ref()).await.map_err(Error::from)?;
+                                    service_check.save(db).await.map_err(Error::from)?;
                                 }
                             }
                         }

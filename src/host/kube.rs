@@ -78,6 +78,39 @@ impl GenericHost for KubeHost {
     }
 }
 
+impl TryFrom<&Host> for KubeHost {
+    type Error = crate::errors::Error;
+
+    fn try_from(value: &Host) -> Result<Self, Self::Error> {
+        let api_port = match value.extra.get("api_port") {
+            Some(port) => {
+                let port = port.to_owned();
+                if let Some(port) = port.as_u64() {
+                    port as u16
+                } else {
+                    return Err(Error::Configuration(
+                        "api_port must be a number".to_string(),
+                    ));
+                }
+            }
+            None => kube_port_default(),
+        };
+
+        let hostname = value
+            .hostname
+            .clone()
+            .ok_or(Error::Configuration("hostname is required".to_string()))?;
+
+        Ok(Self {
+            hostname,
+            api_port,
+            kube_cluster: None,
+            host_groups: value.host_groups.to_vec(),
+            ca_cert: None,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::host::GenericHost;

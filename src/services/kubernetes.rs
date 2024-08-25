@@ -11,9 +11,7 @@ pub struct KubernetesService {
     pub name: String,
     /// Host to check
     pub host: Host,
-    #[serde(
-        with = "crate::serde::cron"
-    )]
+    #[serde(with = "crate::serde::cron")]
     /// The cron schedule for this service
     #[schemars(with = "String")]
     pub cron_schedule: Cron,
@@ -52,10 +50,15 @@ impl ServiceTrait for KubernetesService {
 
 #[cfg(test)]
 mod tests {
+    use crate::db::tests::test_setup;
+    use crate::host::kube::KubeHost;
+
     use super::*;
 
     #[tokio::test]
     async fn test_kubernetes_service() {
+        let _ = test_setup().await.expect("Failed to set up test env");
+
         let hostname = match std::env::var("MAREMMA_TEST_KUBE_HOST") {
             Ok(val) => val,
             Err(_) => {
@@ -64,14 +67,18 @@ mod tests {
             }
         };
 
-        // TODO: use the kube test host for this test
         let host = Host {
             id: None,
-            check: crate::host::HostCheck::None,
+            check: crate::host::HostCheck::Kubernetes,
             hostname: Some(hostname.clone()),
             host_groups: vec![],
             extra: Default::default(),
         };
+        let kubehost = KubeHost::try_from(&host).expect("Failed to convert host to kubehost");
+        kubehost
+            .check_up()
+            .await
+            .expect("Failed to check_up kubehost");
 
         let service = KubernetesService {
             name: "kubernetes".to_string(),

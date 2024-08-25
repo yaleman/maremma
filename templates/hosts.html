@@ -11,9 +11,11 @@
 <table class="checktable">
     <thead>
         <th>
-            <a href="?ord=asc&field=host&search={{search_string}}">Host
+            <a
+                href="?ord={{crate::web::views::prelude::Order::Asc}}&field=host&search={{search_string}}">Host
                 &nbsp;&nbsp;⬆️</a>&nbsp;
-            <a href="?ord=desc&field=host&search={{search_string}}">⬇️</a>
+            <a
+                href="?ord={{crate::web::views::prelude::Order::Desc}}&field=host&search={{search_string}}">⬇️</a>
         </th>
     </thead>
     {% for host in hosts %}

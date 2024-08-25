@@ -12,24 +12,37 @@ There are {{ num_checks }} service checks enabled.
   <thead>
     <tr>
       <th>
-        <a href="/?ord=asc&field=host">Host &nbsp;&nbsp;⬆️</a>&nbsp;
-        <a href="/?ord=desc&field=host">⬇️</a>
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=host">Host
+          &nbsp;&nbsp;⬆️</a>&nbsp;
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=host">⬇️</a>
       </th>
       <th>
-        <a href="/?ord=asc&field=host">Service&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a href="/?ord=desc&field=host">⬇️</a>
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=host">Service&nbsp;&nbsp;⬆️</a>&nbsp;
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=host">⬇️</a>
       </th>
       <th>
-        <a href="/?ord=asc&field=status">Status&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a href="/?ord=desc&field=status">⬇️</a>
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=status">Status&nbsp;&nbsp;⬆️</a>&nbsp;
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=status">⬇️</a>
       </th>
       <th>
-        <a href="/?ord=asc&field=lastupdated">Last Check&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a href="/?ord=desc&field=lastupdated">⬇️</a>
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=lastupdated">Last
+          Check&nbsp;&nbsp;⬆️</a>&nbsp;
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=lastupdated">⬇️</a>
       </th>
       <th>
-        <a href="/?ord=asc&field=nextcheck">Next Check&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a href="/?ord=desc&field=nextcheck">⬇️</a>
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=nextcheck">Next
+          Check&nbsp;&nbsp;⬆️</a>&nbsp;
+        <a
+          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=nextcheck">⬇️</a>
       </th>
     </tr>
   </thead>

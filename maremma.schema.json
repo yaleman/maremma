@@ -55,10 +55,8 @@
     },
     "services": {
       "description": "Service configuration",
-      "type": [
-        "object",
-        "null"
-      ],
+      "default": {},
+      "type": "object",
       "additionalProperties": {
         "$ref": "#/definitions/Service"
       }
@@ -194,8 +192,8 @@
       ],
       "properties": {
         "id": {
-          "description": "The internal ID of the service",
-          "default": "0f8f85ea-785d-4a2d-aa09-5f0c4794a9d8",
+          "description": "The internal ID of the service, regenerated internally if not provided",
+          "default": "00000000-0000-0000-0000-000000000000",
           "type": "string",
           "format": "uuid"
         },

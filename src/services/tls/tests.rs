@@ -251,7 +251,7 @@ fn test_service_parser() {
     let mut extra_config = std::collections::HashMap::new();
 
     extra_config.insert("port".to_string(), json! {1234});
-    let service = super::Service {
+    let mut service = super::Service {
         id: Uuid::new_v4(),
         name: Some("Hello world".to_string()),
         description: None,
@@ -273,7 +273,7 @@ fn test_service_parser() {
 
 #[test]
 fn test_failed_service_parser() {
-    let service = super::Service {
+    let mut service = super::Service {
         id: Uuid::new_v4(),
         name: Some("Hello world".to_string()),
         description: None,

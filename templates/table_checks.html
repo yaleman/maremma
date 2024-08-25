@@ -2,14 +2,26 @@
 <table width="100%">
     <thead>
         <tr>
-            <th><a href="/?ord=asc&field=host">Hostname 🔼</a> /
-                <a href="/?ord=desc&field=host">🔽</a></th>
-            <th><a href="/?ord=desc&field=check">Check 🔽</a> /
-                <a href="/?ord=asc&field=check">🔼</a></th>
-            <th><a href="/?ord=asc&field=status">Status 🔼</a> /
-                <a href="/?ord=desc&field=status">🔽</a></th>
-            <th><a href="/?ord=asc&field=lastupdated">Last Updated 🔼</a> /
-                <a href="/?ord=desc&field=lastupdated">🔽</a></th>
+            <th><a
+                    href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=host">Hostname
+                    🔼</a> /
+                <a
+                    href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=host">🔽</a></th>
+            <th><a
+                    href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=check">Check
+                    🔽</a> /
+                <a
+                    href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=check">🔼</a></th>
+            <th><a
+                    href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=status">Status
+                    🔼</a> /
+                <a
+                    href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=status">🔽</a></th>
+            <th><a
+                    href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=lastupdated">Last
+                    Updated 🔼</a> /
+                <a
+                    href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=lastupdated">🔽</a></th>
         </tr>
     </thead>
     {% for check in checks %}

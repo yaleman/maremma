@@ -117,6 +117,10 @@ pub trait ServiceTrait: Debug + Sync + Send {
 /// Base service type
 pub struct Service {
     #[serde(default = "uuid::Uuid::new_v4")]
+    #[schemars(
+        default,
+        description = "The internal ID of the service, regenerated internally if not provided"
+    )]
     /// The internal ID of the service
     pub id: Uuid,
     /// This is pulled from the config file's key
@@ -176,17 +180,26 @@ pub(crate) fn service_config_parse(
 }
 
 impl Service {
-    /// Because services are stored in the database as a json field, we need to parse the config and store the type internally
-    pub fn parse_config(self) -> Result<Self, Error> {
-        let value = serde_json::to_value(&self)?;
-        let service_identifier = self
-            .name
-            .clone()
-            .unwrap_or(self.id.hyphenated().to_string());
+    /// Because services are stored in the database as a JSON field, we need to parse the config and store the type internally
+    pub fn parse_config(&mut self) -> Result<Self, Error> {
+        let value = serde_json::to_value(&*self)?;
+
+        let service_identifier = match &self.name {
+            Some(name) => name.clone(),
+            None => self.id.hyphenated().to_string(),
+        };
+
         let config = service_config_parse(&service_identifier, &self.service_type, &value)?;
+
         Ok(Self {
+            id: self.id,
+            name: self.name.to_owned(),
+            description: self.description.to_owned(),
+            host_groups: self.host_groups.to_owned(),
+            service_type: self.service_type.to_owned(),
+            cron_schedule: self.cron_schedule.to_owned(),
+            extra_config: self.extra_config.to_owned(),
             config: Some(config),
-            ..self
         })
     }
 }
@@ -195,7 +208,7 @@ impl TryFrom<&Value> for Service {
     type Error = Error;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        let res: Service = serde_json::from_value(value.clone())?;
+        let mut res: Service = serde_json::from_value(value.clone())?;
         res.parse_config()
     }
 }
@@ -220,7 +233,7 @@ impl TryFrom<&entities::service::Model> for Service {
             Some(extra_config) => serde_json::from_value(extra_config)?,
         };
 
-        let mut service = Service {
+        let service = Service {
             id: value.id,
             name: Some(value.name.clone()),
             description: value.description.clone(),
@@ -229,8 +242,8 @@ impl TryFrom<&entities::service::Model> for Service {
             cron_schedule: Cron::new(&value.cron_schedule).parse()?,
             extra_config,
             config: None,
-        };
-        service = service.parse_config()?;
+        }
+        .parse_config()?;
 
         Ok(service)
     }
@@ -369,11 +382,8 @@ mod tests {
         let service_as_value =
             serde_json::to_value(&service).expect("Failed to convert service model to value");
         debug!("Service as value: {:?}", service_as_value);
-        let service_from_value: Service = (&service_as_value)
-            .try_into()
-            .expect("Failed to convert value to service");
-
-        service_from_value
+        let _service_from_value: Service = Service::try_from(&service_as_value)
+            .expect("Failed to convert value to service")
             .parse_config()
             .expect("Failed to parse config");
     }

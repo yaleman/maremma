@@ -40,7 +40,13 @@ impl Linked for HostToGroups {
     type ToEntity = entities::host_group::Entity;
 
     fn link(&self) -> Vec<RelationDef> {
-        vec![Relation::Host.def().rev(), Relation::HostGroup.def()]
+        vec![
+            Relation::Host.def().rev(),
+            Entity::belongs_to(super::host_group::Entity)
+                .from(Column::GroupId)
+                .to(super::host_group::Column::Id)
+                .into(),
+        ]
     }
 }
 
@@ -97,8 +103,12 @@ impl Entity {
 
 #[async_trait]
 impl MaremmaEntity for Model {
+    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+        todo!()
+    }
+
     async fn update_db_from_config(
-        db: Arc<DatabaseConnection>,
+        db: &DatabaseConnection,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
         // group -> (group def, host ids)
@@ -110,7 +120,7 @@ impl MaremmaEntity for Model {
         }
 
         for (host_name, host) in config.hosts.clone() {
-            let db_host = match super::host::find_by_name(&host_name, db.as_ref()).await? {
+            let db_host = match super::host::Model::find_by_name(&host_name, db).await? {
                 Some(host) => host,
                 None => {
                     error!(
@@ -127,7 +137,7 @@ impl MaremmaEntity for Model {
                 } else {
                     let group = super::host_group::Entity::find()
                         .filter(super::host_group::Column::Name.eq(&group_name))
-                        .one(db.as_ref())
+                        .one(db)
                         .await?;
 
                     match group {
@@ -146,7 +156,7 @@ impl MaremmaEntity for Model {
         for (group_name, (group, host_ids)) in inverted_group_list {
             debug!("Ensuring links between group {} and hosts", group_name);
             for host_id in host_ids {
-                Entity::upsert(db.as_ref(), &host_id, &group.id).await?;
+                Entity::upsert(db, &host_id, &group.id).await?;
             }
         }
         Ok(())
@@ -163,16 +173,16 @@ mod tests {
         let (db, config) = test_setup().await.expect("Failed to start test harness");
 
         // have to include this because otherwise the members won't exist :)
-        super::super::host::Model::update_db_from_config(db.clone(), config.clone())
+        super::super::host::Model::update_db_from_config(&db, config.clone())
             .await
             .expect("Failed to update hosts from config");
 
         // have to include this because otherwise the members won't exist :)
-        super::super::host_group::Model::update_db_from_config(db.clone(), config.clone())
+        super::super::host_group::Model::update_db_from_config(&db, config.clone())
             .await
             .expect("Failed to update host groups from config");
 
-        super::Model::update_db_from_config(db.clone(), config)
+        super::Model::update_db_from_config(&db, config)
             .await
             .expect("Failed to load config");
 

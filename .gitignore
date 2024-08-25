@@ -18,6 +18,7 @@ tarpaulin-report.html
 config.json
 maremma.json
 maremma.sqlite
+*.sqlite.backup
 
 # ignore all the other plugins files
 plugins/*

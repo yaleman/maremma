@@ -7,7 +7,7 @@ use crate::log::setup_logging;
 async fn test_next_service_check() {
     let (db, config) = test_setup().await.expect("Failed to start test harness");
 
-    crate::db::update_db_from_config(db.clone(), config.clone())
+    crate::db::update_db_from_config(db.as_ref(), config.clone())
         .await
         .unwrap();
 
@@ -31,7 +31,7 @@ pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, Arc<Configu
 
     let config = Configuration::load_test_config().await;
 
-    crate::db::update_db_from_config(db.clone(), config.clone())
+    crate::db::update_db_from_config(&db, config.clone())
         .await
         .expect("Failed to update DB from config");
     Ok((db, config))

@@ -6,9 +6,28 @@
 
 {% block content %}
 
-<p>hostname: {{hostname}}</p>
-<!-- <p>host_id: {{host_id}}</p> -->
-<p>host check: {{check}}</p>
+<p>hostname: {{host.name}}</p>
+
+<script type="text/javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('deleteHost');
+        if (form) {
+            form.addEventListener('submit', function(event) {
+                event.preventDefault();
+                if (confirm('Are you sure you want to delete this host?')) {
+                    this.submit();
+                }
+            });
+        }
+    });
+
+</script>
+
+<form method="post" action="/host/{{host.id}}/delete" id="deleteHost">
+    <input type="submit" class="btn btn-danger" value="Delete Host"
+        style="float:right;" />
+</form>
+<p>host check: {{host.check}}</p>
 <p>host_groups: {% for host_group in host_groups %}<a
         href="/host_group/{{host_group.id}}">{{ host_group.name }}</a>
     {% endfor %}</p>
@@ -68,7 +87,7 @@
                 <input type="submit" class="btn btn-warning"
                     value="Delete" />
                 <input type="hidden" name="redirect_to"
-                    value="/host/{{host_id}}" />
+                    value="/host/{{host.id}}" />
             </form>
         </td>
     </tr>

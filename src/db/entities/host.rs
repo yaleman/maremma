@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use entities::host_group_members::HostToGroups;
 use sea_orm::entity::prelude::*;
 use sea_orm::IntoActiveModel;
 
@@ -36,7 +37,7 @@ impl Related<super::service_check::Entity> for Entity {
 
 impl Related<super::host_group::Entity> for Entity {
     fn to() -> RelationDef {
-        super::host_group::Relation::Host.def()
+        super::host_group::Relation::Host.def().rev()
     }
 
     fn via() -> Option<RelationDef> {
@@ -46,24 +47,67 @@ impl Related<super::host_group::Entity> for Entity {
 
 impl ActiveModelBehavior for ActiveModel {}
 
-pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-    match Entity::find().filter(Column::Name.eq(name)).one(db).await {
-        Ok(val) => Ok(val.into_iter().next()),
-        Err(err) => {
-            error!("Query failed while looking up host '{}': {:?}", name, err);
-            Err(err.into())
+impl Model {
+    /// Validate that the service checks for this host should still exist
+    ///
+    /// Used to clean up old service checks that are no longer needed when the host is removed from a group etc
+    ///
+    pub async fn prune_service_checks(&self, db: &DatabaseConnection) -> Result<(), Error> {
+        let result = Entity::find_by_id(self.id)
+            .find_with_linked(HostToGroups)
+            .all(db)
+            .await?;
+
+        debug!("{:#?}", result);
+
+        let (_host, host_groups) = match result.into_iter().next() {
+            Some(val) => val,
+            None => {
+                error!("Failed to find host {}", self.id);
+                return Err(Error::HostNotFound(self.id));
+            }
+        };
+
+        for host_group in host_groups {
+            debug!("Host group: {:?}", host_group);
+
+            let _services = host_group
+                .find_linked(super::service_group_link::GroupToServices)
+                .all(db)
+                .await?;
         }
+        // let service_checks = super::service_check::Entity::find()
+        //     .filter(super::service_check::Column::HostId.eq(self.id))
+        //     .all(db)
+        //     .await
+        //     .inspect_err(|err| {
+        //         error!(
+        //             "Failed to find service checks for host {} {} {}",
+        //             self.id, self.hostname, err,
+        //         )
+        //     })?;
+
+        Ok(())
     }
 }
 
 #[async_trait]
 impl MaremmaEntity for Model {
+    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+        match Entity::find().filter(Column::Name.eq(name)).one(db).await {
+            Ok(val) => Ok(val.into_iter().next()),
+            Err(err) => {
+                error!("Query failed while looking up host '{}': {:?}", name, err);
+                Err(err.into())
+            }
+        }
+    }
     async fn update_db_from_config(
-        db: Arc<DatabaseConnection>,
+        db: &DatabaseConnection,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
         for (name, host) in config.hosts.clone().into_iter() {
-            let model = match find_by_name(&name, db.as_ref()).await {
+            let model = match Model::find_by_name(&name, db).await {
                 Ok(val) => val,
                 Err(err) => {
                     error!("Failed to find host '{}': {:?}", name, err);
@@ -89,7 +133,7 @@ impl MaremmaEntity for Model {
 
                     if existing_host.is_changed() {
                         warn!("Updating {:?}", &existing_host);
-                        existing_host.save(db.as_ref()).await?;
+                        existing_host.save(db).await?;
                     } else {
                         debug!("No changes to {:?}", &existing_host);
                     }
@@ -102,7 +146,7 @@ impl MaremmaEntity for Model {
                         check: host.check.clone(),
                     }
                     .into_active_model();
-                    warn!("Creating Host {:?}", new_host.insert(db.as_ref()).await?);
+                    warn!("Creating Host {:?}", new_host.insert(db).await?);
                 }
             };
         }
@@ -125,7 +169,7 @@ mod tests {
 
     use sea_orm::IntoActiveModel;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-    use tracing::info;
+    use tracing::{debug, info};
 
     use crate::db::entities::MaremmaEntity;
     use crate::db::tests::test_setup;
@@ -163,7 +207,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_db_from_config() {
         let (db, config) = test_setup().await.expect("Failed to start test harness");
-        super::Model::update_db_from_config(db, config)
+        super::Model::update_db_from_config(&db, config)
             .await
             .expect("Failed to load config");
     }
@@ -176,12 +220,29 @@ mod tests {
             .await
             .expect("Failed to insert host");
 
-        let found_host = super::find_by_name(&super::test_host().name, db.as_ref())
+        let found_host = super::Model::find_by_name(&super::test_host().name, db.as_ref())
             .await
             .expect("Failed to query host");
 
         assert!(found_host.is_some());
 
         assert_eq!(found_host.unwrap().name, inserted_host.name);
+    }
+
+    #[tokio::test]
+    async fn test_prune_service_checks() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let host = super::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to run wquery")
+            .expect("Failed to find a host?");
+
+        debug!("{:?}", host);
+
+        host.prune_service_checks(db.as_ref())
+            .await
+            .expect("Failed to prune service checks");
     }
 }
