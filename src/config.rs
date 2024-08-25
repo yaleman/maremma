@@ -139,7 +139,9 @@ impl TryFrom<ConfigurationParser> for Configuration {
             Some(services) => {
                 let mut res: HashMap<String, Service> = HashMap::new();
                 for (service_name, service) in services {
-                    res.insert(service_name, serde_json::from_value(service)?);
+                    let service: Service = serde_json::from_value(service)?;
+
+                    res.insert(service_name, service);
                 }
                 Some(res)
             }
