@@ -32,7 +32,8 @@ jobs:
           version: "v0.8.1"
       - name: install docker
         run: |
-          brew install docker docker-machine docker-buildx
+          brew install docker docker-machine
+          docker-machine create
           /opt/homebrew/opt/docker-machine/bin/docker-machine start default
       # - name: Set up QEMU
       #   uses: docker/setup-qemu-action@v3
