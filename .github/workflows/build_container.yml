@@ -32,10 +32,10 @@ jobs:
           version: "v0.8.1"
       - name: install docker
         run: |
-          brew install docker
-          find /opt/homebrew/bin/ -name '*cker*'
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          brew install docker docker-machine docker-buildx
+          /opt/homebrew/opt/docker-machine/bin/docker-machine start default
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GitHub Container Registry
