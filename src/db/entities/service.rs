@@ -19,7 +19,10 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::host_group::Entity")]
+    HostGroup,
+}
 
 impl Related<super::host::Entity> for Entity {
     fn to() -> RelationDef {
@@ -28,6 +31,16 @@ impl Related<super::host::Entity> for Entity {
 
     fn via() -> Option<RelationDef> {
         Some(super::service_check::Relation::Service.def())
+    }
+}
+
+impl Related<super::host_group::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::host_group::Relation::Service.def().rev()
+    }
+
+    fn via() -> Option<RelationDef> {
+        Some(super::host_group::Relation::Service.def())
     }
 }
 
@@ -41,8 +54,11 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
+    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+        todo!()
+    }
     async fn update_db_from_config(
-        db: Arc<DatabaseConnection>,
+        db: &DatabaseConnection,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
         if let Some(services) = config.services.as_ref() {
@@ -90,7 +106,7 @@ impl MaremmaEntity for Model {
                 // check if we have one and add it if not
                 match Entity::find()
                     .filter(Column::Name.eq(service_name))
-                    .one(db.as_ref())
+                    .one(db)
                     .await
                 {
                     Ok(Some(res)) => {
@@ -108,7 +124,7 @@ impl MaremmaEntity for Model {
                                 eprintln!("about to update this: {:?}", res);
                                 eprintln!("Source: {:?}", service);
                             }
-                            res.update(db.as_ref()).await?
+                            res.update(db).await?
                         } else {
                             eprintln!("try into model");
                             res.try_into_model().inspect_err(|err| {
@@ -137,7 +153,7 @@ impl MaremmaEntity for Model {
                         eprintln!("about to update this: {:?}", am);
 
                         debug!("Creating service: {:?}", am);
-                        Entity::insert(am).exec_with_returning(db.as_ref()).await?
+                        Entity::insert(am).exec_with_returning(db).await?
                     }
 
                     Err(err) => return Err(err.into()),

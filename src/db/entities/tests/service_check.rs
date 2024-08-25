@@ -184,7 +184,7 @@ async fn test_service_check_fk_service() {
 async fn test_full_service_check() {
     let (db, config) = test_setup().await.expect("Failed to set up test config");
 
-    crate::db::update_db_from_config(db.clone(), config.clone())
+    crate::db::update_db_from_config(db.as_ref(), config.clone())
         .await
         .unwrap();
 

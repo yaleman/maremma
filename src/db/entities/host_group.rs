@@ -13,6 +13,8 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::host::Entity")]
     Host,
+    #[sea_orm(has_many = "super::service::Entity")]
+    Service,
 }
 
 impl Related<super::host::Entity> for Entity {
@@ -25,30 +27,46 @@ impl Related<super::host::Entity> for Entity {
     }
 }
 
+impl Related<super::service::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Service.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        Some(super::service::Relation::HostGroup.def().rev())
+    }
+}
+
 impl Related<super::host_group_members::Entity> for Entity {
     fn to() -> RelationDef {
         super::host_group_members::Relation::HostGroup.def()
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {}
-
-pub async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-    Entity::find()
-        .filter(Column::Name.eq(name))
-        .one(db)
-        .await
-        .map_err(Error::from)
+impl Related<super::service_group_link::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::service_group_link::Relation::HostGroup.def()
+    }
 }
+
+impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
+    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+        Entity::find()
+            .filter(Column::Name.eq(name))
+            .one(db)
+            .await
+            .map_err(Error::from)
+    }
+
     async fn update_db_from_config(
-        db: Arc<DatabaseConnection>,
+        db: &DatabaseConnection,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
         let mut known_group_list: Vec<String> = Entity::find()
-            .all(db.as_ref())
+            .all(db)
             .await?
             .into_iter()
             .map(|x| x.name)
@@ -64,7 +82,7 @@ impl MaremmaEntity for Model {
                 }
 
                 // we haven't added it to the list, so we're going to have to see if it's already in the database.
-                if find_by_name(&group_name, db.as_ref()).await?.is_none() {
+                if Model::find_by_name(&group_name, db).await?.is_none() {
                     Entity::insert(
                         Model {
                             id: Uuid::new_v4(),
@@ -72,7 +90,7 @@ impl MaremmaEntity for Model {
                         }
                         .into_active_model(),
                     )
-                    .exec(db.as_ref())
+                    .exec(db)
                     .await?;
                 } else {
                     debug!("already have {}", group_name);
@@ -88,7 +106,7 @@ impl MaremmaEntity for Model {
                     if known_group_list.contains(group_name) {
                         continue;
                     }
-                    if find_by_name(group_name, db.as_ref()).await?.is_none() {
+                    if Model::find_by_name(group_name, db).await?.is_none() {
                         debug!("Adding host group {}", group_name);
                         Entity::insert(
                             Model {
@@ -97,7 +115,7 @@ impl MaremmaEntity for Model {
                             }
                             .into_active_model(),
                         )
-                        .exec_with_returning(db.as_ref())
+                        .exec_with_returning(db)
                         .await?;
                         warn!(
                             "Added group {:?} from service {:?} to DB",
@@ -126,7 +144,7 @@ mod tests {
     async fn test_update_db_from_config() {
         let (db, config) = test_setup().await.expect("Failed to start test harness");
 
-        super::Model::update_db_from_config(db, config)
+        super::Model::update_db_from_config(&db, config)
             .await
             .expect("Failed to load config");
     }
