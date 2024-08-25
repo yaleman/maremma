@@ -6,7 +6,6 @@ use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::host::HostCheck;
 use crate::web::oidc::User;
 
 #[derive(Template, Debug)] // this will generate the code...
@@ -15,12 +14,9 @@ use crate::web::oidc::User;
 pub(crate) struct HostTemplate {
     title: String,
     username: Option<String>,
-
+    host: entities::host::Model,
     checks: Vec<entities::service_check::FullServiceCheck>,
-    hostname: String,
-    check: HostCheck,
     host_groups: Vec<host_group::Model>,
-    host_id: Uuid,
     page_refresh: u64,
 }
 
@@ -58,10 +54,13 @@ pub(crate) async fn host(
         OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
-    let host = match entities::host::Entity::find_by_id(host_id)
-        .one(state.db.as_ref())
+    let (host, host_groups) = match entities::host::Entity::find_by_id(host_id)
+        .find_with_linked(entities::host_group_members::HostToGroups)
+        .all(state.db.as_ref())
         .await
         .map_err(Error::from)?
+        .into_iter()
+        .next()
     {
         Some(host) => host,
         None => {
@@ -84,22 +83,11 @@ pub(crate) async fn host(
             Error::from(err)
         })?;
 
-    let host_groups = host
-        .find_linked(entities::host_group_members::HostToGroups)
-        .all(state.db.as_ref())
-        .await
-        .map_err(|err| {
-            error!("Failed to find linked: {:?}", err);
-            Error::from(err)
-        })?;
-
     Ok(HostTemplate {
         title: host.hostname.to_owned(),
         checks,
-        hostname: host.hostname.to_owned(),
-        check: host.check,
+        host,
         host_groups,
-        host_id: host.id,
         username: Some(user.username()),
         page_refresh: 30,
     })
@@ -166,6 +154,36 @@ pub(crate) async fn hosts(
         hosts,
         search_string: queries.search.unwrap_or_default(),
     })
+}
+
+pub(crate) async fn delete_host(
+    State(state): State<WebState>,
+    Path(host_id): Path<Uuid>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+) -> Result<Redirect, (StatusCode, String)> {
+    let _user = claims.ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            "You must be logged in to view this page".to_string(),
+        )
+    })?;
+
+    let host = match entities::host::Entity::find_by_id(host_id)
+        .one(state.db.as_ref())
+        .await
+        .map_err(Error::from)?
+    {
+        Some(host) => host,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                format!("Host with id={} not found", host_id),
+            ))
+        }
+    };
+
+    host.delete(state.db.as_ref()).await.map_err(Error::from)?;
+    Ok(Redirect::to("/hosts"))
 }
 
 #[cfg(test)]
