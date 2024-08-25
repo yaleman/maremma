@@ -55,10 +55,8 @@
     },
     "services": {
       "description": "Service configuration",
-      "type": [
-        "object",
-        "null"
-      ],
+      "default": {},
+      "type": "object",
       "additionalProperties": {
         "$ref": "#/definitions/Service"
       }
