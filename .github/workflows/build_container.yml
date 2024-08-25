@@ -33,7 +33,7 @@ jobs:
       - name: install docker
         run: |
           brew install docker
-          open -a Docker
+          find /opt/homebrew/bin/ -name '*cker*'
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
