@@ -6,7 +6,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
 use tracing::info;
 use uuid::Uuid;
@@ -74,29 +74,25 @@ pub(crate) async fn host_group(
         return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
     }
 
-    let host_group = entities::host_group::Entity::find_by_id(id)
-        .one(state.db.as_ref())
-        .await
-        .map_err(|e| {
-            log::error!("Failed to fetch host groups: {}", e);
-            Error::from(e)
-        })?;
-
-    let host_group = match host_group {
-        Some(val) => val,
-        None => return Err((StatusCode::NOT_FOUND, "Host Group not found".to_string())),
-    };
-
-    let query_sort = query.ord.unwrap_or(super::prelude::Order::Asc).into();
-    let members = host_group
-        .find_linked(entities::host_group_members::GroupToHosts)
-        .order_by(entities::host::Column::Hostname, query_sort)
+    let host_group = entities::host_group::Entity::find()
+        .filter(Column::Id.eq(id))
+        .find_with_linked(entities::host_group_members::GroupToHosts)
         .all(state.db.as_ref())
         .await
         .map_err(|e| {
             log::error!("Failed to fetch host groups: {}", e);
             Error::from(e)
         })?;
+
+    let (host_group, mut members) = match host_group.into_iter().next() {
+        Some(val) => val,
+        None => return Err((StatusCode::NOT_FOUND, "Host Group not found".to_string())),
+    };
+
+    match query.ord.unwrap_or(super::prelude::Order::Asc) {
+        super::prelude::Order::Asc => members.sort_by(|a, b| a.hostname.cmp(&b.hostname)),
+        super::prelude::Order::Desc => members.sort_by(|a, b| b.hostname.cmp(&a.hostname)),
+    };
 
     Ok(HostGroupTemplate {
         title: format!("Host Group: {}", host_group.name),

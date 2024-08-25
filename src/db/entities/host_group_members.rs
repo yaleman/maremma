@@ -40,7 +40,13 @@ impl Linked for HostToGroups {
     type ToEntity = entities::host_group::Entity;
 
     fn link(&self) -> Vec<RelationDef> {
-        vec![Relation::Host.def().rev(), Relation::HostGroup.def()]
+        vec![
+            Relation::Host.def().rev(),
+            Entity::belongs_to(super::host_group::Entity)
+                .from(Column::GroupId)
+                .to(super::host_group::Column::Id)
+                .into(),
+        ]
     }
 }
 

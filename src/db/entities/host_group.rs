@@ -100,34 +100,30 @@ impl MaremmaEntity for Model {
             }
         }
 
-        if let Some(services) = config.services.as_ref() {
-            for (service_name, service) in services {
-                for group_name in service.host_groups.iter() {
-                    if known_group_list.contains(group_name) {
-                        continue;
-                    }
-                    if Model::find_by_name(group_name, db).await?.is_none() {
-                        debug!("Adding host group {}", group_name);
-                        Entity::insert(
-                            Model {
-                                id: Uuid::new_v4(),
-                                name: group_name.to_owned(),
-                            }
-                            .into_active_model(),
-                        )
-                        .exec_with_returning(db)
-                        .await?;
-                        warn!(
-                            "Added group {:?} from service {:?} to DB",
-                            &service_name, group_name
-                        );
-                    } else {
-                        debug!("Already have group {}", group_name);
-                    }
+        for (service_name, service) in &config.services {
+            for group_name in service.host_groups.iter() {
+                if known_group_list.contains(group_name) {
+                    continue;
+                }
+                if Model::find_by_name(group_name, db).await?.is_none() {
+                    debug!("Adding host group {}", group_name);
+                    Entity::insert(
+                        Model {
+                            id: Uuid::new_v4(),
+                            name: group_name.to_owned(),
+                        }
+                        .into_active_model(),
+                    )
+                    .exec_with_returning(db)
+                    .await?;
+                    warn!(
+                        "Added group {:?} from service {:?} to DB",
+                        &service_name, group_name
+                    );
+                } else {
+                    debug!("Already have group {}", group_name);
                 }
             }
-        } else {
-            warn!("No services found in configuration");
         }
 
         Ok(())

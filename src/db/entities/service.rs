@@ -61,106 +61,101 @@ impl MaremmaEntity for Model {
         db: &DatabaseConnection,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
-        if let Some(services) = config.services.as_ref() {
-            for (service_name, service) in services {
-                // this is janky but we need to flatten it using serde to get the "extra" fields
-                let extra_config: Json = serde_json::to_value(service.extra_config.clone())
-                    .inspect_err(|err| {
-                        error!(
-                            "Failed to convert extra_config into JSON for {} error={:?}",
-                            service_name, err
-                        )
-                    })?;
-
-                let mut service_value = serde_json::to_value(service).inspect_err(|err| {
+        for (service_name, service) in &config.services {
+            // this is janky but we need to flatten it using serde to get the "extra" fields
+            let extra_config: Json = serde_json::to_value(service.extra_config.clone())
+                .inspect_err(|err| {
                     error!(
-                        "Failed to convert service into JsonValue for {} error={:?}",
+                        "Failed to convert extra_config into JSON for {} error={:?}",
                         service_name, err
                     )
                 })?;
 
-                if let Some(service_object) = service_value.as_object_mut() {
-                    if !service_object.contains_key("id")
-                        || Some(&serde_json::Value::Null) == service_object.get("id")
-                    {
-                        debug!("Adding ID to service: {}", service_name);
-                        if let Some(id) = service_object.get_mut("id") {
-                            *id = json!(Uuid::new_v4());
-                        } else {
-                            return Err(Error::Configuration(format!(
-                                "Failed to add ID to service '{}', check the configuration!",
-                                service_name
-                            )));
-                        };
-                    }
-                    service_object.insert("name".to_string(), json!(service_name));
-                    service_object.insert("extra_config".to_string(), json!(extra_config));
-                } else {
-                    error!("Failed to convert service to object: {:?}", service_value);
-                    return Err(Error::Configuration(format!(
-                        "Failed to convert service '{}' to object, check the configuration!",
-                        service_name
-                    )));
-                }
-                debug!("Looking for {}", service_name);
-                // check if we have one and add it if not
-                match Entity::find()
-                    .filter(Column::Name.eq(service_name))
-                    .one(db)
-                    .await
+            let mut service_value = serde_json::to_value(service).inspect_err(|err| {
+                error!(
+                    "Failed to convert service into JsonValue for {} error={:?}",
+                    service_name, err
+                )
+            })?;
+
+            if let Some(service_object) = service_value.as_object_mut() {
+                if !service_object.contains_key("id")
+                    || Some(&serde_json::Value::Null) == service_object.get("id")
                 {
-                    Ok(Some(res)) => {
-                        debug!("found it!");
-                        let mut res = res.into_active_model();
-                        res.name.set_if_not_equals(service_name.clone());
-                        if let Err(err) = res.set_from_json(service_value) {
-                            error!("Error setting service from json: {:?}", err);
-                            return Err(err.into());
-                        };
-
-                        if res.is_changed() {
-                            #[cfg(any(test, debug_assertions))]
-                            {
-                                eprintln!("about to update this: {:?}", res);
-                                eprintln!("Source: {:?}", service);
-                            }
-                            res.update(db).await?
-                        } else {
-                            eprintln!("try into model");
-                            res.try_into_model().inspect_err(|err| {
-                                error!("Failed to convert {:?} to model: {:?}", service_name, err)
-                            })?
-                        }
-                    }
-                    Ok(None) => {
-                        debug!("didn't find it!");
-                        // insert the service if we can't find it
-                        let mut am = ActiveModel::new();
-
-                        let jsonvalue =
-                            serde_json::to_value(&service_value).inspect_err(|err| {
-                                error!("Failed to turn thing into json value? err={:?}", err)
-                            })?;
-
-                        am.set_from_json(jsonvalue.clone()).inspect_err(|err| {
-                            error!(
-                                "Failed to set model values from JSON {:?} error={:?}",
-                                jsonvalue, err
-                            )
-                        })?;
-                        am.id.set_if_not_equals(Uuid::new_v4());
-                        #[cfg(any(test, debug_assertions))]
-                        eprintln!("about to update this: {:?}", am);
-
-                        debug!("Creating service: {:?}", am);
-                        Entity::insert(am).exec_with_returning(db).await?
-                    }
-
-                    Err(err) => return Err(err.into()),
-                };
+                    debug!("Adding ID to service: {}", service_name);
+                    if let Some(id) = service_object.get_mut("id") {
+                        *id = json!(Uuid::new_v4());
+                    } else {
+                        return Err(Error::Configuration(format!(
+                            "Failed to add ID to service '{}', check the configuration!",
+                            service_name
+                        )));
+                    };
+                }
+                service_object.insert("name".to_string(), json!(service_name));
+                service_object.insert("extra_config".to_string(), json!(extra_config));
+            } else {
+                error!("Failed to convert service to object: {:?}", service_value);
+                return Err(Error::Configuration(format!(
+                    "Failed to convert service '{}' to object, check the configuration!",
+                    service_name
+                )));
             }
-        } else {
-            error!("No services in config!");
+            debug!("Looking for {}", service_name);
+            // check if we have one and add it if not
+            match Entity::find()
+                .filter(Column::Name.eq(service_name))
+                .one(db)
+                .await
+            {
+                Ok(Some(res)) => {
+                    debug!("found it!");
+                    let mut res = res.into_active_model();
+                    res.name.set_if_not_equals(service_name.clone());
+                    if let Err(err) = res.set_from_json(service_value) {
+                        error!("Error setting service from json: {:?}", err);
+                        return Err(err.into());
+                    };
+
+                    if res.is_changed() {
+                        #[cfg(any(test, debug_assertions))]
+                        {
+                            eprintln!("about to update this: {:?}", res);
+                            eprintln!("Source: {:?}", service);
+                        }
+                        res.update(db).await?
+                    } else {
+                        eprintln!("try into model");
+                        res.try_into_model().inspect_err(|err| {
+                            error!("Failed to convert {:?} to model: {:?}", service_name, err)
+                        })?
+                    }
+                }
+                Ok(None) => {
+                    debug!("didn't find it!");
+                    // insert the service if we can't find it
+                    let mut am = ActiveModel::new();
+
+                    let jsonvalue = serde_json::to_value(&service_value).inspect_err(|err| {
+                        error!("Failed to turn thing into json value? err={:?}", err)
+                    })?;
+
+                    am.set_from_json(jsonvalue.clone()).inspect_err(|err| {
+                        error!(
+                            "Failed to set model values from JSON {:?} error={:?}",
+                            jsonvalue, err
+                        )
+                    })?;
+                    am.id.set_if_not_equals(Uuid::new_v4());
+                    #[cfg(any(test, debug_assertions))]
+                    eprintln!("about to update this: {:?}", am);
+
+                    debug!("Creating service: {:?}", am);
+                    Entity::insert(am).exec_with_returning(db).await?
+                }
+
+                Err(err) => return Err(err.into()),
+            };
         }
 
         Ok(())

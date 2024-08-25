@@ -37,7 +37,7 @@ impl Related<super::service_check::Entity> for Entity {
 
 impl Related<super::host_group::Entity> for Entity {
     fn to() -> RelationDef {
-        super::host_group::Relation::Host.def()
+        super::host_group::Relation::Host.def().rev()
     }
 
     fn via() -> Option<RelationDef> {

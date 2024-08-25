@@ -60,9 +60,9 @@ pub struct ConfigurationParser {
     /// Services to run locally
     pub local_services: FakeHost,
 
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, default)]
     /// Service configuration
-    pub services: Option<HashMap<String, Value>>,
+    pub services: HashMap<String, Value>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
     pub frontend_url: Option<String>,
@@ -111,7 +111,8 @@ pub struct Configuration {
     pub local_services: FakeHost,
 
     /// Service configuration
-    pub services: Option<HashMap<String, Service>>,
+    #[serde(default)]
+    pub services: HashMap<String, Service>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
     pub frontend_url: Option<String>,
@@ -135,18 +136,16 @@ pub struct Configuration {
 
 impl TryFrom<ConfigurationParser> for Configuration {
     fn try_from(value: ConfigurationParser) -> Result<Self, Error> {
-        let services = match value.services {
-            Some(services) => {
-                let mut res: HashMap<String, Service> = HashMap::new();
-                for (service_name, service) in services {
-                    let service: Service = serde_json::from_value(service)?;
-
-                    res.insert(service_name, service);
-                }
-                Some(res)
-            }
-            None => None,
-        };
+        let services = value
+            .services
+            .iter()
+            .map(|(name, service)| {
+                let service: Service = serde_json::from_value(service.clone()).map_err(|e| {
+                    Error::Configuration(format!("Failed to parse service {}: {}", name, e))
+                })?;
+                Ok((name.clone(), service))
+            })
+            .collect::<Result<HashMap<String, Service>, Error>>()?;
 
         let static_path = value
             .static_path
@@ -267,11 +266,9 @@ impl Configuration {
             });
         });
 
-        if let Some(services) = &self.services {
-            services.iter().for_each(|(_service_name, service)| {
-                groups.extend(service.host_groups.iter().cloned());
-            });
-        }
+        self.services.iter().for_each(|(_service_name, service)| {
+            groups.extend(service.host_groups.iter().cloned());
+        });
 
         groups.into_iter().collect()
     }
