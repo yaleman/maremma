@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   docker:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,13 +30,8 @@ jobs:
         uses: mozilla-actions/sccache-action@v0.0.5
         with:
           version: "v0.8.1"
-      - name: install docker
-        run: |
-          brew install docker docker-machine
-          docker-machine create
-          /opt/homebrew/opt/docker-machine/bin/docker-machine start default
-      # - name: Set up QEMU
-      #   uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GitHub Container Registry
