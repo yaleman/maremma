@@ -29,7 +29,7 @@ jobs:
       matrix:
         platform:
           - linux/amd64
-          - linux/arm64
+          # - linux/arm64
 
     steps:
       - name: Prepare
@@ -113,14 +113,12 @@ jobs:
         working-directory: /tmp/digests
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)          
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)          
       - name: Create manifest list (no push)
         working-directory: /tmp/digests
         if: ${{ github.ref != 'refs/heads/main' }}
         run: |
-          docker buildx imagetools create --dry-run $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)          
+          docker buildx imagetools create --dry-run $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)          
       
       - name: Inspect image
         run: |
