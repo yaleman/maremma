@@ -16,7 +16,7 @@ permissions:
 env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
-  REGISTRY_IMAGE: "yaleman/maremma"
+  REGISTRY_IMAGE: "ghcr.io/yaleman/maremma"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
