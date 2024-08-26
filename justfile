@@ -6,6 +6,9 @@ check: codespell
     cargo clippy
     cargo test
 
+book:
+    cd docs && mdbook serve
+
 run:
     cargo run run
 

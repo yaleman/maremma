@@ -151,9 +151,8 @@ impl MaremmaEntity for Model {
                     if am.id.is_not_set() {
                         am.id.set_if_not_equals(Uuid::new_v4());
                     }
-                    if am.extra_config.is_not_set() {
-                        am.extra_config.set_if_not_equals(Some(json!(extra_config)));
-                    }
+                    am.host_groups.set_if_not_equals(json!(service.host_groups));
+                    am.extra_config.set_if_not_equals(Some(json!(extra_config)));
 
                     #[cfg(any(test, debug_assertions))]
                     eprintln!("about to update this: {:?}", am);
