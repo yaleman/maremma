@@ -101,6 +101,7 @@ impl MaremmaEntity for Model {
                     service_name
                 )));
             }
+
             debug!("Looking for {}", service_name);
             // check if we have one and add it if not
             match Entity::find()
@@ -115,14 +116,12 @@ impl MaremmaEntity for Model {
                     if let Err(err) = res.set_from_json(service_value) {
                         error!("Error setting service from json: {:?}", err);
                         return Err(err.into());
+                    } else {
+                        debug!("Service set from json: {:?}", res);
                     };
 
                     if res.is_changed() {
-                        #[cfg(any(test, debug_assertions))]
-                        {
-                            eprintln!("about to update this: {:?}", res);
-                            eprintln!("Source: {:?}", service);
-                        }
+                        debug!("Updating service with {:?}", res);
                         res.update(db).await?
                     } else {
                         eprintln!("try into model");
@@ -132,21 +131,30 @@ impl MaremmaEntity for Model {
                     }
                 }
                 Ok(None) => {
-                    debug!("didn't find it!");
+                    info!("Didn't find service name='{}' will create it", service_name);
                     // insert the service if we can't find it
                     let mut am = ActiveModel::new();
 
                     let jsonvalue = serde_json::to_value(&service_value).inspect_err(|err| {
-                        error!("Failed to turn thing into json value? err={:?}", err)
+                        error!(
+                            "Failed to turn {} into json value? err={:?}",
+                            service_name, err
+                        )
                     })?;
 
                     am.set_from_json(jsonvalue.clone()).inspect_err(|err| {
                         error!(
-                            "Failed to set model values from JSON {:?} error={:?}",
-                            jsonvalue, err
+                            "Failed to set model values for {} from JSON {:?} error={:?}",
+                            service_name, jsonvalue, err
                         )
                     })?;
-                    am.id.set_if_not_equals(Uuid::new_v4());
+                    if am.id.is_not_set() {
+                        am.id.set_if_not_equals(Uuid::new_v4());
+                    }
+                    if am.extra_config.is_not_set() {
+                        am.extra_config.set_if_not_equals(Some(json!(extra_config)));
+                    }
+
                     #[cfg(any(test, debug_assertions))]
                     eprintln!("about to update this: {:?}", am);
 
@@ -179,10 +187,18 @@ pub(crate) fn test_service() -> Model {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::tests::test_setup;
 
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use crate::config::Configuration;
+    use crate::db::tests::test_setup;
+    use crate::db::{MaremmaEntity, Service, ServiceType};
+
+    use croner::Cron;
     use sea_orm::IntoActiveModel;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use serde_json::{json, Value};
     use tracing::info;
 
     #[tokio::test]
@@ -226,5 +242,63 @@ mod tests {
             .unwrap()
             .unwrap();
         info!("found it: {:?}", service);
+    }
+
+    #[tokio::test]
+    /// Test running config update twice with a service that changes, to ensure it changes.
+    async fn test_config_updates() {
+        let (db, config) = test_setup().await.expect("Failed to start test harness");
+
+        super::Model::update_db_from_config(db.as_ref(), config.clone())
+            .await
+            .expect("Failed to update db from config");
+
+        let service = super::Entity::find()
+            .filter(super::Column::Name.eq("local_lslah".to_string()))
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .expect("Couldn't find local_lslah");
+        info!("found it: {:?}", service);
+
+        let mut config = Configuration::load_test_config_bare().await;
+
+        let extra_config_json = json!({"extra_config" : { "url": "http://localhost:12345" }});
+        let extra_config: HashMap<String, Value> =
+            serde_json::from_value(extra_config_json.clone())
+                .expect("Failed to deserialize JSON into hashmap");
+
+        config.services.insert(
+            "local_lslah".to_string(),
+            Service {
+                id: service.id,
+                name: Some(service.name.clone()),
+                description: Some("New Description".to_string()),
+                host_groups: vec!["test".to_string()],
+                service_type: ServiceType::Cli,
+                cron_schedule: Cron::new(&service.cron_schedule)
+                    .parse()
+                    .expect("couldn't parse cron schedule"),
+                extra_config,
+                config: None,
+            },
+        );
+
+        super::Model::update_db_from_config(db.as_ref(), Arc::new(config))
+            .await
+            .expect("Failed to update db from config");
+
+        let service = super::Entity::find()
+            .filter(super::Column::Name.eq("local_lslah".to_string()))
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .unwrap();
+        info!("found it: {:?}", service);
+        assert_eq!(service.description, Some("New Description".to_string()));
+        assert_eq!(
+            service.extra_config.expect("No extra config was found!"),
+            json!({"extra_config" : extra_config_json})
+        )
     }
 }

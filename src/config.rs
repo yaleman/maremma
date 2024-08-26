@@ -218,7 +218,7 @@ impl Configuration {
     }
 
     #[cfg(test)]
-    pub async fn load_test_config() -> Arc<Self> {
+    pub async fn load_test_config_bare() -> Self {
         let mut res: ConfigurationParser = serde_json::from_str(
             &tokio::fs::read_to_string("maremma.example.json")
                 .await
@@ -232,8 +232,12 @@ impl Configuration {
                 Host::new(LOCAL_SERVICE_HOST_NAME.to_string(), HostCheck::None),
             );
         }
-        let res: Configuration = res.try_into().expect("Failed to convert test config");
-        Arc::new(res)
+        res.try_into().expect("Failed to convert test config")
+    }
+
+    #[cfg(test)]
+    pub async fn load_test_config() -> Arc<Self> {
+        Arc::new(Self::load_test_config_bare().await)
     }
 
     /// Getter for the frontend URL
