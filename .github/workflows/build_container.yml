@@ -115,9 +115,9 @@ jobs:
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)          
-      - name: Create manifest list
+      - name: Create manifest list (no push)
         working-directory: /tmp/digests
-        if: ${{ github.ref == 'refs/heads/main' }}
+        if: ${{ github.ref != 'refs/heads/main' }}
         run: |
           docker buildx imagetools create --dry-run $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)          
