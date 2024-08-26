@@ -3,6 +3,7 @@
 use crate::db::get_next_service_check;
 use crate::prelude::*;
 use entities::service_check::set_check_result;
+use opentelemetry::KeyValue;
 use sea_orm::prelude::*;
 use tokio::sync::Semaphore;
 
@@ -25,21 +26,10 @@ pub struct CheckResult {
 #[instrument(level = "INFO", skip(db))]
 /// Does what it says on the tin
 pub(crate) async fn run_service_check(
-    db: Arc<DatabaseConnection>,
-    service_check: entities::service_check::Model,
-    service: Option<entities::service::Model>,
+    db: &DatabaseConnection,
+    service_check: &entities::service_check::Model,
+    service: entities::service::Model,
 ) -> Result<(), Error> {
-    let service = match service {
-        Some(service) => service,
-        None => {
-            error!(
-                "Failed to get service for service check: {:?}",
-                service_check.id
-            );
-            return Err(Error::ServiceNotFound(service_check.service_id));
-        }
-    };
-
     debug!(
         "service check time! {} - {}",
         service_check.id.hyphenated(),
@@ -62,7 +52,7 @@ pub(crate) async fn run_service_check(
 
     let host: entities::host::Model = match service_check
         .find_related(entities::host::Entity)
-        .one(db.as_ref())
+        .one(db)
         .await?
     {
         Some(host) => {
@@ -108,11 +98,11 @@ pub(crate) async fn run_service_check(
     let service_check_id = service_check.id;
 
     set_check_result(
-        service_check,
+        service_check.clone(),
         &service,
         chrono::Utc::now(),
         result.status,
-        db.as_ref(),
+        db,
     )
     .await
     .map_err(|err| {
@@ -126,7 +116,7 @@ pub(crate) async fn run_service_check(
     if let Err(err) =
         entities::service_check_history::Model::from_service_check_result(service_check_id, &result)
             .into_active_model()
-            .insert(db.as_ref())
+            .insert(db)
             .await
     {
         error!(
@@ -147,7 +137,6 @@ pub async fn run_check_loop(
 ) -> Result<(), Error> {
     // Create a Counter Instrument.
 
-    use opentelemetry::KeyValue;
     let checks_run_since_startup =
         Arc::new(metrics_meter.u64_counter("checks_run_since_startup").init());
 
@@ -162,7 +151,8 @@ pub async fn run_check_loop(
         }
         match semaphore.clone().acquire_owned().await {
             Ok(permit) => {
-                if let Some((service_check, service)) = get_next_service_check(db.as_ref()).await? {
+                let db_clone2 = db.clone();
+                if let Some((service_check, service)) = get_next_service_check(&db_clone2).await? {
                     let service_check = service_check
                         .set_status(ServiceStatus::Checking, db.as_ref())
                         .await?;
@@ -170,9 +160,21 @@ pub async fn run_check_loop(
                     let db_clone = db.clone();
                     tokio::spawn(async move {
                         let sc_id = service_check.id.hyphenated().to_string();
-                        if let Err(err) = run_service_check(db_clone, service_check, service).await
+                        if let Err(err) =
+                            run_service_check(&db_clone, &service_check, service).await
                         {
                             error!("Failed to run service check: {:?}", err);
+                            let mut am = service_check.into_active_model();
+                            am.status.set_if_not_equals(ServiceStatus::Error);
+                            am.last_updated.set_if_not_equals(chrono::Utc::now());
+
+                            if let Err(err) = am.update(db_clone.as_ref()).await {
+                                error!(
+                                    "Failed to update service service_check {} check status to error: {:?}",
+                                    sc_id, err
+                                );
+                            };
+
                             checks_run_since_startup_clone.add(
                                 1,
                                 &[KeyValue::new("type", "error"), KeyValue::new("id", sc_id)],
@@ -220,7 +222,7 @@ mod tests {
             .expect("Failed to run next service check")
             .expect("Failed to find next service check");
 
-        run_service_check(db, service_check, service)
+        run_service_check(&db, &service_check, service)
             .await
             .expect("Failed to run service check");
     }

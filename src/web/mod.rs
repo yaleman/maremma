@@ -156,17 +156,19 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
             .clone()
             .ok_or_else(|| Error::Configuration("Frontend URL is required for OIDC".to_string()))?;
 
+        let application_base_url = Uri::from_str(&frontend_url)
+            .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
+
         app = app.layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
+                    // TODO: cause this to make the web server restart if it fails
                     error!("Failed to handle OIDC in middleware: {:?}", &e);
                     Redirect::to("/auth/logout").into_response()
                 }))
                 .layer(
                     OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
-                        Uri::from_str(&frontend_url).map_err(|err| {
-                            Error::Configuration(format!("Failed to parse base_url: {:?}", err))
-                        })?,
+                        application_base_url,
                         issuer,
                         client_id,
                         client_secret,
