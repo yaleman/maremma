@@ -28,12 +28,12 @@ pub struct SshService {
     /// SSH key to use, keys with passphrases are not currently supported (because of ssh-rs... so far)
     pub private_key: Option<PathBuf>,
 
+    /// If you're bad, but you have to
+    pub password: Option<String>,
+
     // TODO: add test for a non-default exit code
     /// Expected exit code (Defaults to 0)
     pub exit_code: Option<u32>,
-
-    /// If you're bad, but you have to
-    pub password: Option<String>,
 
     /// Connection timeout (seconds), not runtime-timeout
     pub timeout: Option<u32>,
@@ -219,8 +219,10 @@ mod tests {
         };
         assert_eq!(service.name, "local_lslah".to_string());
 
+        assert!(service.validate().is_ok());
+
         // test parsing broken service
-        assert!(Service {
+        let mut bad_service = Service {
             name: Some("test".to_string()),
             service_type: ServiceType::Ssh,
             id: Default::default(),
@@ -228,9 +230,36 @@ mod tests {
             host_groups: vec![],
             cron_schedule: Cron::new("@hourly").parse().expect("Failed to parse cron"),
             extra_config: HashMap::from_iter([("hello".to_string(), json!("world"))]),
-            config: None
-        }
-        .parse_config()
-        .is_err());
+            config: None,
+        };
+
+        assert!(bad_service.parse_config().is_err());
+
+        let bad_service_missing_auth: super::SshService = serde_json::from_str(
+            r#" {
+            "name": "local_lslah",
+            "service_type": "ssh",
+            "host_groups": ["local_lslah"],
+            "command_line": "ls -lah /tmp",
+            "cron_schedule": "* * * * *",
+            "username" : "testuser"
+        }"#,
+        )
+        .expect("Failed to parse bad_service_missing_auth to SshService from JSON");
+
+        assert!(bad_service_missing_auth.validate().is_err());
+
+        let good_service: super::SshService = serde_json::from_value(json!({
+            "name": "check_ntp_time",
+            "service_type": "ssh",
+            "host_groups": ["check_ntp_time"],
+            "command_line": "/usr/lib/nagios/plugins/check_ntp_time -H localhost",
+            "cron_schedule": "*/15 * * * *",
+            "username": "maremma",
+            "private_key": "/.ssh/maremma"
+        }))
+        .expect("Failed to parse good_service");
+
+        assert_eq!(good_service.validate(), Ok(()));
     }
 }
