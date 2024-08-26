@@ -20,7 +20,6 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 const CA_VALID_DAYS: u32 = 30;
-const CERT_VALID_DAYS: u32 = 5;
 
 // Basing minimums off https://www.keylength.com setting "year" to 2030 - tested as at 2023-09-25
 //
@@ -325,6 +324,8 @@ pub(crate) fn build_cert(
     ca_handle: &CaHandle,
     key_type: Option<KeyType>,
     key_bits: Option<u64>,
+    issue_time: i64,
+    expiry_time: i64,
 ) -> Result<CertHandle, ErrorStack> {
     let key_type = key_type.unwrap_or_default();
     let int_key = gen_private_key(&key_type, key_bits)?;
@@ -357,9 +358,9 @@ pub(crate) fn build_cert(
     cert_builder.set_subject_name(req.subject_name())?;
     cert_builder.set_issuer_name(ca_handle.cert.subject_name())?;
 
-    let not_before = asn1::Asn1Time::days_from_now(0)?;
+    let not_before = asn1::Asn1Time::from_unix(issue_time)?;
     cert_builder.set_not_before(&not_before)?;
-    let not_after = asn1::Asn1Time::days_from_now(CERT_VALID_DAYS)?;
+    let not_after = asn1::Asn1Time::from_unix(expiry_time)?;
     cert_builder.set_not_after(&not_after)?;
 
     cert_builder.append_extension(BasicConstraints::new().build()?)?;
@@ -484,7 +485,14 @@ fn test_build_cert() {
 
     let ca_handle = build_ca(Some(ca_config)).expect("Failed to build CA");
 
-    let cert = build_cert("test.example.com", &ca_handle, None, None);
+    let cert = build_cert(
+        "test.example.com",
+        &ca_handle,
+        None,
+        None,
+        chrono::Utc::now().timestamp() - 86400,
+        chrono::Utc::now().timestamp() - 3600,
+    );
 
     assert!(cert.is_ok());
 }
