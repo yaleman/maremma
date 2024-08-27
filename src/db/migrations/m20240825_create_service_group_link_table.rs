@@ -117,7 +117,6 @@ impl MigrationTrait for Migration {
                         sglam.insert(db).await?;
                     }
                 } else {
-                    // TODO: maybe create the host group? it really should be there already
                     return Err(DbErr::Custom(format!(
                         "Couldn't find the host group {} in the database?",
                         host_group

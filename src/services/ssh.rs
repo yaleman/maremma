@@ -194,6 +194,7 @@ mod tests {
             name: "test".to_string(),
             hostname: hostname.clone(),
             check: crate::host::HostCheck::None,
+            config: json!({}),
         };
 
         let res = service.run(&host).await;

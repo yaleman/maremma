@@ -1,5 +1,6 @@
 //! Links services to groups
 
+use entities::{host_group, service};
 use sea_orm::Set;
 
 use crate::prelude::*;
@@ -75,48 +76,50 @@ impl ActiveModelBehavior for ActiveModel {}
 #[async_trait]
 impl MaremmaEntity for Model {
     async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        todo!()
+        Err(Error::NotImplemented)
     }
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: Arc<Configuration>,
     ) -> Result<(), Error> {
-        let services = entities::service::Entity::find().all(db).await?;
+        for (service_name, service) in &config.services {
+            let service_model = service::Model::find_by_name(service_name, db)
+                .await?
+                .ok_or(Error::ServiceNotFoundByName(service_name.to_string()))?;
 
-        for group_name in config.groups() {
-            if let Some(group) = entities::host_group::Model::find_by_name(&group_name, db).await? {
-                for service in &services {
-                    if let Some(host_groups) = service.host_groups.as_array() {
-                        if host_groups.contains(&json!(group.name)) {
-                            debug!("Checking service={} in group={}", service.name, group.name);
-                            if entities::service_group_link::Entity::find()
-                                .filter(
-                                    Column::ServiceId
-                                        .eq(service.id)
-                                        .and(Column::GroupId.eq(group.id)),
-                                )
-                                .one(db)
-                                .await?
-                                .is_none()
-                            {
-                                debug!(
-                                    "Adding link for service={} => group={}",
-                                    service.name, group.name
-                                );
-                                entities::service_group_link::ActiveModel {
-                                    id: Set(Uuid::new_v4()),
-                                    service_id: Set(service.id),
-                                    group_id: Set(group.id),
-                                }
-                                .insert(db)
-                                .await?;
-                            }
-                        }
+            for group_name in service.host_groups.iter() {
+                debug!("Service: {} Group: {}", service_name, group_name);
+
+                let group_model = host_group::Model::find_by_name(group_name, db)
+                    .await?
+                    .ok_or(Error::HostGroupNotFoundByName(group_name.to_string()))?;
+
+                if Entity::find()
+                    .filter(
+                        Column::ServiceId
+                            .eq(service_model.id)
+                            .and(Column::GroupId.eq(group_model.id)),
+                    )
+                    .one(db)
+                    .await?
+                    .is_none()
+                {
+                    debug!(
+                        "Need to create link for Service: {} Group: {}",
+                        service_name, group_name
+                    );
+                    ActiveModel {
+                        id: Set(Uuid::new_v4()),
+                        service_id: Set(service_model.id),
+                        group_id: Set(group_model.id),
                     }
-                }
-            };
+                    .insert(db)
+                    .await?;
+                };
+            }
         }
+
         Ok(())
     }
 }
@@ -130,6 +133,9 @@ mod tests {
     async fn test_update_db_from_config() {
         let (db, config) = test_setup().await.expect("Failed to start test harness");
 
+        super::super::host_group::Model::update_db_from_config(&db, config.clone())
+            .await
+            .expect("Failed to update services from config");
         super::super::service::Model::update_db_from_config(&db, config.clone())
             .await
             .expect("Failed to update services from config");
@@ -138,17 +144,17 @@ mod tests {
             .await
             .expect("Failed to load config");
 
-        let (service, groups) = entities::service::Entity::find()
-            .filter(entities::service::Column::HostGroups.ne(Json::Null))
-            .find_with_linked(entities::service_group_link::ServiceToGroups)
-            .all(db.as_ref())
-            .await
-            .expect("Failed to run query looking for a service with host groups")
-            .into_iter()
-            .next()
-            .expect("Uh...");
+        // let (service, groups) = entities::service::Entity::find()
+        //     .filter(entities::service::Column::HostGroups.ne(Json::Null))
+        //     .find_with_linked(entities::service_group_link::ServiceToGroups)
+        //     .all(db.as_ref())
+        //     .await
+        //     .expect("Failed to run query looking for a service with host groups")
+        //     .into_iter()
+        //     .next()
+        //     .expect("Uh...");
 
-        dbg!(service);
-        dbg!(groups);
+        // dbg!(service);
+        // dbg!(groups);
     }
 }

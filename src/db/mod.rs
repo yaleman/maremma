@@ -2,7 +2,7 @@
 
 use crate::prelude::*;
 use migrator::Migrator;
-use sea_orm::{Database, DatabaseConnection, QueryOrder, TransactionTrait};
+use sea_orm::{Database, DatabaseConnection, QueryOrder, QuerySelect, TransactionTrait};
 use sea_orm_migration::prelude::*;
 use tracing::{info, instrument};
 
@@ -77,6 +77,15 @@ pub async fn update_db_from_config(
         })?;
     info!("Updated services");
 
+    entities::service_group_link::Model::update_db_from_config(db, config.clone())
+        .await
+        .inspect_err(|err| {
+            error!(
+                "Failed to update service_group_links DB from config: {:?}",
+                err
+            );
+        })?;
+
     entities::service_check::Model::update_db_from_config(db, config.clone())
         .await
         .inspect_err(|err| {
@@ -90,27 +99,19 @@ pub async fn update_db_from_config(
 /// Get the next service check to run, returns
 pub async fn get_next_service_check(
     db: &DatabaseConnection,
-) -> Result<
-    Option<(
-        entities::service_check::Model,
-        Option<entities::service::Model>,
-    )>,
-    Error,
-> {
+) -> Result<Option<(entities::service_check::Model, entities::service::Model)>, Error> {
     let base_query =
-        entities::service_check::Entity::find().find_also_related(entities::service::Entity);
+        entities::service_check::Entity::find().find_with_related(entities::service::Entity);
 
-    let urgent = base_query
+    let mut res = base_query
         .clone()
         .filter(entities::service_check::Column::Status.eq(ServiceStatus::Urgent))
         // oldest-last-updated is the most urgent
         .order_by_asc(entities::service_check::Column::LastUpdated)
-        .one(db)
-        .await?;
-
-    if let Some(row) = urgent {
-        return Ok(Some(row));
-    }
+        .all(db)
+        .await?
+        .into_iter()
+        .next();
 
     // all others we just care about:
     // - the next_check time
@@ -121,17 +122,32 @@ pub async fn get_next_service_check(
                 .ne(ServiceStatus::Disabled)
                 .and(entities::service_check::Column::Status.ne(ServiceStatus::Checking))
                 .and(entities::service_check::Column::NextCheck.lte(chrono::Utc::now())),
-        );
+        )
+        .distinct();
 
     // prioritize pending
-    if let Some(res) = base_query
-        .clone()
-        .filter(entities::service_check::Column::Status.eq(ServiceStatus::Pending))
-        .one(db)
-        .await?
-    {
-        return Ok(Some(res));
+    if res.is_none() {
+        if let Some(row) = base_query
+            .clone()
+            .filter(entities::service_check::Column::Status.eq(ServiceStatus::Pending))
+            .all(db)
+            .await?
+            .into_iter()
+            .next()
+        {
+            res = Some(row)
+        } else {
+            res = base_query.all(db).await?.into_iter().next();
+        }
     }
 
-    Ok(base_query.one(db).await?.into_iter().next())
+    match res {
+        Some((service_check, mut services)) => {
+            let service = services.pop().ok_or_else(|| {
+                Error::Generic("Failed to get service for service check".to_string())
+            })?;
+            Ok(Some((service_check, service)))
+        }
+        None => Ok(None),
+    }
 }

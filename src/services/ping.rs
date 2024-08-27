@@ -58,6 +58,7 @@ mod tests {
             name: "test".to_string(),
             hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
+            config: json!({}),
         };
         let res = test_service.run(&host).await;
         dbg!(&res);

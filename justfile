@@ -2,6 +2,14 @@
 
 default: check
 
+docker_publish:
+    docker buildx build \
+        --tag ghcr.io/yaleman/maremma:latest \
+        --label org.opencontainers.image.source=https://github.com/yaleman/maremma \
+        --label org.opencontainers.image.revision=$(git rev-parse HEAD) \
+        --label org.opencontainers.image.created=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+        .
+
 check: codespell
     cargo clippy
     cargo test

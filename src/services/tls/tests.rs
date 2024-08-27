@@ -1,6 +1,7 @@
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::db::entities::host::test_host;
 use crate::db::tests::test_setup;
 use crate::services::tls::TlsService;
 
@@ -19,10 +20,9 @@ async fn test_working_tls_service() {
         timeout: None,
     };
     let host: entities::host::Model = entities::host::Model {
-        name: "example.com".to_string(),
         check: crate::host::HostCheck::None,
-        id: Uuid::new_v4(),
         hostname: "example.com".to_string(),
+        ..test_host()
     };
     let result = service.run(&host).await;
     dbg!(&result);
@@ -49,8 +49,8 @@ async fn test_expired_tls_service() {
     let host = entities::host::Model {
         name: "expired.badssl.com".to_string(),
         check: crate::host::HostCheck::None,
-        id: Uuid::new_v4(),
         hostname: "expired.badssl.com".to_string(),
+        ..test_host()
     };
     let result = service.run(&host).await;
     dbg!(&result);
@@ -103,6 +103,7 @@ async fn test_nxdomain() {
         check: crate::host::HostCheck::None,
         id: Uuid::new_v4(),
         hostname: bad_hostname,
+        config: json!({}),
     };
     let result = service.run(&host).await;
     dbg!(&result);
@@ -129,6 +130,7 @@ async fn test_invalid_hostname() {
         check: crate::host::HostCheck::None,
         id: Uuid::new_v4(),
         hostname: bad_hostname,
+        config: json!({}),
     };
     let result = service.run(&host).await;
     dbg!(&result);
@@ -214,6 +216,7 @@ async fn test_zero_port() {
         check: crate::host::HostCheck::None,
         id: Uuid::new_v4(),
         hostname: bad_hostname,
+        config: json!({}),
     };
     let result = service.run(&host).await;
     dbg!(&result);
@@ -240,6 +243,7 @@ async fn test_timeout() {
         check: crate::host::HostCheck::None,
         id: Uuid::new_v4(),
         hostname: bad_hostname,
+        config: json!({}),
     };
     let result = service.run(&host).await;
     dbg!(&result);

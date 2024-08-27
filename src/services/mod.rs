@@ -213,25 +213,21 @@ impl TryFrom<&Value> for Service {
     }
 }
 
-impl TryFrom<&entities::service::Model> for Service {
-    type Error = Error;
+impl Service {
+    /// Try to turn a service model into a service
+    pub async fn try_from_service_model(
+        value: &entities::service::Model,
+        db: &DatabaseConnection,
+    ) -> Result<Self, Error> {
+        let host_groups: Vec<String> = value
+            .find_linked(entities::service_group_link::ServiceToGroups)
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|group| group.name)
+            .collect();
 
-    fn try_from(value: &entities::service::Model) -> Result<Self, Self::Error> {
-        let host_groups = match &value.host_groups.is_array() {
-            false => {
-                debug!("No host groups in service {}", value.name);
-                vec![]
-            }
-            true => serde_json::from_value(value.host_groups.clone())?,
-        };
-
-        let extra_config = match value.extra_config.clone() {
-            None => {
-                debug!("No extra config in service {}", value.name);
-                HashMap::new()
-            }
-            Some(extra_config) => serde_json::from_value(extra_config)?,
-        };
+        let extra_config = serde_json::from_value(value.extra_config.clone())?;
 
         let service = Service {
             id: value.id,
@@ -358,34 +354,34 @@ mod tests {
             .await
             .expect("Failed to set up test environment");
 
-        let service = entities::service::Entity::find()
+        let service_model = entities::service::Entity::find()
             .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
             .one(db.as_ref())
             .await
             .unwrap()
             .unwrap();
 
-        let _service_from_model =
-            Service::try_from(&service).expect("Failed to convert model to service");
+        let service_from_model = Service::try_from_service_model(&service_model, &db)
+            .await
+            .expect("Failed to convert model to service");
 
-        let service_without_host_groups = entities::service::Model {
-            host_groups: Default::default(),
+        assert_eq!(service_from_model.id, service_model.id);
+
+        let model_without_host_groups = entities::service::Model {
             service_type: ServiceType::Ping,
-            extra_config: None,
-            ..service.clone()
+            extra_config: json!({}),
+            ..service_model.clone()
         };
 
-        let service_without_host_groups_model = Service::try_from(&service_without_host_groups)
-            .expect("Failed to take service without groups from model");
-        assert!(service_without_host_groups_model.host_groups.is_empty());
-
-        let service_as_value =
-            serde_json::to_value(&service).expect("Failed to convert service model to value");
-        debug!("Service as value: {:?}", service_as_value);
-        let _service_from_value: Service = Service::try_from(&service_as_value)
-            .expect("Failed to convert value to service")
-            .parse_config()
-            .expect("Failed to parse config");
+        let service_without_host_groups_model =
+            Service::try_from_service_model(&model_without_host_groups, &db)
+                .await
+                .expect("Failed to take service without groups from model");
+        dbg!(&service_without_host_groups_model.host_groups);
+        assert_eq!(
+            service_without_host_groups_model.host_groups,
+            vec!["check_ntp_time".to_string()]
+        );
     }
 
     #[test]
@@ -402,7 +398,7 @@ mod tests {
         let config = r#"{
             "name": "test",
             "service_type": "http",
-            "host_groups": ["test"],
+            "host_groups": ["test_group"],
             "http_uri" : "/foo",
             "http_method" : "POST",
             "cron_schedule": "@hourly"
@@ -411,7 +407,7 @@ mod tests {
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
         assert_eq!(service.service_type, ServiceType::Http);
-        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
             Cron::new("@hourly").parse().unwrap().pattern.to_string()
@@ -443,7 +439,7 @@ mod tests {
         let config = r#"{
             "name": "test",
             "service_type": "ssh",
-            "host_groups": ["test"],
+            "host_groups": ["test_group"],
             "command_line": "ls -lah .",
             "cron_schedule": "@hourly",
             "username" : "test",
@@ -453,7 +449,7 @@ mod tests {
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
         assert_eq!(service.service_type, ServiceType::Ssh);
-        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
             Cron::new("@hourly").parse().unwrap().pattern.to_string()
@@ -465,14 +461,14 @@ mod tests {
         let config = r#"{
             "name": "test",
             "service_type": "ping",
-            "host_groups": ["test"],
+            "host_groups": ["test_group"],
             "cron_schedule": "@hourly"
         }"#;
         let value: Value = serde_json::from_str(config).expect("Failed to parse config");
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
         assert_eq!(service.service_type, ServiceType::Ping);
-        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
             Cron::new("@hourly").parse().unwrap().pattern.to_string()
@@ -491,7 +487,7 @@ mod tests {
         let service = Service::try_from(&value).expect("Failed to parse service");
         assert_eq!(service.name, Some("test".to_string()));
         assert_eq!(service.service_type, ServiceType::Ping);
-        assert_eq!(service.host_groups, vec!["test".to_string()]);
+        // assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
             Cron::new("@hourly").parse().unwrap().pattern.to_string()

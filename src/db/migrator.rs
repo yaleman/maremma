@@ -15,6 +15,9 @@ impl MigratorTrait for Migrator {
             Box::new(super::migrations::m20240810_create_user_table::Migration),
             Box::new(super::migrations::m20240822_create_session_table::Migration),
             Box::new(super::migrations::m20240825_create_service_group_link_table::Migration),
+            Box::new(super::migrations::m20240825_drop_service_host_groups::Migration),
+            Box::new(super::migrations::m20240827_add_host_config_column::Migration),
+            // Box::new(super::migrations::m20240827_add_fk_host_group_members::Migration),
         ]
     }
 }

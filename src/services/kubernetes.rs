@@ -50,6 +50,8 @@ impl ServiceTrait for KubernetesService {
 
 #[cfg(test)]
 mod tests {
+    use entities::host::test_host;
+
     use crate::db::tests::test_setup;
     use crate::host::kube::KubeHost;
 
@@ -68,11 +70,9 @@ mod tests {
         };
 
         let host = Host {
-            id: None,
             check: crate::host::HostCheck::Kubernetes,
             hostname: Some(hostname.clone()),
-            host_groups: vec![],
-            extra: Default::default(),
+            ..test_host().into()
         };
         let kubehost = KubeHost::try_from(&host).expect("Failed to convert host to kubehost");
         kubehost
@@ -92,6 +92,7 @@ mod tests {
                 name: "test host".to_string(),
                 hostname,
                 check: crate::host::HostCheck::None,
+                config: json!({}),
             })
             .await
             .unwrap();

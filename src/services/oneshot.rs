@@ -68,6 +68,7 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result
         name: cmd.hostname.clone(),
         hostname: cmd.hostname.clone(),
         check: crate::host::HostCheck::None,
+        config: json!({}),
     };
     #[cfg(not(test))]
     match service.run(&host).await {
