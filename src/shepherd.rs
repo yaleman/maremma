@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use croner::Cron;
 use sea_orm::prelude::Expr;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::config::Configuration;
 use crate::constants::{SESSION_EXPIRY_WINDOW_HOURS, STUCK_CHECK_MINUTES};
@@ -15,6 +15,7 @@ use crate::db::entities;
 use crate::db::entities::service_check::Column;
 use crate::errors::Error;
 use crate::prelude::ServiceStatus;
+use crate::web::controller::WebServerControl;
 
 struct CronTask {
     cron: Cron,
@@ -93,10 +94,88 @@ impl CronTaskTrait for SessionCleanTask {
     }
 }
 
+/// Task to check if any certificates have changed
+struct CertReloaderTask {
+    tx: tokio::sync::mpsc::Sender<WebServerControl>,
+    config: Arc<Configuration>,
+    cert_time: DateTime<Utc>,
+    key_time: DateTime<Utc>,
+}
+
+fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
+    let file = match file.is_symlink() {
+        true => file.read_link()?,
+        false => file.to_path_buf(),
+    };
+
+    let metadata = file.metadata()?;
+    let modified = metadata.modified()?;
+    Ok(DateTime::<Utc>::from(modified))
+}
+
+fn get_file_times(config: &Configuration) -> Result<(DateTime<Utc>, DateTime<Utc>), Error> {
+    let cert_time = get_file_time(&config.cert_file)?;
+    let key_time = get_file_time(&config.cert_key)?;
+    Ok((cert_time, key_time))
+}
+
+impl CertReloaderTask {
+    async fn new(
+        tx: tokio::sync::mpsc::Sender<WebServerControl>,
+        config: Arc<Configuration>,
+    ) -> Result<Self, Error> {
+        // get the time for the cert
+        if !config.cert_file.exists() {
+            return Err(Error::Configuration(format!(
+                "Couldn't find cert file at {}",
+                config.cert_file.display()
+            )));
+        }
+        if !config.cert_key.exists() {
+            return Err(Error::Configuration(format!(
+                "Couldn't find cert key file at {}",
+                config.cert_key.display()
+            )));
+        }
+
+        let (cert_time, key_time) = get_file_times(&config)?;
+
+        Ok(Self {
+            tx,
+            config,
+            cert_time,
+            key_time,
+        })
+    }
+}
+
+#[async_trait]
+impl CronTaskTrait for CertReloaderTask {
+    async fn run(&mut self, _db: &DatabaseConnection) -> Result<(), Error> {
+        let (cert_time, key_time) = get_file_times(&self.config)?;
+
+        if cert_time != self.cert_time || key_time != self.key_time {
+            info!("TLS cert or key has changed, reloading...");
+            self.cert_time = cert_time;
+            self.key_time = key_time;
+            if self.tx.send(WebServerControl::Reload).await.is_err() {
+                error!("Tried to tell the web server to reload but couldn't!");
+                return Err(Error::IoError(
+                    "Tried to tell the web server to reload but couldn't!".to_string(),
+                ));
+            }
+        }
+        self.cert_time = cert_time;
+        self.key_time = key_time;
+        Ok(())
+    }
+}
+
 /// The shepherd wanders around making sure things are in order.
 pub async fn shepherd(
     db: Arc<DatabaseConnection>,
-    _config: Arc<Configuration>,
+    config: Arc<Configuration>,
+    web_tx: tokio::sync::mpsc::Sender<WebServerControl>,
 ) -> Result<(), Error> {
     // run the clean_up_checking loop every x minutes
     let mut service_check_clean = CronTask {
@@ -112,11 +191,18 @@ pub async fn shepherd(
         task: Box::new(SessionCleanTask {}),
     };
 
+    let mut check_cert_changed = CronTask {
+        cron: Cron::new("* * * * *").parse()?,
+        last_run: Utc::now(),
+        task: Box::new(CertReloaderTask::new(web_tx, config.clone()).await?),
+    };
+
     loop {
         debug!("The shepherd is checking the herd...");
 
         service_check_clean.run_task(db.as_ref()).await?;
         session_cleaner.run_task(db.as_ref()).await?;
+        check_cert_changed.run_task(db.as_ref()).await?;
 
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
@@ -161,9 +247,11 @@ mod tests {
     async fn test_shepherd() {
         let (db, config) = test_setup().await.expect("Failed to set up tests");
 
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+
         let res = tokio::time::timeout(
             std::time::Duration::from_secs(1),
-            super::shepherd(db, config),
+            super::shepherd(db, config, tx.clone()),
         )
         .await;
 
