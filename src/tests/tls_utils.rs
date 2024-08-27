@@ -205,7 +205,6 @@ pub(crate) fn gen_private_key(
             pkey::PKey::from_rsa(rsa)
         }
         KeyType::Ec => {
-            // TODO: take key bitlength and use it for the curve group, somehow?
             let ecgroup = get_ec_group()?;
             let eckey = EcKey::generate(&ecgroup)?;
             pkey::PKey::from_ec_key(eckey)

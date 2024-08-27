@@ -1,4 +1,10 @@
 //! Web server related functionality
+//!
+
+pub(crate) mod controller;
+pub(crate) mod oidc;
+pub(crate) mod views;
+use controller::WebServerControl;
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -15,6 +21,9 @@ use axum::routing::{get, post};
 use axum::Router;
 use axum_oidc::error::MiddlewareError;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
+use axum_server::bind_rustls;
+use axum_server::tls_rustls::RustlsConfig;
+use tokio::sync::mpsc::Receiver;
 
 use prometheus::Registry;
 use tower::ServiceBuilder;
@@ -27,9 +36,6 @@ use tower_sessions::{
 use views::handler_404;
 use views::host_group::{host_group, host_group_member_delete, host_groups};
 use views::service_check::{service_check_delete, service_check_get};
-
-pub(crate) mod oidc;
-pub(crate) mod views;
 
 #[derive(Clone)]
 pub(crate) struct WebState {
@@ -205,31 +211,8 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
     Ok(app.with_state(state))
 }
 
-#[cfg(not(tarpaulin_include))]
-/// Starts up the web server
-pub async fn run_web_server(
-    configuration: Arc<Configuration>,
-    db: Arc<DatabaseConnection>,
-    registry: Arc<Registry>,
-) -> Result<(), Error> {
-    use axum_server::bind_rustls;
-    use axum_server::tls_rustls::RustlsConfig;
-
-    let app = build_app(
-        WebState::new(db, &configuration, Some(registry)),
-        &configuration,
-    )
-    .await?;
-
-    let frontend_url = configuration.frontend_url();
-
-    info!(
-        "Starting web server on {} (listen address is {}",
-        &frontend_url,
-        configuration.listen_addr()
-    );
-    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-
+/// Start and run the web server
+pub async fn start_web_server(configuration: &Configuration, app: Router) -> Result<(), Error> {
     if !configuration.cert_file.exists() {
         return Err(Error::Generic(format!(
             "TLS is enabled but cert_file {:?} does not exist",
@@ -262,6 +245,59 @@ pub async fn run_web_server(
     .serve(app.into_make_service())
     .await
     .map_err(|err| Error::Generic(format!("Web server failed: {:?}", err)))
+}
+
+#[cfg(not(tarpaulin_include))]
+/// Starts up the web server
+pub async fn run_web_server(
+    configuration: Arc<Configuration>,
+    db: Arc<DatabaseConnection>,
+    registry: Arc<Registry>,
+    mut web_server_controller: Receiver<WebServerControl>,
+) -> Result<(), Error> {
+    let app = build_app(
+        WebState::new(db, &configuration, Some(registry)),
+        &configuration,
+    )
+    .await?;
+
+    let frontend_url = configuration.frontend_url();
+
+    info!(
+        "Starting web server on {} (listen address is {}",
+        &frontend_url,
+        configuration.listen_addr()
+    );
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+    loop {
+        tokio::select! {
+            server_result = start_web_server(&configuration, app.clone()) => {
+                match server_result {Ok(_) => {
+                    error!("Web server exited cleanly");
+                },
+                Err(err) => {
+                    error!("Web server failed: {:?}", err);
+                    return Err(err)
+                }}
+            },
+            server_message = web_server_controller.recv() => {
+                match server_message {
+                    Some(WebServerControl::Stop) => {
+                        info!("Web server stopping");
+                        return Ok(());
+                    },
+                    Some(WebServerControl::Reload) => {
+                        info!("Web server reloading");
+                    },
+                    None => {
+                        error!("Web server controller channel closed");
+                        return Ok(())
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

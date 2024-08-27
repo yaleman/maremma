@@ -51,14 +51,16 @@ async fn main() -> Result<(), ExitCode> {
             // Create a meter from the above MeterProvider.
             let metrics_meter = Arc::new(provider.meter("maremma"));
 
+            let (web_tx, web_rx) = tokio::sync::mpsc::channel(1);
+
             tokio::select! {
                 check_loop_result = run_check_loop(db.clone(), config.max_concurrent_checks, metrics_meter.clone()) => {
                     error!("Check loop bailed: {:?}", check_loop_result);
                 },
-                web_server_result = run_web_server(config.clone(), db.clone(), Arc::new(registry)) => {
+                web_server_result = run_web_server(config.clone(), db.clone(), Arc::new(registry), web_rx) => {
                     error!("Web server bailed: {:?}", web_server_result);
                 },
-                shepherd_result = shepherd(db.clone(), config.clone()) => {
+                shepherd_result = shepherd(db.clone(), config.clone(), web_tx) => {
                     error!("Shepherd bailed: {:?}", shepherd_result);
                 }
 

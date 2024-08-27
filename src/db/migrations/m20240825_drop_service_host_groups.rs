@@ -28,8 +28,6 @@ impl MigrationTrait for Migration {
 
     // Define how to rollback this migration
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // TODO: reverse the migration
-
         manager
             .alter_table(
                 Table::alter()
