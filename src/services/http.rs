@@ -167,8 +167,7 @@ impl HttpService {
                 debug!("Found {} in body", expected_string);
             }
         } else {
-            #[cfg(debug_assertions)]
-            debug!("{}", body);
+            trace!("{}", body);
         }
         Ok(("OK".to_string(), ServiceStatus::Ok))
     }
