@@ -11,6 +11,7 @@ pub struct Model {
     pub name: String,
     pub hostname: String,
     pub check: crate::host::HostCheck,
+    pub config: Json,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -144,6 +145,7 @@ impl MaremmaEntity for Model {
                         name: name.to_owned(),
                         hostname: host.hostname.clone().unwrap_or(name.to_string()),
                         check: host.check.clone(),
+                        config: json!(host.config.clone()),
                     }
                     .into_active_model();
                     warn!("Creating Host {:?}", new_host.insert(db).await?);
@@ -161,6 +163,7 @@ pub fn test_host() -> Model {
         name: "test_host_name".to_string(),
         hostname: "test_host_hostname".to_string(),
         check: crate::host::HostCheck::Ping,
+        config: json!({}),
     }
 }
 

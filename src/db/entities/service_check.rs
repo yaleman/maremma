@@ -1,9 +1,10 @@
-use entities::service_check_history;
+use entities::host::test_host;
+use entities::host_group;
 use sea_orm::{FromQueryResult, JoinType, QuerySelect, Set, TryIntoModel};
 
 use crate::prelude::*;
 
-use super::{host, host_group, host_group_members, service};
+use super::{host, host_group_members, service, service_check_history, service_group_link};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, DeriveEntityModel, Deserialize, Serialize)]
 #[sea_orm(table_name = "service_check")]
@@ -129,12 +130,15 @@ async fn update_local_services_from_db(
     {
         Some(val) => val,
         None => {
+            // local host
             host::Entity::insert(
                 host::Model {
-                    id: Uuid::new_v4(),
+                    // setting it to all-zeros makes it clearer it's special
+                    id: Uuid::from_u128(0),
                     name: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
                     hostname: crate::LOCAL_SERVICE_HOST_NAME.to_string(),
                     check: crate::host::HostCheck::None,
+                    ..test_host()
                 }
                 .into_active_model(),
             )
@@ -190,9 +194,12 @@ async fn update_local_services_from_db(
 #[async_trait]
 impl MaremmaEntity for Model {
     async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        todo!()
+        Err(Error::NotImplemented)
     }
-    /// This updates all the service checks. It really needs to be run after you've added all the hosts and services and host_groups!
+
+    /// This updates all the service checks.
+    ///
+    /// It needs to be run AFTER you've added all the hosts and services and host_groups!
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: Arc<Configuration>,
@@ -204,7 +211,10 @@ impl MaremmaEntity for Model {
 
         info!("Starting remote updates...");
         // now we're doing the other services!
-        let services = service::Entity::find().all(db).await?;
+        let services: Vec<(service::Model, Vec<host_group::Model>)> = service::Entity::find()
+            .find_with_linked(service_group_link::ServiceToGroups)
+            .all(db)
+            .await?;
 
         if services.is_empty() {
             error!("No services found, skipping service check update");
@@ -213,62 +223,25 @@ impl MaremmaEntity for Model {
             debug!("Found {} services", services.len());
         }
 
-        for service in services.into_iter() {
+        for (service, host_groups) in services.into_iter() {
             let service_id = service.id;
 
             debug!("Checking groups for service: {}", service.name);
-            let host_groups: Vec<String> = match serde_json::from_value(service.host_groups) {
-                Ok(host_groups) => host_groups,
-                Err(err) => {
-                    error!(
-                        "Failed to parse host groups for service {}: {}",
-                        service.name, err
-                    );
-                    continue;
-                }
-            };
             for host_group in host_groups {
-                info!("Service {} checking group {}", service.name, host_group);
+                debug!(
+                    "Service {} checking group {}",
+                    service.name, host_group.name
+                );
                 // get the group data
-                let group = match host_group::Model::find_by_name(&host_group, db).await {
-                    Ok(Some(group)) => group,
-                    Ok(None) => {
-                        error!("Host group {} not found, this should already have been sorted by the update_db_from_config for host_groups", host_group);
-                        continue;
-                    }
-                    Err(err) => {
-                        error!("DB Error finding host group {}: {:?}", host_group, err);
-                        continue;
-                    }
-                };
 
-                let host_group_members = match host_group_members::Entity::find()
-                    .filter(host_group_members::Column::GroupId.eq(group.id))
+                let host_group_members = host_group
+                    .find_linked(host_group_members::GroupToHosts)
                     .all(db)
-                    .await
-                {
-                    Ok(hosts) => hosts,
-                    Err(err) => {
-                        error!("DB Error finding hosts for group {}: {}", host_group, err);
-                        return Err(err.into());
-                    }
-                };
+                    .await?;
                 for host_group_member in host_group_members {
-                    // let's just check we should have that member
-                    let host = host::Entity::find_by_id(host_group_member.host_id)
-                        .one(db)
-                        .await?;
-                    if host.is_none() {
-                        error!(
-                            "Host group member {} not found, this should already have been sorted by the update_db_from_config for host",
-                            host_group_member.host_id
-                        );
-                        continue;
-                    }
-
-                    // check we have the service check
+                    // check if we have the service check
                     match Entity::find()
-                        .filter(Column::HostId.eq(host_group_member.host_id))
+                        .filter(Column::HostId.eq(host_group_member.id))
                         .filter(Column::ServiceId.eq(service.id))
                         .one(db)
                         .await
@@ -282,7 +255,7 @@ impl MaremmaEntity for Model {
                             let model = ActiveModel {
                                 id: Set(Uuid::new_v4()),
                                 service_id: Set(service_id),
-                                host_id: Set(host_group_member.host_id),
+                                host_id: Set(host_group_member.id),
                                 status: Set(ServiceStatus::Unknown),
                                 last_check: Set(chrono::Utc::now()),
                                 next_check: Set(chrono::Utc::now()),

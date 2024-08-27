@@ -36,7 +36,7 @@ pub(crate) async fn run_service_check(
         service.name
     );
 
-    let check: Service = match (&service).try_into() {
+    let check: Service = match Service::try_from_service_model(&service, db).await {
         Ok(check) => check,
         Err(err) => {
             error!(
@@ -210,18 +210,61 @@ pub async fn run_check_loop(
 
 #[cfg(test)]
 mod tests {
+    use entities::service_check;
+
     use super::*;
     use crate::db::tests::test_setup;
 
     #[tokio::test]
     async fn test_run_service_check() {
         let (db, _config) = test_setup().await.expect("Failed to setup test");
-
-        let (service_check, service) = get_next_service_check(db.as_ref())
+        let service = entities::service::Entity::find()
+            .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
+            .one(db.as_ref())
             .await
-            .expect("Failed to run next service check")
-            .expect("Failed to find next service check");
+            .expect("Failed to query ping service")
+            .expect("Failed to find ping service");
 
+        let service_check = service_check::Entity::find()
+            .filter(service_check::Column::ServiceId.eq(service.id))
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query service check")
+            .expect("Failed to find service check");
+
+        run_service_check(&db, &service_check, service)
+            .await
+            .expect("Failed to run service check");
+    }
+
+    #[tokio::test]
+    async fn test_run_pending_service_check() {
+        let (db, _config) = test_setup().await.expect("Failed to setup test");
+
+        service_check::Entity::update_many()
+            .col_expr(
+                service_check::Column::Status,
+                Expr::value(ServiceStatus::Pending),
+            )
+            .exec(db.as_ref())
+            .await
+            .expect("Failed to update service checks to pending");
+
+        let service = entities::service::Entity::find()
+            .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query ping service")
+            .expect("Failed to find ping service");
+
+        let service_check = service_check::Entity::find()
+            .filter(service_check::Column::ServiceId.eq(service.id))
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query service check")
+            .expect("Failed to find service check");
+
+        dbg!(&service, &service_check);
         run_service_check(&db, &service_check, service)
             .await
             .expect("Failed to run service check");

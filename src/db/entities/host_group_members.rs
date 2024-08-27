@@ -104,7 +104,7 @@ impl Entity {
 #[async_trait]
 impl MaremmaEntity for Model {
     async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        todo!()
+        Err(Error::NotImplemented)
     }
 
     async fn update_db_from_config(

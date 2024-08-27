@@ -28,7 +28,9 @@
             "service_type": "ssh",
             "host_groups": ["check_ntp_time"],
             "command_line": "/usr/lib/nagios/plugins/check_ntp_time -H localhost",
-            "cron_schedule": "* * * * *"
+            "cron_schedule": "* * * * *",
+            "username": "maremma_check",
+            "private_key": "/dev/null"
         },
         "check_tls": {
             "service_type": "tls",

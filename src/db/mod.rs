@@ -77,6 +77,15 @@ pub async fn update_db_from_config(
         })?;
     info!("Updated services");
 
+    entities::service_group_link::Model::update_db_from_config(db, config.clone())
+        .await
+        .inspect_err(|err| {
+            error!(
+                "Failed to update service_group_links DB from config: {:?}",
+                err
+            );
+        })?;
+
     entities::service_check::Model::update_db_from_config(db, config.clone())
         .await
         .inspect_err(|err| {

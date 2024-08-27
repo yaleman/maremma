@@ -81,6 +81,8 @@ impl ServiceTrait for CliService {
 
 #[cfg(test)]
 mod tests {
+    use entities::host::test_host;
+
     use crate::prelude::*;
 
     #[tokio::test]
@@ -92,10 +94,8 @@ mod tests {
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
         };
         let host = entities::host::Model {
-            id: Uuid::new_v4(),
-            name: "test".to_string(),
-            hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
+            ..test_host()
         };
 
         let res = service.run(&host).await;

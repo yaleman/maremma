@@ -33,6 +33,10 @@ pub struct Host {
     /// Groups that this host is part of
     pub host_groups: Vec<String>,
 
+    #[serde(default)]
+    /// Extra configuration for services, the key matches the service name
+    pub config: HashMap<String, serde_json::Value>,
+
     /// Captures all the other config fields, if any
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
@@ -47,6 +51,7 @@ impl Host {
             check,
             host_groups: vec![],
             id: Some(id),
+            config: HashMap::new(),
             extra: HashMap::new(),
         }
     }
@@ -59,6 +64,7 @@ impl From<crate::db::entities::host::Model> for Host {
             hostname: Some(model.hostname),
             host_groups: vec![],
             id: Some(model.id),
+            config: HashMap::new(),
             extra: HashMap::new(),
         }
     }

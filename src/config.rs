@@ -279,6 +279,8 @@ impl Configuration {
 
     /// Prune the configuration based on the database, so we can serialize it back
     pub fn prune(&self, _db: &DatabaseConnection) -> Result<(), Error> {
+        // TODO: prune config
+
         // check the hosts against the config file
 
         // check the groups against the config file
@@ -286,7 +288,6 @@ impl Configuration {
         // check the services against the config file
 
         // check the checks against the config file
-        // TODO: prune config
         Ok(())
     }
 }

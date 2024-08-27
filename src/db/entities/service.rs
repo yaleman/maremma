@@ -5,17 +5,16 @@ use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "service")]
+/// Service database model
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, name = "id")]
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
     /// A list of host group names
-    pub host_groups: Json,
     pub service_type: ServiceType,
     pub cron_schedule: String,
-    #[serde(flatten)]
-    pub extra_config: Option<Json>,
+    pub extra_config: Json,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -54,8 +53,12 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        todo!()
+    async fn find_by_name(name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+        Entity::find()
+            .filter(Column::Name.eq(name))
+            .one(_db)
+            .await
+            .map_err(Into::into)
     }
     async fn update_db_from_config(
         db: &DatabaseConnection,
@@ -151,8 +154,7 @@ impl MaremmaEntity for Model {
                     if am.id.is_not_set() {
                         am.id.set_if_not_equals(Uuid::new_v4());
                     }
-                    am.host_groups.set_if_not_equals(json!(service.host_groups));
-                    am.extra_config.set_if_not_equals(Some(json!(extra_config)));
+                    am.extra_config.set_if_not_equals(json!(extra_config));
 
                     #[cfg(any(test, debug_assertions))]
                     eprintln!("about to update this: {:?}", am);
@@ -171,13 +173,10 @@ impl MaremmaEntity for Model {
 
 #[cfg(test)]
 pub(crate) fn test_service() -> Model {
-    use serde_json::json;
-
     Model {
         id: Uuid::new_v4(),
         name: "Test Service".to_string(),
         description: Some("Test Service Description".to_string()),
-        host_groups: json! {["test".to_string()]},
         service_type: crate::prelude::ServiceType::Cli,
         cron_schedule: "* * * * *".to_string(),
         extra_config: serde_json::json!({ "url": "http://localhost:8080" }).into(),
@@ -295,9 +294,6 @@ mod tests {
             .unwrap();
         info!("found it: {:?}", service);
         assert_eq!(service.description, Some("New Description".to_string()));
-        assert_eq!(
-            service.extra_config.expect("No extra config was found!"),
-            json!({"extra_config" : extra_config_json})
-        )
+        assert_eq!(service.extra_config, json!(extra_config_json))
     }
 }

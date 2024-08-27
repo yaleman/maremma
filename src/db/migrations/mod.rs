@@ -8,3 +8,5 @@ pub(crate) mod m20240810_create_user_table;
 pub(crate) mod m20240822_create_session_table;
 pub(crate) mod m20240825_create_service_group_link_table;
 pub(crate) mod m20240825_drop_service_host_groups;
+pub(crate) mod m20240827_add_fk_host_group_members;
+pub(crate) mod m20240827_add_host_config_column;
