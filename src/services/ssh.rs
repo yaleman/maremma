@@ -31,7 +31,6 @@ pub struct SshService {
     /// If you're bad, but you have to
     pub password: Option<String>,
 
-    // TODO: add test for a non-default exit code
     /// Expected exit code (Defaults to 0)
     pub exit_code: Option<u32>,
 
@@ -184,7 +183,7 @@ mod tests {
         );
         let service = super::SshService {
             name: hostname.clone(),
-            command_line: "ls -lah .".to_string(),
+            command_line: "ls -lah /".to_string(),
             private_key: Some(private_key),
             username,
             ..Default::default()
@@ -198,8 +197,67 @@ mod tests {
         };
 
         let res = service.run(&host).await;
+        dbg!(&res);
         assert_eq!(service.name, hostname);
         assert!(res.is_ok());
+        assert!(res.unwrap().status == ServiceStatus::Ok);
+    }
+
+    #[tokio::test]
+    async fn test_intentionally_failing_ssh_service() {
+        let _ = test_setup().await.expect("Failed to set up test harness");
+
+        let hostname = match std::env::var("MAREMMA_TEST_SSH_HOST") {
+            Ok(val) => val,
+            Err(_) => {
+                eprintln!("MAREMMA_TEST_SSH_HOST not set, skipping test");
+                return;
+            }
+        };
+        let username = match std::env::var("MAREMMA_TEST_SSH_USERNAME") {
+            Ok(val) => val,
+            Err(_) => {
+                eprintln!("MAREMMA_TEST_SSH_USERNAME not set, skipping test");
+                return;
+            }
+        };
+        let private_key = match std::env::var("MAREMMA_TEST_SSH_KEY") {
+            Ok(val) => PathBuf::from(val),
+            Err(_) => {
+                eprintln!("MAREMMA_TEST_SSH_KEY not set, skipping test");
+                return;
+            }
+        };
+
+        debug!(
+            "Running test with hostname={} username={} private_key={}",
+            hostname,
+            username,
+            private_key.display()
+        );
+        let service = super::SshService {
+            name: hostname.clone(),
+            command_line: "exit 1".to_string(),
+            private_key: Some(private_key),
+            username,
+            exit_code: Some(1),
+            ..Default::default()
+        };
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: hostname.clone(),
+            check: crate::host::HostCheck::None,
+            config: json!({}),
+        };
+
+        let res = service.run(&host).await;
+
+        dbg!(&res);
+        assert_eq!(service.name, hostname);
+        assert!(res.is_ok());
+
+        assert!(res.unwrap().status == ServiceStatus::Ok);
     }
 
     #[test]

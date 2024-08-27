@@ -130,7 +130,6 @@ impl MigrationTrait for Migration {
 
     // Define how to rollback this migration
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // TODO: reverse the migration, need to ensure the data goes back into the service table
         manager
             .drop_table(Table::drop().table(ServiceGroupLink::Table).to_owned())
             .await
