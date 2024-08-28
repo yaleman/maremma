@@ -195,14 +195,14 @@ pub async fn shepherd(
 ) -> Result<(), Error> {
     // run the clean_up_checking loop every x minutes
     let mut service_check_clean = CronTask {
-        cron: Cron::new("*/1 * * * *").parse()?,
+        cron: Cron::new("* * * * *").parse()?,
         last_run: Utc::now(),
         task: Box::new(ServiceCheckCleanTask {}),
     };
 
     // run the session clean up check every hour
     let mut session_cleaner = CronTask {
-        cron: Cron::new("10 1 * * *").parse()?,
+        cron: Cron::new("*/3 * * * *").parse()?,
         last_run: Utc::now(),
         task: Box::new(SessionCleanTask {}),
     };
