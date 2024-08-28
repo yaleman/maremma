@@ -1,5 +1,6 @@
 //! SSH-based service, SSH to a host and run a command
 
+use std::num::NonZeroU16;
 use std::path::PathBuf;
 
 use super::prelude::*;
@@ -16,7 +17,7 @@ pub struct SshService {
     pub command_line: String,
 
     // Port to connect to, defaults to 22
-    port: Option<u16>,
+    port: Option<NonZeroU16>,
 
     /// Schedule for the service
     #[serde(with = "crate::serde::cron")]
@@ -60,72 +61,16 @@ impl Default for SshService {
 
 impl ConfigOverlay for SshService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
-        let name = match value.get("name") {
-            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
-                Error::Configuration("Failed to parse name from host config".to_string())
-            })?,
-            None => self.name.clone(),
-        };
-
-        let command_line = match value.get("command_line") {
-            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
-                Error::Configuration("Failed to parse command_line from host config".to_string())
-            })?,
-            None => self.command_line.clone(),
-        };
-        let username = match value.get("username") {
-            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
-                Error::Configuration("Failed to parse username from host config".to_string())
-            })?,
-            None => self.username.clone(),
-        };
-        let port = match value.get("port") {
-            Some(val) => val.as_u64().map(|val| val as u16),
-            None => self.port,
-        };
-
-        let cron_schedule = if value.contains_key("cron_schedule") {
-            value
-                .get("cron_schedule")
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .as_str()
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .parse()
-                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
-        } else {
-            self.cron_schedule.clone()
-        };
-
-        let private_key = match value.get("private_key") {
-            Some(val) => val.as_str().map(PathBuf::from),
-            None => self.private_key.clone(),
-        };
-
-        let password = match value.get("password") {
-            Some(val) => val.as_str().map(String::from),
-            None => self.password.clone(),
-        };
-
-        let exit_code = match value.get("exit_code") {
-            Some(val) => val.as_u64().map(|v| v as u32),
-            None => self.exit_code,
-        };
-
-        let timeout = match value.get("timeout") {
-            Some(val) => val.as_u64().map(|v| v as u32),
-            None => self.timeout,
-        };
-
         Ok(Box::new(Self {
-            name,
-            command_line,
-            port,
-            cron_schedule,
-            username,
-            private_key,
-            password,
-            exit_code,
-            timeout,
+            name: Self::extract_string(value, "name", &self.name),
+            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            command_line: Self::extract_string(value, "command_line", &self.command_line),
+            port: Self::extract_value(value, "port", &self.port)?,
+            username: Self::extract_string(value, "username", &self.username),
+            private_key: Self::extract_value(value, "private_key", &self.private_key)?,
+            password: Self::extract_value(value, "password", &self.password)?,
+            exit_code: Self::extract_value(value, "exit_code", &self.exit_code)?,
+            timeout: Self::extract_value(value, "timeout", &self.timeout)?,
         }))
     }
 }
@@ -158,7 +103,11 @@ impl ServiceTrait for SshService {
             session = session.password(password);
         }
 
-        let target = format!("{}:{}", host.hostname.clone(), config.port.unwrap_or(22));
+        let target = format!(
+            "{}:{}",
+            host.hostname.clone(),
+            config.port.map(u16::from).unwrap_or(22)
+        );
 
         let mut session = session
             .connect(&target)

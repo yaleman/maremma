@@ -13,7 +13,7 @@ use std::process::Stdio;
 pub struct CliService {
     /// Name of the service
     pub name: String,
-    /// Command line to run
+    /// Command line to run, you can use #HOSTNAME# to substitute the hostname
     pub command_line: String,
     #[serde(default)]
     /// If we should run the command in a shell
@@ -26,30 +26,10 @@ pub struct CliService {
 
 impl ConfigOverlay for CliService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
-        let cron_schedule = if value.contains_key("cron_schedule") {
-            value
-                .get("cron_schedule")
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .as_str()
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .parse()
-                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
-        } else {
-            self.cron_schedule.clone()
-        };
-        let name = match value.get("name") {
-            Some(val) => val.as_str().map(String::from).unwrap_or(self.name.clone()),
-            None => self.name.clone(),
-        };
-        let command_line = value
-            .get("command_line")
-            .and_then(|val| val.as_str().map(String::from))
-            .unwrap_or(self.command_line.clone());
-
-        let run_in_shell = value
-            .get("run_in_shell")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(self.run_in_shell);
+        let cron_schedule = Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?;
+        let name = Self::extract_string(value, "name", &self.name);
+        let command_line = Self::extract_string(value, "command_line", &self.command_line);
+        let run_in_shell = Self::extract_bool(value, "run_in_shell", self.run_in_shell);
 
         Ok(Box::new(Self {
             name,
@@ -68,7 +48,9 @@ impl ServiceTrait for CliService {
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
-        let mut cmd_split = config.command_line.split(" ");
+        let command_line = config.command_line.replace("#HOSTNAME#", &host.hostname);
+
+        let mut cmd_split = command_line.split(" ");
         let cmd = match cmd_split.next() {
             Some(c) => c,
             None => return Err(Error::Generic("No command specified!".to_string())),

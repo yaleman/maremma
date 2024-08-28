@@ -25,8 +25,8 @@ pub struct Host {
     /// The kind of check
     pub check: HostCheck,
 
-    #[serde(default)]
     /// The hostname
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<String>,
 
     #[serde(default)]
@@ -35,10 +35,12 @@ pub struct Host {
 
     #[serde(default)]
     /// Extra configuration for services, the key matches the service name
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub config: HashMap<String, serde_json::Value>,
 
     /// Captures all the other config fields, if any
     #[serde(flatten)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub extra: HashMap<String, serde_json::Value>,
 }
 

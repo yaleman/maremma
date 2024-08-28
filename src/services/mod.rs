@@ -117,6 +117,54 @@ pub trait ServiceTrait: Debug + Sync + Send {
 
 /// Allows you to overlay host-specific content for services
 pub trait ConfigOverlay {
+    /// Extract a string-value from a map, or return a default
+    fn extract_string(value: &Map<String, Json>, field: &str, default: &str) -> String {
+        value
+            .get(field)
+            .and_then(|v| v.as_str())
+            .map(|v| v.to_string())
+            .unwrap_or(default.to_string())
+    }
+
+    /// Extract a bool-value from a map, or return a default
+    fn extract_bool(value: &Map<String, Json>, field: &str, default: bool) -> bool {
+        value
+            .get(field)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(default)
+    }
+    /// Extract a bool-value from a map, or return a default
+    fn extract_cron(value: &Map<String, Json>, field: &str, default: &Cron) -> Result<Cron, Error> {
+        if value.contains_key(field) {
+            value
+                .get(field)
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .as_str()
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .parse()
+                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))
+        } else {
+            Ok(default.clone())
+        }
+    }
+
+    /// Extract a value from a map, or return a default
+    fn extract_value<T>(value: &Map<String, Value>, key: &str, default: &T) -> Result<T, Error>
+    where
+        T: serde::de::DeserializeOwned + Clone,
+    {
+        match value.get(key) {
+            Some(val) => serde_json::from_value(val.clone()).map_err(|err| {
+                error!(
+                    "Failed to extract field {} from host configuration: {:?}",
+                    key, err
+                );
+                Error::from(err)
+            }),
+            None => Ok(default.to_owned()),
+        }
+    }
+
     /// Pulls the host config out of the host model
     fn get_host_config(&self, name: &str, host: &host::Model) -> Result<Map<String, Value>, Error> {
         let config = match host.config.as_object() {
@@ -153,6 +201,7 @@ pub struct Service {
     /// This is pulled from the config file's key
     pub name: Option<String>,
     /// Description of the service
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Host groups to apply it to
     pub host_groups: Vec<String>,
@@ -169,8 +218,9 @@ pub struct Service {
     pub extra_config: HashMap<String, Value>,
 
     #[serde(skip)]
-    /// Internal configuration storage, don't specify this
-    pub config: Option<Box<dyn ServiceTrait>>,
+    /// Internal configuration storage, don't specify this in your config!
+    #[serde(skip_serializing_if = "Option::is_none")]
+    config: Option<Box<dyn ServiceTrait>>,
 }
 
 pub(crate) fn service_config_parse(
@@ -207,6 +257,33 @@ pub(crate) fn service_config_parse(
 }
 
 impl Service {
+    /// Create a new Service object
+    pub fn new(
+        id: Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        host_groups: Vec<String>,
+        service_type: ServiceType,
+        cron_schedule: Cron,
+        extra_config: HashMap<String, Value>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            description,
+            host_groups,
+            service_type,
+            cron_schedule,
+            extra_config,
+            config: None,
+        }
+    }
+
+    /// Config getter
+    pub fn config(&self) -> Option<&dyn ServiceTrait> {
+        self.config.as_deref()
+    }
+
     /// Because services are stored in the database as a JSON field, we need to parse the config and store the type internally
     pub fn parse_config(&mut self) -> Result<Self, Error> {
         let value = serde_json::to_value(&*self)?;

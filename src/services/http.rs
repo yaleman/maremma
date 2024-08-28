@@ -105,7 +105,7 @@ pub struct HttpService {
     pub connect_timeout: Option<u64>,
 
     /// Port to connect to, defaults to 443 (https)
-    pub port: Option<u16>,
+    pub port: Option<NonZeroU16>,
 
     /// Ensure the body has a certain string
     pub contains_string: Option<String>,
@@ -148,8 +148,6 @@ impl HttpService {
         };
 
         let mut body: String = String::new();
-
-        dbg!(&client_config);
 
         if let Some(expected_string) = client_config.contains_string.as_ref() {
             body = response.text().await?;
@@ -202,36 +200,7 @@ fn test_from_partial_value() {
 
 impl ConfigOverlay for HttpService {
     fn overlay_host_config(&self, value: &Map<String, Value>) -> Result<Box<Self>, Error> {
-        let name = match value.get("name") {
-            Some(val) => val.as_str().map(String::from).unwrap_or(self.name.clone()),
-            None => self.name.clone(),
-        };
-        let cron_schedule = if value.contains_key("cron_schedule") {
-            value
-                .get("cron_schedule")
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .as_str()
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .parse()
-                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
-        } else {
-            self.cron_schedule.clone()
-        };
-
-        let http_method: HttpMethod = if value.contains_key("http_method") {
-            value
-                .get("http_method")
-                .map(|val| serde_json::from_value(val.clone()))
-                .transpose()?
-                .unwrap_or(self.http_method)
-        } else {
-            self.http_method
-        };
-
-        let http_uri = match value.get("http_uri") {
-            Some(val) => val.as_str().map(String::from),
-            None => self.http_uri.clone(),
-        };
+        let name = Self::extract_string(value, "name", &self.name);
 
         let http_status: Option<NonZeroU16> = match value.get("http_status") {
             Some(val) => match val.as_u64() {
@@ -248,58 +217,16 @@ impl ConfigOverlay for HttpService {
             None => self.http_status,
         };
 
-        let validate_tls = match value.get("validate_tls") {
-            Some(val) => val.as_bool().unwrap_or(self.validate_tls),
-            None => self.validate_tls,
-        };
-
-        let connect_timeout = match value.get("connect_timeout") {
-            Some(val) => val.as_u64(),
-            None => self.connect_timeout,
-        };
-
-        let port = match value.get("port") {
-            Some(val) => match val.as_u64() {
-                Some(val) => Some(val as u16),
-                None => match val.as_str() {
-                    Some(val) => val.parse().ok(),
-                    None => {
-                        return Err(Error::Configuration(format!(
-                            "Couldn't parse port from {} config ",
-                            name
-                        )));
-                    }
-                },
-            },
-            None => self.port,
-        };
-
-        let contains_string = match value.get("contains_string") {
-            Some(val) => {
-                debug!("Found contains_string in host config: {:?}", val);
-                match val.as_str() {
-                    Some(val) => Some(val.to_string()),
-                    None => {
-                        return Err(Error::Configuration(format!(
-                            "Couldn't parse contains_string from {} config ",
-                            name
-                        )));
-                    }
-                }
-            }
-            None => self.contains_string.clone(),
-        };
-
         Ok(Box::new(Self {
             name,
-            cron_schedule,
-            http_method,
-            http_uri,
+            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            http_method: Self::extract_value(value, "http_method", &self.http_method)?,
+            http_uri: Self::extract_value(value, "http_uri", &self.http_uri)?,
             http_status,
-            validate_tls,
-            connect_timeout,
-            port,
-            contains_string,
+            validate_tls: Self::extract_bool(value, "validate_tls", self.validate_tls),
+            connect_timeout: Self::extract_value(value, "connect_timeout", &self.connect_timeout)?,
+            port: Self::extract_value(value, "port", &self.port)?,
+            contains_string: Self::extract_value(value, "contains_string", &self.contains_string)?,
         }))
     }
 }
@@ -474,7 +401,7 @@ mod tests {
             "test": {
                 "http_status": 404,
                 "connect_timeout" : 5,
-                "port" : "443",
+                "port" : 443,
             }
         });
 

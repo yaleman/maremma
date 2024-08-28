@@ -116,12 +116,12 @@ impl SessionStore for ModelStore {
 
         if session.is_changed() {
             session
-                .save(self.db.as_ref())
+                .update(self.db.as_ref())
                 .await
                 .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
             debug!("Saved session with id={}", session_record.id.0);
         } else {
-            warn!("No changes to save for session id={}", session_record.id.0);
+            info!("No changes to save for session id={}", session_record.id.0);
         }
         Ok(())
     }

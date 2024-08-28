@@ -33,7 +33,7 @@
         "null"
       ],
       "format": "uint16",
-      "minimum": 0.0
+      "minimum": 1.0
     },
     "hosts": {
       "description": "Host configuration",

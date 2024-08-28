@@ -133,7 +133,7 @@ impl MaremmaEntity for Model {
                     existing_host.name.set_if_not_equals(name);
 
                     if existing_host.is_changed() {
-                        warn!("Updating {:?}", &existing_host);
+                        info!("Updating {:?}", &existing_host);
                         existing_host.save(db).await?;
                     } else {
                         debug!("No changes to {:?}", &existing_host);
@@ -148,7 +148,7 @@ impl MaremmaEntity for Model {
                         config: json!(host.config.clone()),
                     }
                     .into_active_model();
-                    warn!("Creating Host {:?}", new_host.insert(db).await?);
+                    info!("Creating Host {:?}", new_host.insert(db).await?);
                 }
             };
         }

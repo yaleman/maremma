@@ -23,7 +23,7 @@ use axum_oidc::error::MiddlewareError;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
 use axum_server::bind_rustls;
 use axum_server::tls_rustls::RustlsConfig;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use prometheus::Registry;
 use tower::ServiceBuilder;
@@ -42,6 +42,7 @@ pub(crate) struct WebState {
     pub db: Arc<DatabaseConnection>,
     pub frontend_url: Arc<String>,
     pub registry: Option<Arc<Registry>>,
+    pub web_tx: Option<Sender<WebServerControl>>,
 }
 
 impl WebState {
@@ -49,11 +50,13 @@ impl WebState {
         db: Arc<DatabaseConnection>,
         config: &Configuration,
         registry: Option<Arc<Registry>>,
+        web_tx: Option<Sender<WebServerControl>>,
     ) -> Self {
         Self {
             db,
             frontend_url: Arc::new(config.frontend_url()),
             registry,
+            web_tx,
         }
     }
 
@@ -62,7 +65,7 @@ impl WebState {
         let (db, config) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up test");
-        Self::new(db, &config, None)
+        Self::new(db, &config, None, None)
     }
     #[cfg(test)]
     pub fn with_registry(self) -> Self {
@@ -86,6 +89,23 @@ async fn up(State(_state): State<WebState>) -> impl IntoResponse {
 /// Create the database-backed session store
 pub fn get_session_store(db: &Arc<DatabaseConnection>) -> entities::session::ModelStore {
     crate::db::entities::session::ModelStore::new(db.clone())
+}
+
+#[derive(Clone)]
+struct OidcErorHandler {
+    web_tx: Option<Sender<WebServerControl>>,
+}
+
+impl OidcErorHandler {
+    pub fn new(web_tx: Option<Sender<WebServerControl>>) -> Self {
+        Self { web_tx }
+    }
+
+    async fn handle_oidc_error(&self) {
+        if let Some(tx) = &self.web_tx {
+            let _ = tx.send(WebServerControl::Stop).await;
+        }
+    }
 }
 
 pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result<Router, Error> {
@@ -164,11 +184,13 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
 
         let application_base_url = Uri::from_str(&frontend_url)
             .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
+        let oidc_error_handler = OidcErorHandler::new(state.web_tx.clone());
 
         app = app.layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
                     // TODO: cause this to make the web server restart if it fails
+                    oidc_error_handler.handle_oidc_error().await;
                     error!("Failed to handle OIDC in middleware: {:?}", &e);
                     Redirect::to("/auth/logout").into_response()
                 }))
@@ -253,10 +275,12 @@ pub async fn run_web_server(
     configuration: Arc<Configuration>,
     db: Arc<DatabaseConnection>,
     registry: Arc<Registry>,
+    web_tx: Sender<WebServerControl>,
     mut web_server_controller: Receiver<WebServerControl>,
 ) -> Result<(), Error> {
     let app = build_app(
-        WebState::new(db, &configuration, Some(registry)),
+        // TODO web_tx impl
+        WebState::new(db, &configuration, Some(registry), Some(web_tx)),
         &configuration,
     )
     .await?;
@@ -313,7 +337,7 @@ mod tests {
     #[tokio::test]
     async fn test_app_requests() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
-        let app = build_app(WebState::new(db.clone(), &config, None), &config)
+        let app = build_app(WebState::new(db.clone(), &config, None, None), &config)
             .await
             .expect("Failed to build app");
 
@@ -350,14 +374,15 @@ mod tests {
     async fn test_not_implemented() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
 
-        let res = notimplemented(axum::extract::State(WebState::new(db, &config, None))).await;
+        let res =
+            notimplemented(axum::extract::State(WebState::new(db, &config, None, None))).await;
         assert!(res.is_err());
     }
     #[tokio::test]
     async fn test_up_endpoint() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
 
-        let res = up(axum::extract::State(WebState::new(db, &config, None)))
+        let res = up(axum::extract::State(WebState::new(db, &config, None, None)))
             .await
             .into_response();
         assert!(res.status() == StatusCode::OK);
