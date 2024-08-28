@@ -240,7 +240,7 @@ impl ServiceTrait for HttpService {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
         let url = format!(
-            "https://{}{}/{}",
+            "https://{}{}{}",
             host.hostname,
             config
                 .port
