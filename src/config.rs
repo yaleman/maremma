@@ -34,6 +34,7 @@ pub struct OidcConfig {
     /// OIDC client_id
     pub client_id: String,
     /// OIDC client_secret
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_secret: Option<String>,
 }
 
@@ -52,6 +53,7 @@ pub struct ConfigurationParser {
     pub listen_address: String,
 
     /// Defaults to 8888
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub listen_port: Option<NonZeroU16>,
 
     /// Target host configuration
@@ -66,6 +68,7 @@ pub struct ConfigurationParser {
     pub services: HashMap<String, Value>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub frontend_url: Option<String>,
 
     #[serde(default)]
@@ -73,6 +76,7 @@ pub struct ConfigurationParser {
     pub oidc_enabled: bool,
 
     /// OIDC configuration, see [OidcConfig]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc_config: Option<OidcConfig>,
 
     #[serde(default)]
@@ -116,6 +120,7 @@ pub struct Configuration {
     pub services: HashMap<String, Service>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub frontend_url: Option<String>,
 
     #[serde(default)]

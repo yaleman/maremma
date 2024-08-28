@@ -201,6 +201,7 @@ pub struct Service {
     /// This is pulled from the config file's key
     pub name: Option<String>,
     /// Description of the service
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Host groups to apply it to
     pub host_groups: Vec<String>,
@@ -217,8 +218,9 @@ pub struct Service {
     pub extra_config: HashMap<String, Value>,
 
     #[serde(skip)]
-    /// Internal configuration storage, don't specify this
-    pub config: Option<Box<dyn ServiceTrait>>,
+    /// Internal configuration storage, don't specify this in your config!
+    #[serde(skip_serializing_if = "Option::is_none")]
+    config: Option<Box<dyn ServiceTrait>>,
 }
 
 pub(crate) fn service_config_parse(
@@ -255,6 +257,33 @@ pub(crate) fn service_config_parse(
 }
 
 impl Service {
+    /// Create a new Service object
+    pub fn new(
+        id: Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        host_groups: Vec<String>,
+        service_type: ServiceType,
+        cron_schedule: Cron,
+        extra_config: HashMap<String, Value>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            description,
+            host_groups,
+            service_type,
+            cron_schedule,
+            extra_config,
+            config: None,
+        }
+    }
+
+    /// Config getter
+    pub fn config(&self) -> Option<&Box<dyn ServiceTrait>> {
+        self.config.as_ref()
+    }
+
     /// Because services are stored in the database as a JSON field, we need to parse the config and store the type internally
     pub fn parse_config(&mut self) -> Result<Self, Error> {
         let value = serde_json::to_value(&*self)?;

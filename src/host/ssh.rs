@@ -35,6 +35,7 @@ pub struct SshHost {
     #[serde(default = "default_ssh_timeout_seconds")]
     pub timeout_seconds: u16,
     /// If you're not just connecting as "you"
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_user: Option<String>,
 
     #[serde(default)]
@@ -47,6 +48,7 @@ pub struct SshHost {
 
     #[serde(skip)]
     /// The last time we checked this host
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_check: Option<DateTime<Utc>>,
 
     #[serde(skip)]

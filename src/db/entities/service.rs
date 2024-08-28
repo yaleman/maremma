@@ -10,6 +10,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, name = "id")]
     pub id: Uuid,
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// A list of host group names
     pub service_type: ServiceType,
@@ -264,18 +265,17 @@ mod tests {
 
         config.services.insert(
             "local_lslah".to_string(),
-            Service {
-                id: service.id,
-                name: Some(service.name.clone()),
-                description: Some("New Description".to_string()),
-                host_groups: vec!["test".to_string()],
-                service_type: ServiceType::Cli,
-                cron_schedule: Cron::new(&service.cron_schedule)
+            Service::new(
+                service.id,
+                Some(service.name.clone()),
+                Some("New Description".to_string()),
+                vec!["test".to_string()],
+                ServiceType::Cli,
+                Cron::new(&service.cron_schedule)
                     .parse()
                     .expect("couldn't parse cron schedule"),
                 extra_config,
-                config: None,
-            },
+            ),
         );
 
         super::Model::update_db_from_config(db.as_ref(), Arc::new(config))

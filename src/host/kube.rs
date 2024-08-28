@@ -20,6 +20,7 @@ pub struct KubeHost {
     #[serde(default = "kube_port_default")]
     pub api_port: NonZeroU16,
     /// Use a specific cluster instead of just using the default
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub kube_cluster: Option<String>,
 
     #[serde(default)]
@@ -27,7 +28,7 @@ pub struct KubeHost {
     pub host_groups: Vec<String>,
 
     /// CA certificate file for trusting the API
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ca_cert: Option<PathBuf>,
 }
 
