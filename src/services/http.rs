@@ -149,8 +149,6 @@ impl HttpService {
 
         let mut body: String = String::new();
 
-        dbg!(&client_config);
-
         if let Some(expected_string) = client_config.contains_string.as_ref() {
             body = response.text().await?;
             if !body.contains(expected_string) {
