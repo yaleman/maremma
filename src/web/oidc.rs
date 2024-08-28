@@ -77,7 +77,7 @@ mod tests {
         let (db, config) = test_setup().await.expect("Failed to setup test");
 
         let app = build_app(
-            crate::web::WebState::new(db.clone(), &config, None),
+            crate::web::WebState::new(db.clone(), &config, None, None),
             &config,
         )
         .await

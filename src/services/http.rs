@@ -105,7 +105,7 @@ pub struct HttpService {
     pub connect_timeout: Option<u64>,
 
     /// Port to connect to, defaults to 443 (https)
-    pub port: Option<u16>,
+    pub port: Option<NonZeroU16>,
 
     /// Ensure the body has a certain string
     pub contains_string: Option<String>,
@@ -217,22 +217,6 @@ impl ConfigOverlay for HttpService {
             None => self.http_status,
         };
 
-        let port = match value.get("port") {
-            Some(val) => match val.as_u64() {
-                Some(val) => Some(val as u16),
-                None => match val.as_str() {
-                    Some(val) => val.parse().ok(),
-                    None => {
-                        return Err(Error::Configuration(format!(
-                            "Couldn't parse port from {} config ",
-                            name
-                        )));
-                    }
-                },
-            },
-            None => self.port,
-        };
-
         Ok(Box::new(Self {
             name,
             cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
@@ -241,7 +225,7 @@ impl ConfigOverlay for HttpService {
             http_status,
             validate_tls: Self::extract_bool(value, "validate_tls", self.validate_tls),
             connect_timeout: Self::extract_value(value, "connect_timeout", &self.connect_timeout)?,
-            port,
+            port: Self::extract_value(value, "port", &self.port)?,
             contains_string: Self::extract_value(value, "contains_string", &self.contains_string)?,
         }))
     }
@@ -417,7 +401,7 @@ mod tests {
             "test": {
                 "http_status": 404,
                 "connect_timeout" : 5,
-                "port" : "443",
+                "port" : 443,
             }
         });
 

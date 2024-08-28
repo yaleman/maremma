@@ -1,5 +1,6 @@
 //! SSH-based service, SSH to a host and run a command
 
+use std::num::NonZeroU16;
 use std::path::PathBuf;
 
 use super::prelude::*;
@@ -16,7 +17,7 @@ pub struct SshService {
     pub command_line: String,
 
     // Port to connect to, defaults to 22
-    port: Option<u16>,
+    port: Option<NonZeroU16>,
 
     /// Schedule for the service
     #[serde(with = "crate::serde::cron")]
@@ -102,7 +103,11 @@ impl ServiceTrait for SshService {
             session = session.password(password);
         }
 
-        let target = format!("{}:{}", host.hostname.clone(), config.port.unwrap_or(22));
+        let target = format!(
+            "{}:{}",
+            host.hostname.clone(),
+            config.port.map(u16::from).unwrap_or(22)
+        );
 
         let mut session = session
             .connect(&target)

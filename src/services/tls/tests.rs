@@ -14,7 +14,7 @@ async fn test_working_tls_service() {
     let service = crate::services::tls::TlsService {
         name: "test".to_string(),
         cron_schedule: "0 0 * * * * *".parse().unwrap(),
-        port: 443,
+        port: 443.try_into().expect("Failed to convert port"),
         expiry_critical: Some(5),
         expiry_warn: Some(3),
         timeout: None,
@@ -204,8 +204,6 @@ async fn test_tls_no_subject() {
 
 #[tokio::test]
 async fn test_zero_port() {
-    use crate::prelude::*;
-
     let (_, _) = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
@@ -214,19 +212,8 @@ async fn test_zero_port() {
         "port": 0,
     }};
 
-    let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
-
-    let bad_hostname = "no-subject.badssl.com".to_string();
-    let host = entities::host::Model {
-        name: bad_hostname.clone(),
-        check: crate::host::HostCheck::None,
-        id: Uuid::new_v4(),
-        hostname: bad_hostname,
-        config: json!({}),
-    };
-    let result = service.run(&host).await;
-    dbg!(&result);
-    assert!(result.is_err());
+    let service: Result<TlsService, serde_json::Error> = serde_json::from_value(service_def);
+    assert!(service.is_err());
 }
 
 #[tokio::test]
@@ -272,7 +259,7 @@ fn test_service_parser() {
         config: Some(Box::new(TlsService {
             name: "tls_service".to_string(),
             cron_schedule: croner::Cron::new("* * * * *"),
-            port: 1234,
+            port: 1234.try_into().expect("Failed to convert port"),
             expiry_critical: Some(1),
             expiry_warn: Some(7),
             timeout: Some(5),
@@ -294,7 +281,7 @@ fn test_failed_service_parser() {
         config: Some(Box::new(TlsService {
             name: "tls_service".to_string(),
             cron_schedule: croner::Cron::new("* * * * *"),
-            port: 1234,
+            port: 1234.try_into().expect("Failed to convert port"),
             expiry_critical: Some(1),
             expiry_warn: Some(7),
             timeout: Some(5),

@@ -1,4 +1,5 @@
 use std::net::ToSocketAddrs;
+use std::num::NonZeroU16;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -11,6 +12,11 @@ pub const DEFAULT_SSH_TIMEOUT_SECONDS: u16 = 30;
 /// Guess?
 pub const DEFAULT_SSH_PORT: u16 = 22;
 
+fn default_ssh_port() -> NonZeroU16 {
+    #[allow(clippy::expect_used)]
+    NonZeroU16::new(DEFAULT_SSH_PORT).expect("Failed to parse 22 as non-zero u16!")
+}
+
 fn default_ssh_timeout_seconds() -> u16 {
     DEFAULT_SSH_TIMEOUT_SECONDS
 }
@@ -21,7 +27,7 @@ pub struct SshHost {
     /// The hostname
     pub hostname: String,
     /// Defaults to [DEFAULT_SSH_PORT] (22)
-    pub port: Option<u16>,
+    pub port: Option<NonZeroU16>,
     /// If you want to connect via IP address instead
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ip_address: Option<std::net::IpAddr>,
@@ -69,7 +75,7 @@ impl SshHost {
 impl GenericHost for SshHost {
     async fn check_up(&self) -> Result<bool, Error> {
         let socket_address = match self.ip_address {
-            Some(ip) => match (ip, self.port.unwrap_or(DEFAULT_SSH_PORT))
+            Some(ip) => match (ip, u16::from(self.port.unwrap_or(default_ssh_port())))
                 .to_socket_addrs()
                 .map_err(|_err| Error::DnsFailed)?
                 .next()
@@ -80,7 +86,7 @@ impl GenericHost for SshHost {
             None => match format!(
                 "{}:{}",
                 self.hostname,
-                self.port.unwrap_or(DEFAULT_SSH_PORT)
+                self.port.unwrap_or(default_ssh_port())
             )
             .to_socket_addrs()
             .map_err(|_err| Error::DnsFailed)?
@@ -163,7 +169,10 @@ mod test {
         };
         let host = SshHost::try_from(&config).unwrap();
         assert_eq!(host.hostname, "example.com");
-        assert_eq!(host.port, Some(123));
+        assert_eq!(
+            host.port,
+            Some(NonZeroU16::new(123).expect("failed to parse 123 as a non-zero u16"))
+        );
         assert_eq!(host.timeout_seconds, default_ssh_timeout_seconds());
         assert_eq!(
             SshHost::try_from_config(config).unwrap().hostname,

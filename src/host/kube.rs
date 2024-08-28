@@ -1,3 +1,4 @@
+use std::num::NonZeroU16;
 use std::path::PathBuf;
 
 use kube::Client;
@@ -5,18 +6,19 @@ use kube::Client;
 use crate::prelude::*;
 
 /// The default port we'll try and connect to
-pub(crate) fn kube_port_default() -> u16 {
-    6443
+pub(crate) fn kube_port_default() -> NonZeroU16 {
+    #[allow(clippy::expect_used)]
+    NonZeroU16::new(6443u16).expect("Failed to parse kube_port_default")
 }
 
-#[derive(Default, Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 /// A kubernetes host
 pub struct KubeHost {
     /// Target hostname
     pub hostname: String,
     /// Defaults to 6443
     #[serde(default = "kube_port_default")]
-    pub api_port: u16,
+    pub api_port: NonZeroU16,
     /// Use a specific cluster instead of just using the default
     pub kube_cluster: Option<String>,
 
@@ -25,6 +27,7 @@ pub struct KubeHost {
     pub host_groups: Vec<String>,
 
     /// CA certificate file for trusting the API
+    #[serde(default)]
     pub ca_cert: Option<PathBuf>,
 }
 
@@ -34,12 +37,14 @@ impl KubeHost {
         Self {
             hostname: hostname.to_string(),
             api_port: kube_port_default(),
-            ..Default::default()
+            kube_cluster: Default::default(),
+            host_groups: Default::default(),
+            ca_cert: Default::default(),
         }
     }
 
     /// Set the port for the API
-    pub fn with_port(self, api_port: u16) -> Self {
+    pub fn with_port(self, api_port: NonZeroU16) -> Self {
         Self { api_port, ..self }
     }
 
@@ -86,10 +91,12 @@ impl TryFrom<&Host> for KubeHost {
             Some(port) => {
                 let port = port.to_owned();
                 if let Some(port) = port.as_u64() {
-                    port as u16
+                    NonZeroU16::new(port as u16).ok_or(Error::Configuration(
+                        "api_port must be somewhere between 1 and 65535".to_string(),
+                    ))?
                 } else {
                     return Err(Error::Configuration(
-                        "api_port must be a number".to_string(),
+                        "api_port must be a valid number".to_string(),
                     ));
                 }
             }
@@ -113,13 +120,18 @@ impl TryFrom<&Host> for KubeHost {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU16;
+
     use crate::host::GenericHost;
 
     #[test]
     fn test_kube_host_builder() {
         let host = crate::host::kube::KubeHost::from_hostname("localhost");
         assert_eq!(host.hostname, "localhost");
-        assert_eq!(host.api_port, 6443);
+        assert_eq!(
+            host.api_port,
+            NonZeroU16::new(6443).expect("Failed to parse 6443 as a non-zero u16")
+        );
         assert_eq!(host.kube_cluster, None);
         assert_eq!(host.api_url(), "https://localhost:6443");
     }
@@ -143,9 +155,13 @@ mod tests {
 
     #[test]
     fn test_kube_host_with_port() {
-        let host = crate::host::kube::KubeHost::from_hostname("localhost").with_port(8443);
+        let host = crate::host::kube::KubeHost::from_hostname("localhost")
+            .with_port(NonZeroU16::new(8443).expect("Failed to parse 8443 as a non-zero u16"));
         assert_eq!(host.hostname, "localhost");
-        assert_eq!(host.api_port, 8443);
+        assert_eq!(
+            host.api_port,
+            NonZeroU16::new(8443).expect("Failed to parse 8443 as a non-zero u16")
+        );
         assert_eq!(host.kube_cluster, None);
         assert_eq!(host.api_url(), "https://localhost:8443");
     }
@@ -155,7 +171,10 @@ mod tests {
         let host =
             crate::host::kube::KubeHost::from_hostname("localhost").with_cluster("my-cluster");
         assert_eq!(host.hostname, "localhost");
-        assert_eq!(host.api_port, 6443);
+        assert_eq!(
+            host.api_port,
+            NonZeroU16::new(6443).expect("Failed to parse 6443 as a non-zero u16")
+        );
         assert_eq!(host.kube_cluster, Some("my-cluster".to_string()));
         assert_eq!(host.api_url(), "https://localhost:6443");
     }
@@ -171,7 +190,10 @@ mod tests {
 
         let host = crate::host::kube::KubeHost::try_from_config(config).unwrap();
         assert_eq!(host.hostname, "localhost");
-        assert_eq!(host.api_port, 8443);
+        assert_eq!(
+            host.api_port,
+            NonZeroU16::new(8443).expect("Failed to parse 8443 as a non-zero u16")
+        );
         assert_eq!(host.kube_cluster, Some("my-cluster".to_string()));
         assert_eq!(host.host_groups, vec!["group1", "group2"]);
     }

@@ -154,7 +154,13 @@ pub trait ConfigOverlay {
         T: serde::de::DeserializeOwned + Clone,
     {
         match value.get(key) {
-            Some(val) => serde_json::from_value(val.clone()).map_err(Error::from),
+            Some(val) => serde_json::from_value(val.clone()).map_err(|err| {
+                error!(
+                    "Failed to extract field {} from host configuration: {:?}",
+                    key, err
+                );
+                Error::from(err)
+            }),
             None => Ok(default.to_owned()),
         }
     }

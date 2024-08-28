@@ -4,6 +4,8 @@
 mod tests;
 pub(crate) mod verifier;
 
+use std::num::NonZeroU16;
+
 use schemars::JsonSchema;
 use verifier::TlsCertVerifier;
 
@@ -34,7 +36,7 @@ pub struct TlsService {
     pub cron_schedule: Cron,
 
     /// Port to connect to
-    pub port: u16,
+    pub port: NonZeroU16,
 
     /// Critical expiry in days, defaults to [DEFAULT_CRITICAL_DAYS] (0)
     pub expiry_critical: Option<u16>,
@@ -65,9 +67,7 @@ impl ServiceTrait for TlsService {
     #[instrument(level = "debug")]
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
-        if self.port == 0 {
-            return Err(Error::InvalidInput("Port cannot be 0".to_string()));
-        }
+
         // this comes from the rustls example here: https://github.com/rustls/tokio-rustls/blob/HEAD/examples/client.rs
         let root_store = RootCertStore {
             roots: webpki_roots::TLS_SERVER_ROOTS.into(),

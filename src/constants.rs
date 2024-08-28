@@ -1,7 +1,14 @@
 //! Maremma constant values
 
+use std::num::NonZeroU16;
+
 /// Default listener port
 pub const WEB_SERVER_DEFAULT_PORT: u16 = 8888;
+
+pub(crate) fn web_server_default_port() -> NonZeroU16 {
+    #[allow(clippy::expect_used)]
+    NonZeroU16::new(WEB_SERVER_DEFAULT_PORT).expect("Failed to parse WEB_SERVER_DEFAULT_PORT")
+}
 
 /// Default location for the static resources
 pub const WEB_SERVER_DEFAULT_STATIC_PATH: &str = "./static";

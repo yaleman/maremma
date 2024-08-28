@@ -57,7 +57,7 @@ async fn main() -> Result<(), ExitCode> {
                 check_loop_result = run_check_loop(db.clone(), config.max_concurrent_checks, metrics_meter.clone()) => {
                     error!("Check loop bailed: {:?}", check_loop_result);
                 },
-                web_server_result = run_web_server(config.clone(), db.clone(), Arc::new(registry), web_rx) => {
+                web_server_result = run_web_server(config.clone(), db.clone(), Arc::new(registry), web_tx.clone(), web_rx) => {
                     error!("Web server bailed: {:?}", web_server_result);
                 },
                 shepherd_result = shepherd(db.clone(), config.clone(), web_tx) => {

@@ -1,12 +1,13 @@
 //! Configuration handling for Maremma
 
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroU16;
 use std::path::PathBuf;
 
 use reqwest::Url;
 use schemars::JsonSchema;
 
-use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
+use crate::constants::{web_server_default_port, WEB_SERVER_DEFAULT_STATIC_PATH};
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
@@ -51,7 +52,7 @@ pub struct ConfigurationParser {
     pub listen_address: String,
 
     /// Defaults to 8888
-    pub listen_port: Option<u16>,
+    pub listen_port: Option<NonZeroU16>,
 
     /// Target host configuration
     pub hosts: HashMap<String, Host>,
@@ -101,7 +102,7 @@ pub struct Configuration {
     pub listen_address: String,
 
     /// Defaults to 8888
-    pub listen_port: Option<u16>,
+    pub listen_port: Option<NonZeroU16>,
 
     /// Host configuration
     pub hosts: HashMap<String, Host>,
@@ -171,10 +172,19 @@ impl TryFrom<ConfigurationParser> for Configuration {
             }
         }
 
+        let listen_port: Option<NonZeroU16> = value
+            .listen_port
+            .map(|lp| {
+                NonZeroU16::try_from(lp).map_err(|_| {
+                    Error::Configuration("Failed to convert listen port to NonZeroU16".to_string())
+                })
+            })
+            .transpose()?;
+
         Ok(Configuration {
             database_file: value.database_file,
             listen_address: value.listen_address,
-            listen_port: value.listen_port,
+            listen_port,
             hosts: value.hosts,
             local_services: value.local_services,
             services,
@@ -243,9 +253,7 @@ impl Configuration {
     /// Getter for the frontend URL
     pub fn frontend_url(&self) -> String {
         self.frontend_url.clone().unwrap_or_else(|| {
-            let port = self
-                .listen_port
-                .unwrap_or(crate::constants::WEB_SERVER_DEFAULT_PORT);
+            let port = self.listen_port.unwrap_or(web_server_default_port());
             format!("https://{}:{}", self.listen_address, port)
         })
     }
@@ -255,8 +263,7 @@ impl Configuration {
         format!(
             "{}:{}",
             self.listen_address,
-            self.listen_port
-                .unwrap_or(crate::constants::WEB_SERVER_DEFAULT_PORT)
+            self.listen_port.unwrap_or(web_server_default_port())
         )
     }
 
