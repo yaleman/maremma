@@ -13,6 +13,25 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - name: Install typical dependencies
+        run: |
+          sudo apt-get update && \
+          sudo apt-get install -y \
+            libssl-dev
+      - name: "Cargo coverage"
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --coveralls ${{ secrets.COVERALLS_REPO_TOKEN }}
   cargo_test:
     runs-on: ubuntu-latest
     steps:
@@ -28,11 +47,18 @@ jobs:
           sudo apt-get update && \
           sudo apt-get install -y \
             libssl-dev
+
       - name: "Run cargo test"
         run: cargo test
+  build_release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.5
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
       - name: "Build the workspace"
-        run: cargo build --workspace
-      - name: "Cargo coverage"
-        run: |
-          cargo install cargo-tarpaulin
-          cargo tarpaulin --coveralls ${{ secrets.COVERALLS_REPO_TOKEN }}
+        run: cargo build --workspace --release
