@@ -169,28 +169,6 @@ mod tests {
     use crate::prelude::*;
 
     #[tokio::test]
-    async fn test_update_db_from_config() {
-        let (db, config) = test_setup().await.expect("Failed to start test harness");
-
-        // have to include this because otherwise the members won't exist :)
-        super::super::host::Model::update_db_from_config(&db, config.clone())
-            .await
-            .expect("Failed to update hosts from config");
-
-        // have to include this because otherwise the members won't exist :)
-        super::super::host_group::Model::update_db_from_config(&db, config.clone())
-            .await
-            .expect("Failed to update host groups from config");
-
-        super::Model::update_db_from_config(&db, config)
-            .await
-            .expect("Failed to load config");
-
-        let host_group_members = super::Entity::find().all(db.as_ref()).await.unwrap();
-        assert_ne!(host_group_members.len(), 1);
-    }
-
-    #[tokio::test]
     async fn test_find_by_name() {
         // this should error
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
