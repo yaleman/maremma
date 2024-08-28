@@ -280,8 +280,8 @@ impl Service {
     }
 
     /// Config getter
-    pub fn config(&self) -> Option<&Box<dyn ServiceTrait>> {
-        self.config.as_ref()
+    pub fn config(&self) -> Option<&dyn ServiceTrait> {
+        self.config.as_deref()
     }
 
     /// Because services are stored in the database as a JSON field, we need to parse the config and store the type internally
