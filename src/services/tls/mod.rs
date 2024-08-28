@@ -12,6 +12,7 @@ use tokio::net::TcpStream;
 use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 use tokio_rustls::TlsConnector;
 
+use super::prelude::*;
 use crate::prelude::*;
 
 /// The IO error returns something like this and we want to find it: `IoError("unexpected error: {\"expiry\":\"2024-11-07T15:05:43Z\"}")`
@@ -44,6 +45,56 @@ pub struct TlsService {
     pub timeout: Option<u16>,
     // TODO: CA cert
     // TODO: sni/hostname to check
+}
+
+impl ConfigOverlay for TlsService {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+        let name = match value.get("name") {
+            Some(val) => val.as_str().map(String::from).unwrap_or(self.name.clone()),
+            None => self.name.clone(),
+        };
+        let cron_schedule = if value.contains_key("cron_schedule") {
+            value
+                .get("cron_schedule")
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .as_str()
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .parse()
+                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
+        } else {
+            self.cron_schedule.clone()
+        };
+
+        let port = value
+            .get("port")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u16)
+            .unwrap_or(self.port);
+
+        let expiry_critical = value
+            .get("expiry_critical")
+            .map(|v| v.as_u64().map(|v| v as u16))
+            .unwrap_or(self.expiry_critical);
+
+        let expiry_warn = value
+            .get("expiry_warn")
+            .map(|v| v.as_u64().map(|v| v as u16))
+            .unwrap_or(self.expiry_warn);
+
+        let timeout = value
+            .get("timeout")
+            .map(|v| v.as_u64().map(|v| v as u16))
+            .unwrap_or(self.timeout);
+
+        Ok(Box::new(Self {
+            name,
+            cron_schedule,
+            port,
+            expiry_critical,
+            expiry_warn,
+            timeout,
+        }))
+    }
 }
 
 #[async_trait]

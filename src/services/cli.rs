@@ -2,6 +2,7 @@
 
 use schemars::JsonSchema;
 
+use super::prelude::*;
 use crate::prelude::*;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -23,12 +24,51 @@ pub struct CliService {
     pub cron_schedule: Cron,
 }
 
+impl ConfigOverlay for CliService {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+        let cron_schedule = if value.contains_key("cron_schedule") {
+            value
+                .get("cron_schedule")
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .as_str()
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .parse()
+                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
+        } else {
+            self.cron_schedule.clone()
+        };
+        let name = match value.get("name") {
+            Some(val) => val.as_str().map(String::from).unwrap_or(self.name.clone()),
+            None => self.name.clone(),
+        };
+        let command_line = value
+            .get("command_line")
+            .and_then(|val| val.as_str().map(String::from))
+            .unwrap_or(self.command_line.clone());
+
+        let run_in_shell = value
+            .get("run_in_shell")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(self.run_in_shell);
+
+        Ok(Box::new(Self {
+            name,
+            cron_schedule,
+            command_line,
+            run_in_shell,
+        }))
+    }
+}
+
 #[async_trait]
 impl ServiceTrait for CliService {
-    async fn run(&self, _host: &entities::host::Model) -> Result<CheckResult, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
         // run the command line and capture the exit code and stdout
-        let mut cmd_split = self.command_line.split(" ");
+
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+
+        let mut cmd_split = config.command_line.split(" ");
         let cmd = match cmd_split.next() {
             Some(c) => c,
             None => return Err(Error::Generic("No command specified!".to_string())),

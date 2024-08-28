@@ -2,6 +2,7 @@
 
 use kube::Client;
 
+use super::prelude::*;
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -17,10 +18,46 @@ pub struct KubernetesService {
     pub cron_schedule: Cron,
 }
 
+impl ConfigOverlay for KubernetesService {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+        let name = match value.get("name") {
+            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
+                Error::Configuration("Failed to parse name from host config".to_string())
+            })?,
+            None => self.name.clone(),
+        };
+
+        let cron_schedule = if value.contains_key("cron_schedule") {
+            value
+                .get("cron_schedule")
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .as_str()
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .parse()
+                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
+        } else {
+            self.cron_schedule.clone()
+        };
+
+        let host = match value.get("host") {
+            Some(host) => serde_json::from_value(host.clone())?,
+            None => self.host.clone(),
+        };
+
+        Ok(Box::new(Self {
+            name,
+            cron_schedule,
+            host,
+        }))
+    }
+}
+
 #[async_trait]
 impl ServiceTrait for KubernetesService {
-    async fn run(&self, _host: &entities::host::Model) -> Result<CheckResult, Error> {
-        let start_time = chrono::Utc::now();
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+        let start_time: DateTime<Utc> = chrono::Utc::now();
+
+        let _config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
         let client = match Client::try_default().await {
             Ok(val) => val,

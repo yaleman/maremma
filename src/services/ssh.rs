@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+use super::prelude::*;
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -57,16 +58,90 @@ impl Default for SshService {
     }
 }
 
+impl ConfigOverlay for SshService {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+        let name = match value.get("name") {
+            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
+                Error::Configuration("Failed to parse name from host config".to_string())
+            })?,
+            None => self.name.clone(),
+        };
+
+        let command_line = match value.get("command_line") {
+            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
+                Error::Configuration("Failed to parse command_line from host config".to_string())
+            })?,
+            None => self.command_line.clone(),
+        };
+        let username = match value.get("username") {
+            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
+                Error::Configuration("Failed to parse username from host config".to_string())
+            })?,
+            None => self.username.clone(),
+        };
+        let port = match value.get("port") {
+            Some(val) => val.as_u64().map(|val| val as u16),
+            None => self.port,
+        };
+
+        let cron_schedule = if value.contains_key("cron_schedule") {
+            value
+                .get("cron_schedule")
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .as_str()
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .parse()
+                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
+        } else {
+            self.cron_schedule.clone()
+        };
+
+        let private_key = match value.get("private_key") {
+            Some(val) => val.as_str().map(PathBuf::from),
+            None => self.private_key.clone(),
+        };
+
+        let password = match value.get("password") {
+            Some(val) => val.as_str().map(String::from),
+            None => self.password.clone(),
+        };
+
+        let exit_code = match value.get("exit_code") {
+            Some(val) => val.as_u64().map(|v| v as u32),
+            None => self.exit_code,
+        };
+
+        let timeout = match value.get("timeout") {
+            Some(val) => val.as_u64().map(|v| v as u32),
+            None => self.timeout,
+        };
+
+        Ok(Box::new(Self {
+            name,
+            command_line,
+            port,
+            cron_schedule,
+            username,
+            private_key,
+            password,
+            exit_code,
+            timeout,
+        }))
+    }
+}
+
 #[async_trait]
 impl ServiceTrait for SshService {
     /// ssh to the target host and run the command
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
 
-        let mut session = ssh::create_session().username(&self.username);
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+
+        let mut session = ssh::create_session().username(&config.username);
 
         // adds the SSH key if we have one, checking first that we have the key
-        if let Some(ssh_key) = &self.private_key {
+        if let Some(ssh_key) = &config.private_key {
             if !ssh_key.exists() {
                 return Ok(CheckResult {
                     timestamp: start_time,
@@ -78,12 +153,12 @@ impl ServiceTrait for SshService {
 
             debug!("Using SSH key {} for connection", ssh_key.display());
             session = session.private_key_path(ssh_key);
-        } else if let Some(password) = &self.password {
+        } else if let Some(password) = &config.password {
             debug!("Using password for connection");
             session = session.password(password);
         }
 
-        let target = format!("{}:{}", host.hostname.clone(), self.port.unwrap_or(22));
+        let target = format!("{}:{}", host.hostname.clone(), config.port.unwrap_or(22));
 
         let mut session = session
             .connect(&target)
@@ -93,13 +168,13 @@ impl ServiceTrait for SshService {
             })?
             .run_local();
 
-        debug!("Running ssh command: {:?}", &self.command_line);
+        debug!("Running ssh command: {:?}", &config.command_line);
 
         let mut exec = session.open_exec().map_err(|err| {
             error!("Failed to open exec: {:?}", err);
             Error::Generic(err.to_string())
         })?;
-        exec.exec_command(&self.command_line).map_err(|err| {
+        exec.exec_command(&config.command_line).map_err(|err| {
             error!("Failed to send SSH command: {:?}", err);
             Error::Generic(err.to_string())
         })?;
@@ -117,7 +192,7 @@ impl ServiceTrait for SshService {
 
         let time_elapsed = chrono::Utc::now() - start_time;
 
-        let status = match exit_status == self.exit_code.unwrap_or(0) {
+        let status = match exit_status == config.exit_code.unwrap_or(0) {
             false => ServiceStatus::Critical,
             true => ServiceStatus::Ok,
         };
@@ -132,6 +207,7 @@ impl ServiceTrait for SshService {
 
     /// Validate the configuration
     fn validate(&self) -> Result<(), Error> {
+        // TODO: this should overlay the host config too
         if self.private_key.is_none() && self.password.is_none() {
             return Err(Error::Configuration(
                 "No SSH key or password provided, auth is going to fail!".to_string(),

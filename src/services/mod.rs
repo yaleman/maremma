@@ -5,17 +5,19 @@ pub mod http;
 pub mod kubernetes;
 pub mod oneshot;
 pub mod ping;
+mod prelude;
 pub mod ssh;
 pub mod tls;
 
 use crate::check_loop::CheckResult;
-use crate::db::entities;
+use crate::db::entities::{self, host};
 use crate::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
 
 use clap::ValueEnum;
 use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
 use serde::de::DeserializeOwned;
+use serde_json::Map;
 
 use crate::errors::Error;
 #[derive(
@@ -111,6 +113,31 @@ pub trait ServiceTrait: Debug + Sync + Send {
     {
         serde_json::from_value(config.clone()).map_err(Error::from)
     }
+}
+
+/// Allows you to overlay host-specific content for services
+pub trait ConfigOverlay {
+    /// Pulls the host config out of the host model
+    fn get_host_config(&self, name: &str, host: &host::Model) -> Result<Map<String, Value>, Error> {
+        let config = match host.config.as_object() {
+            Some(val) => Ok(val.clone()),
+            None => Err(Error::Configuration(format!(
+                "Failed to parse config as map for host={}",
+                host.name
+            ))),
+        }?;
+
+        match config.get(name) {
+            Some(val) => val.as_object().cloned().ok_or(Error::Configuration(format!(
+                "Failed to parse {} config",
+                name
+            ))),
+            None => Ok(Map::new()),
+        }
+    }
+
+    /// Overlays host-specific content for services
+    fn overlay_host_config(&self, host_config: &Map<String, Value>) -> Result<Box<Self>, Error>;
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]

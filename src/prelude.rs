@@ -9,7 +9,7 @@ pub use croner::Cron;
 
 pub use async_trait::async_trait;
 pub use serde::{Deserialize, Serialize};
-pub use serde_json::{json, Value};
+pub use serde_json::{json, Map, Value};
 
 pub use tracing::{debug, error, info, instrument, trace, warn};
 pub use uuid::Uuid;

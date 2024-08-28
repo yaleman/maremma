@@ -189,4 +189,15 @@ mod tests {
         let host_group_members = super::Entity::find().all(db.as_ref()).await.unwrap();
         assert_ne!(host_group_members.len(), 1);
     }
+
+    #[tokio::test]
+    async fn test_find_by_name() {
+        // this should error
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let res = super::Model::find_by_name("test", &db).await;
+
+        assert!(res.is_err());
+        assert_eq!(res.err().unwrap(), Error::NotImplemented);
+    }
 }
