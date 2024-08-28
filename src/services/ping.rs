@@ -18,27 +18,9 @@ pub struct PingService {
 
 impl ConfigOverlay for PingService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
-        let name = match value.get("name") {
-            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
-                Error::Configuration("Failed to parse name from host config".to_string())
-            })?,
-            None => self.name.clone(),
-        };
-        let cron_schedule = if value.contains_key("cron_schedule") {
-            value
-                .get("cron_schedule")
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .as_str()
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .parse()
-                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
-        } else {
-            self.cron_schedule.clone()
-        };
-
         Ok(Box::new(Self {
-            name,
-            cron_schedule,
+            name: Self::extract_string(value, "name", &self.name),
+            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
         }))
     }
 }

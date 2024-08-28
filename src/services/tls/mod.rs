@@ -49,50 +49,13 @@ pub struct TlsService {
 
 impl ConfigOverlay for TlsService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
-        let name = match value.get("name") {
-            Some(val) => val.as_str().map(String::from).unwrap_or(self.name.clone()),
-            None => self.name.clone(),
-        };
-        let cron_schedule = if value.contains_key("cron_schedule") {
-            value
-                .get("cron_schedule")
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .as_str()
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
-                .parse()
-                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
-        } else {
-            self.cron_schedule.clone()
-        };
-
-        let port = value
-            .get("port")
-            .and_then(|v| v.as_u64())
-            .map(|v| v as u16)
-            .unwrap_or(self.port);
-
-        let expiry_critical = value
-            .get("expiry_critical")
-            .map(|v| v.as_u64().map(|v| v as u16))
-            .unwrap_or(self.expiry_critical);
-
-        let expiry_warn = value
-            .get("expiry_warn")
-            .map(|v| v.as_u64().map(|v| v as u16))
-            .unwrap_or(self.expiry_warn);
-
-        let timeout = value
-            .get("timeout")
-            .map(|v| v.as_u64().map(|v| v as u16))
-            .unwrap_or(self.timeout);
-
         Ok(Box::new(Self {
-            name,
-            cron_schedule,
-            port,
-            expiry_critical,
-            expiry_warn,
-            timeout,
+            name: Self::extract_string(value, "name", &self.name),
+            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            port: Self::extract_value(value, "port", &self.port)?,
+            expiry_critical: Self::extract_value(value, "expiry_critical", &self.expiry_critical)?,
+            expiry_warn: Self::extract_value(value, "expiry_warn", &self.expiry_warn)?,
+            timeout: Self::extract_value(value, "timeout", &self.timeout)?,
         }))
     }
 }
