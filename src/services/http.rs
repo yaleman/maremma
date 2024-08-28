@@ -8,7 +8,7 @@ use crate::prelude::*;
 use reqwest::Response;
 use schemars::JsonSchema;
 
-#[derive(Debug, Deserialize, Default, Copy, Clone)]
+#[derive(Debug, Deserialize, Default, Copy, Clone, Eq, PartialEq)]
 #[serde(rename_all = "UPPERCASE", from = "String")]
 /// HTTP Methods
 #[allow(missing_docs)]
@@ -112,12 +112,9 @@ pub struct HttpService {
 }
 
 impl HttpService {
-    async fn validate_response(
-        &self,
-        response: Response,
-        client_config: Box<HttpService>,
-    ) -> Result<(String, ServiceStatus), Error> {
-        let expected_status_code = reqwest::StatusCode::from_u16(
+    /// Get the expected status code for the service and throw an error if it's bad
+    fn expected_status_code(&self, client_config: &Self) -> Result<reqwest::StatusCode, Error> {
+        reqwest::StatusCode::from_u16(
             client_config
                 .http_status
                 .unwrap_or(default_expected_http_status())
@@ -130,7 +127,14 @@ impl HttpService {
                     .http_status
                     .unwrap_or(default_expected_http_status())
             ))
-        })?;
+        })
+    }
+    async fn validate_response(
+        &self,
+        response: Response,
+        client_config: Box<HttpService>,
+    ) -> Result<(String, ServiceStatus), Error> {
+        let expected_status_code = self.expected_status_code(&client_config)?;
 
         if response.status() != expected_status_code {
             return Ok((
@@ -229,14 +233,17 @@ impl ConfigOverlay for HttpService {
             None => self.http_uri.clone(),
         };
 
-        let http_status = match value.get("http_status") {
+        let http_status: Option<NonZeroU16> = match value.get("http_status") {
             Some(val) => match val.as_u64() {
                 Some(val) => NonZeroU16::new(val as u16),
-                None => {
-                    return Err(Error::Configuration(
-                        "Couldn't parse http_status".to_string(),
-                    ))
-                }
+                None => match val.as_str() {
+                    Some(val) => val.parse().ok(),
+                    None => {
+                        return Err(Error::Configuration(
+                            "Couldn't parse http_status as valid number".to_string(),
+                        ))
+                    }
+                },
             },
             None => self.http_status,
         };
@@ -435,6 +442,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_github_com_status_code() {
+        let _ = test_setup().await.expect("Failed to setup test");
+
+        let service = super::HttpService {
+            name: "test".to_string(),
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            http_status: Some(super::default_expected_http_status()),
+            http_method: HttpMethod::Get,
+            http_uri: None,
+            validate_tls: true,
+            connect_timeout: None,
+            port: None,
+            contains_string: None,
+        };
+        let mut host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: "github.com".to_string(),
+            check: crate::host::HostCheck::None,
+            config: json!({}),
+        };
+
+        let res = service.run(&host).await;
+        assert_eq!(service.name, "test".to_string());
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+
+        // if we put this text on the page, we're just kicking ourselves in the shins
+        host.config = json!({
+            "test": {
+                "http_status": 404,
+                "connect_timeout" : 5,
+                "port" : "443",
+            }
+        });
+
+        dbg!(&host);
+
+        let res = service.run(&host).await;
+
+        dbg!(&res);
+        assert_eq!(service.name, "test".to_string());
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().status, ServiceStatus::Critical);
+    }
+
+    #[tokio::test]
     #[cfg(feature = "test_badssl")]
     async fn test_skip_tls_verify() {
         let service = super::HttpService {
@@ -541,6 +595,17 @@ mod tests {
     }
 
     #[test]
+    fn test_from_str_http_method() {
+        assert_eq!(HttpMethod::Get, "get".to_string().into());
+        assert_eq!(HttpMethod::Post, "post".to_string().into());
+        assert_eq!(HttpMethod::Put, "put".to_string().into());
+        assert_eq!(HttpMethod::Delete, "delete".to_string().into());
+        assert_eq!(HttpMethod::Patch, "patch".to_string().into());
+        assert_eq!(HttpMethod::Options, "options".to_string().into());
+        assert_eq!(HttpMethod::Get, "nonsense".to_string().into());
+    }
+
+    #[test]
     fn test_default_expected_http_status() {
         assert_eq!(
             NonZeroU16::new(200).expect("Failed to parse 200 as a non-zero u16"),
@@ -563,5 +628,26 @@ mod tests {
 
         dbg!(&service);
         assert!(service.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_expected_status_code() {
+        let _ = test_setup().await.expect("Failed to setup test");
+
+        let service = HttpService {
+            name: "test".to_string(),
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            http_method: HttpMethod::Get,
+            http_uri: None,
+            http_status: NonZeroU16::new(13456),
+            validate_tls: true,
+            connect_timeout: Some(5),
+            port: None,
+            contains_string: None,
+        };
+
+        let client_config = Box::new(service.clone());
+
+        assert!(service.expected_status_code(&client_config).is_err());
     }
 }
