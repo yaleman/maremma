@@ -245,11 +245,7 @@ mod tests {
     #[tokio::test]
     /// Test running config update twice with a service that changes, to ensure it changes.
     async fn test_config_updates() {
-        let (db, config) = test_setup().await.expect("Failed to start test harness");
-
-        super::Model::update_db_from_config(db.as_ref(), config.clone())
-            .await
-            .expect("Failed to update db from config");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
@@ -295,5 +291,22 @@ mod tests {
         info!("found it: {:?}", service);
         assert_eq!(service.description, Some("New Description".to_string()));
         assert_eq!(service.extra_config, json!(extra_config_json))
+    }
+
+    #[tokio::test]
+    async fn find_with_linked() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let (service, groups) = super::Entity::find()
+            .find_with_linked(crate::db::entities::service_group_link::ServiceToGroups)
+            .all(db.as_ref())
+            .await
+            .expect("Failed to run query looking for a service with host groups")
+            .into_iter()
+            .next()
+            .expect("Uh...");
+
+        dbg!(service);
+        dbg!(groups);
     }
 }

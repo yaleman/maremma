@@ -15,13 +15,19 @@ async fn test_working_tls_service() {
         name: "test".to_string(),
         cron_schedule: "0 0 * * * * *".parse().unwrap(),
         port: 443,
-        expiry_critical: Some(1),
+        expiry_critical: Some(5),
         expiry_warn: Some(3),
         timeout: None,
     };
     let host: entities::host::Model = entities::host::Model {
         check: crate::host::HostCheck::None,
         hostname: "example.com".to_string(),
+        config: json!({
+            "port": 443,
+            "cron_schedule" : "* * * * *",
+            "expiry_critical": 1,
+            "expiry_warn" : 5,
+        }),
         ..test_host()
     };
     let result = service.run(&host).await;

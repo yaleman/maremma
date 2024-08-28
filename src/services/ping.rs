@@ -1,17 +1,46 @@
 //! Basic ping service
 
-use schemars::JsonSchema;
 use tokio::net::lookup_host;
 
+use super::prelude::*;
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 /// A service that pings things
 pub struct PingService {
+    /// Name of the service
+    pub name: String,
     #[serde(with = "crate::serde::cron")]
     /// The cron schedule for this service
     #[schemars(with = "String")]
     pub cron_schedule: Cron,
+}
+
+impl ConfigOverlay for PingService {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+        let name = match value.get("name") {
+            Some(val) => val.as_str().map(String::from).ok_or_else(|| {
+                Error::Configuration("Failed to parse name from host config".to_string())
+            })?,
+            None => self.name.clone(),
+        };
+        let cron_schedule = if value.contains_key("cron_schedule") {
+            value
+                .get("cron_schedule")
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .as_str()
+                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .parse()
+                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))?
+        } else {
+            self.cron_schedule.clone()
+        };
+
+        Ok(Box::new(Self {
+            name,
+            cron_schedule,
+        }))
+    }
 }
 
 #[async_trait]
@@ -19,6 +48,8 @@ impl ServiceTrait for PingService {
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
         let payload = [0; 8];
+
+        let _config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
         let hostname = lookup_host(format!("{}:80", host.hostname.clone()))
             .await?
@@ -51,6 +82,7 @@ mod tests {
     async fn test_ping_service_localhost() {
         let _ = setup_logging(true, true);
         let test_service = super::PingService {
+            name: "test".to_string(),
             cron_schedule: Cron::new("* * * * *").parse().unwrap(),
         };
         let host = entities::host::Model {

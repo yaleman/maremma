@@ -164,8 +164,6 @@ pub(crate) async fn host_group_member_delete(
         group_id.hyphenated()
     );
 
-    // TODO: unpick the group -> service -> host -> check chain
-
     Ok(Redirect::to(&format!(
         "/host_group/{}?message=Removed {} from '{}'",
         group_id, host.hostname, group.name

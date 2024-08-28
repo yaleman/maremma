@@ -347,3 +347,21 @@ impl FullServiceCheck {
             .map_err(Error::from)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::db::tests::test_setup;
+    use crate::db::MaremmaEntity;
+    use crate::errors::Error;
+
+    #[tokio::test]
+    async fn test_find_by_name() {
+        // this should error
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let res = super::Model::find_by_name("test", &db).await;
+
+        assert!(res.is_err());
+        assert_eq!(res.err().unwrap(), Error::NotImplemented);
+    }
+}

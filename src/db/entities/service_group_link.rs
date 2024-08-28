@@ -143,18 +143,16 @@ mod tests {
         super::Model::update_db_from_config(&db, config)
             .await
             .expect("Failed to load config");
+    }
 
-        // let (service, groups) = entities::service::Entity::find()
-        //     .filter(entities::service::Column::HostGroups.ne(Json::Null))
-        //     .find_with_linked(entities::service_group_link::ServiceToGroups)
-        //     .all(db.as_ref())
-        //     .await
-        //     .expect("Failed to run query looking for a service with host groups")
-        //     .into_iter()
-        //     .next()
-        //     .expect("Uh...");
+    #[tokio::test]
+    async fn test_find_by_name() {
+        // this should error
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        // dbg!(service);
-        // dbg!(groups);
+        let res = super::Model::find_by_name("test", &db).await;
+
+        assert!(res.is_err());
+        assert_eq!(res.err().unwrap(), Error::NotImplemented);
     }
 }
