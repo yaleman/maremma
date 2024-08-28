@@ -117,7 +117,7 @@ impl MaremmaEntity for Model {
                     )
                     .exec_with_returning(db)
                     .await?;
-                    warn!(
+                    info!(
                         "Added group {:?} from service {:?} to DB",
                         &service_name, group_name
                     );
