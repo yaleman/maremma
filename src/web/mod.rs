@@ -116,8 +116,6 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::seconds(1800)));
 
-    let oidc_error_handler = OidcErorHandler::new(state.web_tx.clone());
-
     let mut app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
         .route("/auth/profile", get(views::profile::profile))
@@ -186,6 +184,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
 
         let application_base_url = Uri::from_str(&frontend_url)
             .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
+        let oidc_error_handler = OidcErorHandler::new(state.web_tx.clone());
 
         app = app.layer(
             ServiceBuilder::new()
