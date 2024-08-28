@@ -102,11 +102,15 @@ struct CertReloaderTask {
     key_time: DateTime<Utc>,
 }
 
+/// Get the last modified time of a file
 fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
-    let file = match file.is_symlink() {
-        true => file.read_link()?,
-        false => file.to_path_buf(),
-    };
+    let file = file.canonicalize().inspect_err(|err| {
+        error!(
+            "Failed to get canonical path for {} error={:?}",
+            file.display(),
+            err
+        )
+    })?;
 
     let metadata = file.metadata()?;
     let modified = metadata.modified()?;
@@ -114,8 +118,20 @@ fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
 }
 
 fn get_file_times(config: &Configuration) -> Result<(DateTime<Utc>, DateTime<Utc>), Error> {
-    let cert_time = get_file_time(&config.cert_file)?;
-    let key_time = get_file_time(&config.cert_key)?;
+    let cert_time = get_file_time(&config.cert_file).inspect_err(|err| {
+        error!(
+            "Failed to get metadata for TLS cert at {} {:?}",
+            config.cert_file.display(),
+            err
+        )
+    })?;
+    let key_time = get_file_time(&config.cert_key).inspect_err(|err| {
+        error!(
+            "Failed to get metadata for TLS key at {} {:?}",
+            config.cert_key.display(),
+            err
+        )
+    })?;
     Ok((cert_time, key_time))
 }
 
