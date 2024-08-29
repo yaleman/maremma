@@ -64,7 +64,7 @@ impl MaremmaEntity for Model {
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<Configuration>,
+        config: SendableConfig,
     ) -> Result<(), Error> {
         let mut known_group_list: Vec<String> = Entity::find()
             .all(db)
@@ -74,16 +74,16 @@ impl MaremmaEntity for Model {
             .collect();
 
         // add the group names to the known group list
-        for (_host_name, host) in config.hosts.iter() {
-            for group_name in host.host_groups.clone() {
+        for (_host_name, host) in config.read().await.hosts.iter() {
+            for group_name in &host.host_groups {
                 // if we already have the group name we don't need to add it to the db
-                if known_group_list.contains(&group_name) {
+                if known_group_list.contains(group_name) {
                     debug!("already have {}", group_name);
                     continue;
                 }
 
                 // we haven't added it to the list, so we're going to have to see if it's already in the database.
-                if Model::find_by_name(&group_name, db).await?.is_none() {
+                if Model::find_by_name(group_name, db).await?.is_none() {
                     Entity::insert(
                         Model {
                             id: Uuid::new_v4(),
@@ -97,11 +97,11 @@ impl MaremmaEntity for Model {
                     debug!("already have {}", group_name);
                 }
 
-                known_group_list.push(group_name);
+                known_group_list.push(group_name.to_string());
             }
         }
 
-        for (service_name, service) in &config.services {
+        for (service_name, service) in &config.read().await.services {
             for group_name in service.host_groups.iter() {
                 if known_group_list.contains(group_name) {
                     continue;

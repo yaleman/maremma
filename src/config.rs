@@ -4,7 +4,6 @@ use std::collections::{HashMap, HashSet};
 use std::num::NonZeroU16;
 use std::path::PathBuf;
 
-use reqwest::Url;
 use schemars::JsonSchema;
 
 use crate::constants::{web_server_default_port, WEB_SERVER_DEFAULT_STATIC_PATH};
@@ -24,18 +23,6 @@ fn default_max_concurrent_checks() -> usize {
     let cpus = num_cpus::get();
     debug!("Detected {} CPUs", cpus);
     std::cmp::max(cpus.saturating_sub(2), 1)
-}
-
-#[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
-/// OIDC Config
-pub struct OidcConfig {
-    /// OIDC issuer (url)
-    pub issuer: String,
-    /// OIDC client_id
-    pub client_id: String,
-    /// OIDC client_secret
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_secret: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -68,16 +55,14 @@ pub struct ConfigurationParser {
     pub services: HashMap<String, Value>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub frontend_url: Option<String>,
-
-    #[serde(default)]
-    /// Should we enable OIDC authentication?
-    pub oidc_enabled: bool,
-
-    /// OIDC configuration, see [OidcConfig]
+    /// OIDC issuer (url)
+    pub oidc_issuer: Option<String>,
+    /// OIDC client_id
+    pub oidc_client_id: Option<String>,
+    /// OIDC client_secret
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub oidc_config: Option<OidcConfig>,
+    pub oidc_client_secret: Option<String>,
 
     #[serde(default)]
     /// The path to the TLS certificate
@@ -90,6 +75,9 @@ pub struct ConfigurationParser {
     /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
 }
+
+/// A sendable configuration, for use across threads
+pub type SendableConfig = Arc<RwLock<Configuration>>;
 
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
 /// The result of parsing the configuration file, don't instantiate this directly!
@@ -120,15 +108,15 @@ pub struct Configuration {
     pub services: HashMap<String, Service>,
 
     /// The frontend URL ie `https://maremma.example.com` used for things like OIDC
+    pub frontend_url: String,
+
+    /// OIDC issuer (url)
+    pub oidc_issuer: String,
+    /// OIDC client_id
+    pub oidc_client_id: String,
+    /// OIDC client_secret
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub frontend_url: Option<String>,
-
-    #[serde(default)]
-    /// Should we enable OIDC authentication?
-    pub oidc_enabled: bool,
-
-    /// OIDC configuration, see [OidcConfig]
-    pub oidc_config: Option<OidcConfig>,
+    pub oidc_client_secret: Option<String>,
 
     /// the TLS certificate matter
     pub cert_file: PathBuf,
@@ -163,20 +151,6 @@ impl TryFrom<ConfigurationParser> for Configuration {
             ));
         }
 
-        // handle the case where the frontend URL is set but doesn't start with https
-        if let Some(url) = &value.frontend_url {
-            // parse the URL
-            let url = Url::parse(url).map_err(|e| {
-                Error::Configuration(format!("Failed to parse frontend url: {}", e))
-            })?;
-
-            if url.scheme() != "https" {
-                return Err(Error::Configuration(
-                    "Frontend URL must start with https".to_string(),
-                ));
-            }
-        }
-
         let listen_port: Option<NonZeroU16> = value
             .listen_port
             .map(|lp| {
@@ -186,6 +160,29 @@ impl TryFrom<ConfigurationParser> for Configuration {
             })
             .transpose()?;
 
+        let frontend_url =
+            value
+                .frontend_url
+                .unwrap_or(match std::env::var("MAREMMA_FRONTEND_URL") {
+                    Ok(val) => val,
+                    Err(_) => return Err(Error::Configuration("Frontend URL not set".to_string())),
+                });
+        let oidc_issuer = value
+            .oidc_issuer
+            .unwrap_or(match std::env::var("MAREMMA_OIDC_ISSUER") {
+                Ok(val) => val,
+                Err(_) => return Err(Error::Configuration("OIDC Issuer not set".to_string())),
+            });
+        let oidc_client_id =
+            value
+                .oidc_client_id
+                .unwrap_or(match std::env::var("MAREMMA_OIDC_CLIENT_ID") {
+                    Ok(val) => val,
+                    Err(_) => {
+                        return Err(Error::Configuration("OIDC Client ID not set".to_string()))
+                    }
+                });
+
         Ok(Configuration {
             database_file: value.database_file,
             listen_address: value.listen_address,
@@ -193,9 +190,11 @@ impl TryFrom<ConfigurationParser> for Configuration {
             hosts: value.hosts,
             local_services: value.local_services,
             services,
-            frontend_url: value.frontend_url,
-            oidc_enabled: value.oidc_enabled,
-            oidc_config: value.oidc_config,
+            frontend_url,
+            oidc_issuer,
+            oidc_client_id,
+            oidc_client_secret: value.oidc_client_secret,
+
             cert_file: value.cert_file,
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
@@ -251,16 +250,8 @@ impl Configuration {
     }
 
     #[cfg(test)]
-    pub async fn load_test_config() -> Arc<Self> {
-        Arc::new(Self::load_test_config_bare().await)
-    }
-
-    /// Getter for the frontend URL
-    pub fn frontend_url(&self) -> String {
-        self.frontend_url.clone().unwrap_or_else(|| {
-            let port = self.listen_port.unwrap_or(web_server_default_port());
-            format!("https://{}:{}", self.listen_address, port)
-        })
+    pub async fn load_test_config() -> Arc<RwLock<Self>> {
+        Arc::new(RwLock::new(Self::load_test_config_bare().await))
     }
 
     /// returns the listen address and port as a string ie `127.0.0.1:8888`
@@ -327,7 +318,11 @@ mod tests {
                 "foo.bar" : {
                     "hostname" : "foo.bar"
                 }
-            }
+            },
+            "frontend_url": "https://example.com",
+            "oidc_issuer" : "https://example.com",
+            "oidc_client_id" : "foo",
+            "oidc_client_secret" : "bar",
         }}
         .to_string();
         let config = Configuration::new_from_string(&config).await.unwrap();
@@ -340,7 +335,7 @@ mod tests {
     async fn test_config_groups() {
         let (_db, config) = test_setup().await.expect("Failed to setup test");
 
-        for group in config.groups() {
+        for group in config.read().await.groups() {
             assert!(!group.is_empty());
         }
     }
@@ -363,19 +358,6 @@ mod tests {
         let mut cfg = ConfigurationParser::default();
 
         cfg.static_path = Some("/tmp/does-not-exist".parse().unwrap());
-        assert!(Configuration::try_from(cfg).is_err());
-    }
-
-    #[test]
-    // Testing when the config has incorrect frontend URLs
-    fn test_config_invalid_frontend() {
-        let mut cfg = ConfigurationParser::default();
-
-        cfg.frontend_url = Some("http://example.com".to_string());
-        assert!(Configuration::try_from(cfg).is_err());
-        let mut cfg = ConfigurationParser::default();
-
-        cfg.frontend_url = Some("ftp://example.com".to_string());
         assert!(Configuration::try_from(cfg).is_err());
     }
 }

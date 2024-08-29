@@ -72,15 +72,17 @@ impl ServiceTrait for TlsService {
         let root_store = RootCertStore {
             roots: webpki_roots::TLS_SERVER_ROOTS.into(),
         };
-        let mut config: ClientConfig = ClientConfig::builder()
+        let mut client_config: ClientConfig = ClientConfig::builder()
             .with_root_certificates(root_store)
             .with_no_client_auth();
 
         //  we use our own verifier because we want all the data
         let tls_verifier = Arc::new(TlsCertVerifier);
-        config.dangerous().set_certificate_verifier(tls_verifier);
+        client_config
+            .dangerous()
+            .set_certificate_verifier(tls_verifier);
 
-        let connector = TlsConnector::from(Arc::new(config));
+        let connector = TlsConnector::from(Arc::new(client_config));
         let dnsname = match ServerName::try_from(host.hostname.clone()) {
             Ok(val) => val,
             Err(_err) => {

@@ -63,9 +63,9 @@ impl MaremmaEntity for Model {
     }
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<Configuration>,
+        config: SendableConfig,
     ) -> Result<(), Error> {
-        for (service_name, service) in &config.services {
+        for (service_name, service) in &config.read().await.services {
             // this is janky but we need to flatten it using serde to get the "extra" fields
             let extra_config: Json = serde_json::to_value(service.extra_config.clone())
                 .inspect_err(|err| {
@@ -198,6 +198,7 @@ mod tests {
     use sea_orm::IntoActiveModel;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use serde_json::{json, Value};
+    use tokio::sync::RwLock;
     use tracing::info;
 
     #[tokio::test]
@@ -278,7 +279,7 @@ mod tests {
             ),
         );
 
-        super::Model::update_db_from_config(db.as_ref(), Arc::new(config))
+        super::Model::update_db_from_config(db.as_ref(), Arc::new(RwLock::new(config)))
             .await
             .expect("Failed to update db from config");
 

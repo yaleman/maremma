@@ -24,10 +24,13 @@ docker_publish:
         --push \
         .
 
-check: codespell
+clippy:
     cargo clippy --all-features
-    cargo test
 
+check: codespell clippy test
+
+test:
+    cargo test
 book:
     cd docs && mdbook serve
 

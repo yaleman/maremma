@@ -15,20 +15,22 @@ pub(crate) mod migrator;
 pub(crate) mod tests;
 
 pub async fn test_connect() -> Result<DatabaseConnection, sea_orm::error::DbErr> {
-    let config = Configuration {
+    let config = Arc::new(RwLock::new(Configuration {
         database_file: ":memory:".to_string(),
         ..Default::default()
-    };
-    connect(&config).await
+    }));
+    connect(config).await
 }
 
 #[instrument(level = "info", skip_all)]
-pub async fn connect(config: &Configuration) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
-    let connect_string = if config.database_file == ":memory:" {
+pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
+    let database_file = config.read().await.database_file.clone();
+
+    let connect_string = if database_file == ":memory:" {
         info!("Using in-memory database!");
         "sqlite::memory:".to_string()
     } else {
-        format!("sqlite://{}?mode=rwc", config.database_file)
+        format!("sqlite://{}?mode=rwc", database_file)
     };
 
     let db = Database::connect(connect_string).await?;
@@ -42,7 +44,7 @@ pub async fn connect(config: &Configuration) -> Result<DatabaseConnection, sea_o
 
 pub async fn update_db_from_config(
     db: &DatabaseConnection,
-    config: Arc<Configuration>,
+    config: SendableConfig,
 ) -> Result<(), Error> {
     // let's go through and update the DB
 

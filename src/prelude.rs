@@ -17,7 +17,7 @@ pub use uuid::Uuid;
 pub(crate) use crate::check_loop::CheckResult;
 pub(crate) use crate::LOCAL_SERVICE_HOST_NAME;
 
-pub(crate) use crate::config::Configuration;
+pub(crate) use crate::config::{Configuration, SendableConfig};
 pub(crate) use crate::db::entities::{self, MaremmaEntity};
 pub(crate) use crate::errors::Error;
 pub(crate) use crate::host::GenericHost;
