@@ -131,6 +131,7 @@ impl MaremmaEntity for Model {
                         .hostname
                         .set_if_not_equals(hostname.to_owned());
                     existing_host.name.set_if_not_equals(name);
+                    existing_host.config.set_if_not_equals(json!(host.config));
 
                     if existing_host.is_changed() {
                         info!("Updating {:?}", &existing_host);

@@ -1,7 +1,6 @@
 #[cfg(test)]
 pub(crate) mod tls_utils;
 
-#[cfg(feature = "test_containers")]
 pub(crate) mod testcontainers;
 
 #[test]

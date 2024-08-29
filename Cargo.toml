@@ -5,11 +5,6 @@ edition = "2021"
 license = "MIT"
 
 [features]
-"default" = ["test_containers"]
-# Enables the badssl tests for TLS things
-"test_badssl" = []
-# Used for testing the TLS things with test containers
-"test_containers" = []
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

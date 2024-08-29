@@ -1,5 +1,6 @@
 //! Code for generating test certs, and doing crypto-crimes.
 
+use chrono::TimeDelta;
 use openssl::ec::{EcGroup, EcKey};
 use openssl::error::ErrorStack;
 use openssl::nid::Nid;
@@ -212,7 +213,10 @@ pub(crate) fn gen_private_key(
 }
 
 /// build up a CA certificate and key.
-pub(crate) fn build_ca(ca_config: Option<CAConfig>) -> Result<CaHandle, ErrorStack> {
+pub(crate) fn build_ca(
+    ca_config: Option<CAConfig>,
+    signing_function: Option<hash::MessageDigest>,
+) -> Result<CaHandle, ErrorStack> {
     let ca_config = ca_config.unwrap_or_default();
 
     let ca_key = gen_private_key(&ca_config.key_type, Some(ca_config.key_bits))?;
@@ -261,6 +265,12 @@ pub(crate) fn build_ca(ca_config: Option<CAConfig>) -> Result<CaHandle, ErrorSta
     cert_builder.append_extension(subject_key_identifier)?;
 
     cert_builder.set_pubkey(&ca_key)?;
+
+    if let Some(signing_function) = signing_function {
+        cert_builder.sign(&ca_key, signing_function)?;
+    } else {
+        cert_builder.sign(&ca_key, get_signing_func())?;
+    }
 
     cert_builder.sign(&ca_key, get_signing_func())?;
     let ca_cert = cert_builder.build();
@@ -437,7 +447,7 @@ fn test_ca_loader() {
     // let's test the defaults first
 
     let ca_config = CAConfig::default();
-    if let Ok(ca) = build_ca(Some(ca_config)) {
+    if let Ok(ca) = build_ca(Some(ca_config), None) {
         write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).unwrap();
         assert!(load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path()).is_ok());
     };
@@ -453,7 +463,7 @@ fn test_ca_loader() {
     good_ca_configs.into_iter().for_each(|config| {
         println!("testing good config {:?}", config);
         let ca_config = CAConfig::new(config.0, config.1, config.2).unwrap();
-        let ca = build_ca(Some(ca_config)).unwrap();
+        let ca = build_ca(Some(ca_config), None).unwrap();
         write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).unwrap();
         let ca_result = load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path());
         println!("result: {:?}", ca_result);
@@ -469,7 +479,7 @@ fn test_ca_loader() {
             config.0, config.1, config.2
         );
         let ca_config = CAConfig::new(config.0, config.1, config.2).unwrap();
-        let ca = build_ca(Some(ca_config)).unwrap();
+        let ca = build_ca(Some(ca_config), None).unwrap();
         write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).unwrap();
         let ca_result = load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path());
         println!("result: {:?}", ca_result);
@@ -477,28 +487,91 @@ fn test_ca_loader() {
     });
 }
 
+pub struct TestCertificateBuilder {
+    pub issue_time: i64,
+    pub expiry_time: i64,
+    pub hostname: String,
+    pub use_sha1_intermediate: bool,
+}
+
+impl TestCertificateBuilder {
+    pub fn new() -> Self {
+        Self {
+            issue_time: chrono::Utc::now().timestamp() - TimeDelta::days(30).num_seconds(),
+            expiry_time: chrono::Utc::now().timestamp() + TimeDelta::days(30).num_seconds(),
+            hostname: "maremma_test".to_string(),
+            use_sha1_intermediate: false,
+        }
+    }
+
+    pub fn with_sha1_intermediate(self) -> Self {
+        Self {
+            use_sha1_intermediate: true,
+            ..self
+        }
+    }
+
+    pub fn with_name(self, name: &str) -> Self {
+        Self {
+            hostname: name.to_string(),
+            ..self
+        }
+    }
+
+    pub fn with_expiry(self, expiry_time: i64) -> Self {
+        Self {
+            expiry_time,
+            ..self
+        }
+    }
+
+    pub fn with_issue_time(self, issue_time: i64) -> Self {
+        Self { issue_time, ..self }
+    }
+
+    pub fn build(self) -> TestCertificates {
+        TestCertificates::new(
+            &self.hostname,
+            self.issue_time,
+            self.expiry_time,
+            self.use_sha1_intermediate,
+        )
+    }
+}
+
 pub(crate) struct TestCertificates {
     pub cert_file: NamedTempFile,
     pub key_file: NamedTempFile,
-    // pub cert: CertHandle,
 }
 
 impl TestCertificates {
-    pub fn new() -> Self {
+    pub fn new(
+        hostname: &str,
+        issue_time: i64,
+        expiry_time: i64,
+        use_sha1_intermediate: bool,
+    ) -> Self {
         let mut cert_file = NamedTempFile::new().expect("Failed to create temp file");
         let mut key_file = NamedTempFile::new().expect("Failed to create temp file");
 
         let ca_config = crate::tests::tls_utils::CAConfig::default();
-        let ca_handle =
-            crate::tests::tls_utils::build_ca(Some(ca_config)).expect("Failed to build CA");
+        // TODO: signing function here
+
+        let signing_function = if use_sha1_intermediate {
+            hash::MessageDigest::sha1()
+        } else {
+            hash::MessageDigest::sha256()
+        };
+        let ca_handle = crate::tests::tls_utils::build_ca(Some(ca_config), Some(signing_function))
+            .expect("Failed to build CA");
 
         let cert = crate::tests::tls_utils::build_cert(
-            "test_maremma_host",
+            hostname,
             &ca_handle,
             None,
             None,
-            chrono::Utc::now().timestamp() - 86400,
-            chrono::Utc::now().timestamp() - 3600,
+            issue_time,
+            expiry_time,
         )
         .expect("Failed to generate TLS Certificate");
 
@@ -526,7 +599,7 @@ impl TestCertificates {
 fn test_build_cert() {
     let ca_config = CAConfig::default();
 
-    let ca_handle = build_ca(Some(ca_config)).expect("Failed to build CA");
+    let ca_handle = build_ca(Some(ca_config), None).expect("Failed to build CA");
 
     let cert = build_cert(
         "test.example.com",

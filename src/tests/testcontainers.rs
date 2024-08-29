@@ -4,7 +4,7 @@ use testcontainers::core::{ContainerPort, Mount};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 
-use crate::tests::tls_utils::TestCertificates;
+use crate::tests::tls_utils::{TestCertificateBuilder, TestCertificates};
 
 const TEST_CONTAINER_NGINX_CERT_PATH: &str = "/data/cert.pem";
 const TEST_CONTAINER_NGINX_KEY_PATH: &str = "/data/key.pem";
@@ -58,7 +58,7 @@ pub struct TestContainer {
 
 impl TestContainer {
     /// Start up an NGINX container with a TLS config
-    async fn new(test_certs: TestCertificates) -> Self {
+    pub async fn new(test_certs: TestCertificates, name: &str) -> Self {
         let nginx_config = get_nginx_config_file();
 
         let container = GenericImage::new("nginx", "latest")
@@ -66,7 +66,7 @@ impl TestContainer {
             .with_wait_for(testcontainers::core::WaitFor::message_on_stderr(
                 "start worker process",
             ))
-            .with_container_name("maremma_test_tls_service")
+            .with_container_name(name)
             .with_mount(Mount::bind_mount(
                 test_certs.cert_file.path().display().to_string(),
                 TEST_CONTAINER_NGINX_CERT_PATH,
@@ -98,7 +98,7 @@ impl TestContainer {
 }
 
 #[tokio::test]
-async fn test_tls_service() {
+async fn test_basic_testcontainer() {
     use crate::prelude::*;
 
     let (_db, _config) = test_setup().await.expect("Failed to set up test");
@@ -109,7 +109,11 @@ async fn test_tls_service() {
         .build()
         .expect("failed to build reqwest client");
 
-    let container = TestContainer::new(TestCertificates::new()).await;
+    let container = TestContainer::new(
+        TestCertificateBuilder::new().build(),
+        "test_basic_testcontainer",
+    )
+    .await;
 
     debug!("TLS PORT: {}", container.tls_port);
 

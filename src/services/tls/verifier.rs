@@ -1,9 +1,9 @@
 use super::TlsPeerState;
 use crate::prelude::*;
-use rustls::client::verify_server_name;
-use rustls::pki_types::{CertificateDer, ServerName};
+use rustls::client::{verify_server_cert_signed_by_trust_anchor, verify_server_name};
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::server::ParsedCertificate;
-use rustls::SignatureScheme;
+use rustls::{RootCertStore, SignatureScheme};
 use x509_parser::parse_x509_certificate;
 
 #[derive(Debug, Default)]
@@ -24,7 +24,8 @@ impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
         let (_, cert) = parse_x509_certificate(end_entity.as_ref()).unwrap();
 
         // let this just fail out if it fails because well, too bad
-        let parsed_cert = ParsedCertificate::try_from(end_entity)?;
+        let parsed_cert = ParsedCertificate::try_from(end_entity)
+            .inspect_err(|err| error!("Couldn't parse certificate! {:?}", err))?;
 
         let mut tls_peer_state = TlsPeerState::new(DateTime::from_timestamp_nanos(
             cert.validity()
@@ -35,14 +36,32 @@ impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
 
         tls_peer_state.cert_name_matches = verify_server_name(&parsed_cert, server_name).is_ok();
 
+        let root_store = RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+        };
+
         for intermediate in intermediates {
+            if let Ok(parsed_intermediate) = ParsedCertificate::try_from(intermediate) {
+                if verify_server_cert_signed_by_trust_anchor(
+                    &parsed_intermediate,
+                    &root_store,
+                    &[],
+                    UnixTime::now(),
+                    &[],
+                )
+                .is_err()
+                {
+                    tls_peer_state.set_intermediate_untrusted();
+                    debug!("Intermediate is untrusted");
+                }
+            }
+
             if let Ok((_, cert)) = parse_x509_certificate(intermediate.as_ref()) {
                 if !cert.validity.is_valid() {
                     tls_peer_state.set_intermediate_expired();
-                    break;
                 }
-            } else {
-                debug!("Couldn't parse intermediate certificate... that's odd.")
+
+                // TODO: match cert signing algo
             }
         }
 
