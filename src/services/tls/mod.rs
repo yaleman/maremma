@@ -52,12 +52,12 @@ pub struct TlsService {
 impl ConfigOverlay for TlsService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
         Ok(Box::new(Self {
-            name: Self::extract_string(value, "name", &self.name),
-            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
-            port: Self::extract_value(value, "port", &self.port)?,
-            expiry_critical: Self::extract_value(value, "expiry_critical", &self.expiry_critical)?,
-            expiry_warn: Self::extract_value(value, "expiry_warn", &self.expiry_warn)?,
-            timeout: Self::extract_value(value, "timeout", &self.timeout)?,
+            name: self.extract_string(value, "name", &self.name),
+            cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            port: self.extract_value(value, "port", &self.port)?,
+            expiry_critical: self.extract_value(value, "expiry_critical", &self.expiry_critical)?,
+            expiry_warn: self.extract_value(value, "expiry_warn", &self.expiry_warn)?,
+            timeout: self.extract_value(value, "timeout", &self.timeout)?,
         }))
     }
 }
@@ -176,6 +176,11 @@ impl ServiceTrait for TlsService {
             status,
             result_text,
         })
+    }
+
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
     }
 }
 

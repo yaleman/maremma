@@ -1,6 +1,9 @@
+use sea_orm::EntityTrait;
 use serde_json::json;
+
 use uuid::Uuid;
 
+use crate::db::entities;
 use crate::db::entities::host::test_host;
 use crate::db::tests::test_setup;
 use crate::services::tls::TlsService;
@@ -243,8 +246,9 @@ async fn test_timeout() {
     assert!(result.is_err());
 }
 
-#[test]
-fn test_service_parser() {
+#[tokio::test]
+async fn test_service_parser() {
+    let (db, _config) = test_setup().await.expect("Failed to set up test");
     let mut extra_config = std::collections::HashMap::new();
 
     extra_config.insert("port".to_string(), json! {1234});
@@ -266,6 +270,18 @@ fn test_service_parser() {
         })),
     };
     let _ = service.parse_config().expect("Failed to parse config!");
+
+    let host = entities::host::Entity::find()
+        .one(db.as_ref())
+        .await
+        .expect("Failed to search for host")
+        .expect("Failed to find host");
+
+    service
+        .config
+        .unwrap()
+        .as_json_pretty(&host)
+        .expect("Failed to convert to json");
 }
 
 #[test]

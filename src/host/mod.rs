@@ -135,7 +135,6 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::db::tests::test_setup;
     use crate::host::HostCheck;
 
     #[tokio::test]

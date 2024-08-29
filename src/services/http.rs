@@ -8,8 +8,8 @@ use crate::prelude::*;
 use reqwest::Response;
 use schemars::JsonSchema;
 
-#[derive(Debug, Deserialize, Default, Copy, Clone, Eq, PartialEq)]
-#[serde(rename_all = "UPPERCASE", from = "String")]
+#[derive(Debug, Deserialize, Serialize, Default, Copy, Clone, Eq, PartialEq)]
+#[serde(rename_all = "UPPERCASE", from = "String", into = "String")]
 /// HTTP Methods
 #[allow(missing_docs)]
 pub enum HttpMethod {
@@ -49,6 +49,12 @@ impl From<HttpMethod> for reqwest::Method {
     }
 }
 
+impl From<HttpMethod> for String {
+    fn from(value: HttpMethod) -> Self {
+        value.to_string()
+    }
+}
+
 /// Crimes against strings
 impl Display for HttpMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -75,7 +81,7 @@ fn default_expected_http_status() -> NonZeroU16 {
     NonZeroU16::new(200).expect("Failed to parse 200 as a non-zero u16")
 }
 
-#[derive(Debug, Deserialize, JsonSchema, Clone)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema, Clone)]
 /// An HTTP(s) service check
 pub struct HttpService {
     /// Name of the check
@@ -200,7 +206,7 @@ fn test_from_partial_value() {
 
 impl ConfigOverlay for HttpService {
     fn overlay_host_config(&self, value: &Map<String, Value>) -> Result<Box<Self>, Error> {
-        let name = Self::extract_string(value, "name", &self.name);
+        let name = self.extract_string(value, "name", &self.name);
 
         let http_status: Option<NonZeroU16> = match value.get("http_status") {
             Some(val) => match val.as_u64() {
@@ -219,14 +225,14 @@ impl ConfigOverlay for HttpService {
 
         Ok(Box::new(Self {
             name,
-            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
-            http_method: Self::extract_value(value, "http_method", &self.http_method)?,
-            http_uri: Self::extract_value(value, "http_uri", &self.http_uri)?,
+            cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            http_method: self.extract_value(value, "http_method", &self.http_method)?,
+            http_uri: self.extract_value(value, "http_uri", &self.http_uri)?,
             http_status,
-            validate_tls: Self::extract_bool(value, "validate_tls", self.validate_tls),
-            connect_timeout: Self::extract_value(value, "connect_timeout", &self.connect_timeout)?,
-            port: Self::extract_value(value, "port", &self.port)?,
-            contains_string: Self::extract_value(value, "contains_string", &self.contains_string)?,
+            validate_tls: self.extract_bool(value, "validate_tls", self.validate_tls),
+            connect_timeout: self.extract_value(value, "connect_timeout", &self.connect_timeout)?,
+            port: self.extract_value(value, "port", &self.port)?,
+            contains_string: self.extract_value(value, "contains_string", &self.contains_string)?,
         }))
     }
 }
@@ -279,6 +285,11 @@ impl ServiceTrait for HttpService {
             status,
             time_elapsed,
         })
+    }
+
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
     }
 }
 

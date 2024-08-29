@@ -13,6 +13,7 @@ use openssl::x509::{
     X509NameBuilder, X509ReqBuilder, X509,
 };
 use openssl::{asn1, bn, hash, pkey};
+use tempfile::NamedTempFile;
 use tracing::*;
 
 use std::fs::File;
@@ -75,8 +76,6 @@ pub fn check_privkey_minimums(privkey: &PKeyRef<Private>) -> Result<(), String> 
                 EC_MIN_KEY_SIZE_BITS, key_bits
             ))
         } else {
-            #[cfg(any(test, debug_assertions))]
-            println!("The EC private key size is: {} bits, that's OK!", key_bits);
             debug!("The EC private key size is: {} bits, that's OK!", key_bits);
             Ok(())
         }
@@ -313,9 +312,9 @@ pub(crate) fn load_ca(
 
 #[allow(dead_code)]
 pub(crate) struct CertHandle {
-    key: pkey::PKey<pkey::Private>,
-    cert: X509,
-    chain: Vec<X509>,
+    pub key: pkey::PKey<pkey::Private>,
+    pub cert: X509,
+    pub chain: Vec<X509>,
 }
 
 pub(crate) fn build_cert(
@@ -476,6 +475,51 @@ fn test_ca_loader() {
         println!("result: {:?}", ca_result);
         assert!(ca_result.is_err());
     });
+}
+
+pub(crate) struct TestCertificates {
+    pub cert_file: NamedTempFile,
+    pub key_file: NamedTempFile,
+    // pub cert: CertHandle,
+}
+
+impl TestCertificates {
+    pub fn new() -> Self {
+        let mut cert_file = NamedTempFile::new().expect("Failed to create temp file");
+        let mut key_file = NamedTempFile::new().expect("Failed to create temp file");
+
+        let ca_config = crate::tests::tls_utils::CAConfig::default();
+        let ca_handle =
+            crate::tests::tls_utils::build_ca(Some(ca_config)).expect("Failed to build CA");
+
+        let cert = crate::tests::tls_utils::build_cert(
+            "test_maremma_host",
+            &ca_handle,
+            None,
+            None,
+            chrono::Utc::now().timestamp() - 86400,
+            chrono::Utc::now().timestamp() - 3600,
+        )
+        .expect("Failed to generate TLS Certificate");
+
+        cert_file
+            .write_all(&cert.cert.to_pem().expect("Failed to get cert pem"))
+            .expect("Failed to write cert to file");
+
+        key_file
+            .write_all(
+                &cert
+                    .key
+                    .private_key_to_pem_pkcs8()
+                    .expect("Failed to get key as PEM"),
+            )
+            .expect("Failed to write key to file");
+        Self {
+            cert_file,
+            key_file,
+            // cert,
+        }
+    }
 }
 
 #[test]

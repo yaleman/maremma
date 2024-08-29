@@ -271,6 +271,6 @@ mod tests {
         )
         .await;
 
-        eprintln!("{:?}", res);
+        dbg!(&res);
     }
 }

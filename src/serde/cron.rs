@@ -49,7 +49,7 @@ mod tests {
         );
 
         let serialized = serde_json::to_string(&res).unwrap();
-        eprintln!("{}", &serialized);
+        dbg!(&serialized);
 
         assert_eq!(r#"{"cronvalue":"0 * * * *"}"#, serialized);
 

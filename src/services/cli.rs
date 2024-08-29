@@ -26,10 +26,10 @@ pub struct CliService {
 
 impl ConfigOverlay for CliService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
-        let cron_schedule = Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?;
-        let name = Self::extract_string(value, "name", &self.name);
-        let command_line = Self::extract_string(value, "command_line", &self.command_line);
-        let run_in_shell = Self::extract_bool(value, "run_in_shell", self.run_in_shell);
+        let cron_schedule = self.extract_cron(value, "cron_schedule", &self.cron_schedule)?;
+        let name = self.extract_string(value, "name", &self.name);
+        let command_line = self.extract_string(value, "command_line", &self.command_line);
+        let run_in_shell = self.extract_bool(value, "run_in_shell", self.run_in_shell);
 
         Ok(Box::new(Self {
             name,
@@ -98,6 +98,11 @@ impl ServiceTrait for CliService {
             status: ServiceStatus::Ok,
             time_elapsed,
         })
+    }
+
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
     }
 }
 
