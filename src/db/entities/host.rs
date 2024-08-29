@@ -77,17 +77,6 @@ impl Model {
                 .all(db)
                 .await?;
         }
-        // let service_checks = super::service_check::Entity::find()
-        //     .filter(super::service_check::Column::HostId.eq(self.id))
-        //     .all(db)
-        //     .await
-        //     .inspect_err(|err| {
-        //         error!(
-        //             "Failed to find service checks for host {} {} {}",
-        //             self.id, self.hostname, err,
-        //         )
-        //     })?;
-
         Ok(())
     }
 }
