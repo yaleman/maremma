@@ -25,7 +25,7 @@ docker_publish:
         .
 
 check: codespell
-    cargo clippy
+    cargo clippy --all-features
     cargo test
 
 book:
