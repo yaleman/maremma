@@ -34,7 +34,7 @@ use tower_sessions::{
     Expiry, SessionManagerLayer,
 };
 use views::handler_404;
-use views::host_group::{host_group, host_group_member_delete, host_groups};
+use views::host_group::{host_group, host_group_delete, host_group_member_delete, host_groups};
 use views::service_check::{service_check_delete, service_check_get};
 
 #[derive(Clone)]
@@ -153,6 +153,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         .route("/host/:host_id/delete", post(views::host::delete_host))
         .route("/service/:service_id", get(notimplemented))
         .route("/host_group/:group_id", get(host_group))
+        .route("/host_group/:group_id/delete", post(host_group_delete))
         .route(
             "/host_group/:group_id/member/:host_id/delete",
             post(host_group_member_delete),
