@@ -159,29 +159,28 @@ impl TryFrom<ConfigurationParser> for Configuration {
                 })
             })
             .transpose()?;
-
-        let frontend_url =
-            value
-                .frontend_url
-                .unwrap_or(match std::env::var("MAREMMA_FRONTEND_URL") {
-                    Ok(val) => val,
-                    Err(_) => return Err(Error::Configuration("Frontend URL not set".to_string())),
-                });
-        let oidc_issuer = value
-            .oidc_issuer
-            .unwrap_or(match std::env::var("MAREMMA_OIDC_ISSUER") {
+        let frontend_url = match value.frontend_url {
+            Some(val) => val,
+            None => match std::env::var("MAREMMA_FRONTEND_URL") {
                 Ok(val) => val,
-                Err(_) => return Err(Error::Configuration("OIDC Issuer not set".to_string())),
-            });
-        let oidc_client_id =
-            value
-                .oidc_client_id
-                .unwrap_or(match std::env::var("MAREMMA_OIDC_CLIENT_ID") {
-                    Ok(val) => val,
-                    Err(_) => {
-                        return Err(Error::Configuration("OIDC Client ID not set".to_string()))
-                    }
-                });
+                Err(_) => return Err(Error::Configuration("Frontend URL not set".to_string())),
+            },
+        };
+        let oidc_issuer = match value.oidc_issuer {
+            Some(val) => val,
+            None => match std::env::var("MAREMMA_OIDC_ISSUER") {
+                Ok(val) => val,
+                Err(_) => return Err(Error::Configuration("OIDC Issuer URL not set".to_string())),
+            },
+        };
+
+        let oidc_client_id = match value.oidc_client_id {
+            Some(val) => val,
+            None => match std::env::var("MAREMMA_OIDC_CLIENT_ID") {
+                Ok(val) => val,
+                Err(_) => return Err(Error::Configuration("OIDC Client ID not set".to_string())),
+            },
+        };
 
         Ok(Configuration {
             database_file: value.database_file,
