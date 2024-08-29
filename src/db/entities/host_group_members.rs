@@ -109,7 +109,7 @@ impl MaremmaEntity for Model {
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<RwLock<Configuration>>,
+        config: SendableConfig,
     ) -> Result<(), Error> {
         // group -> (group def, host ids)
         let mut inverted_group_list: HashMap<String, (super::host_group::Model, Vec<Uuid>)> =

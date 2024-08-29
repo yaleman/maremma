@@ -63,7 +63,7 @@ impl MaremmaEntity for Model {
     }
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<RwLock<Configuration>>,
+        config: SendableConfig,
     ) -> Result<(), Error> {
         for (service_name, service) in &config.read().await.services {
             // this is janky but we need to flatten it using serde to get the "extra" fields

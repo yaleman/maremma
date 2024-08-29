@@ -40,7 +40,7 @@ use views::service_check::{service_check_delete, service_check_get};
 #[derive(Clone)]
 pub(crate) struct WebState {
     pub db: Arc<DatabaseConnection>,
-    pub configuration: Arc<RwLock<Configuration>>,
+    pub configuration: SendableConfig,
     pub registry: Option<Arc<Registry>>,
     pub web_tx: Option<Sender<WebServerControl>>,
     pub config_filepath: PathBuf,
@@ -49,7 +49,7 @@ pub(crate) struct WebState {
 impl WebState {
     pub fn new(
         db: Arc<DatabaseConnection>,
-        configuration: Arc<RwLock<Configuration>>,
+        configuration: SendableConfig,
         registry: Option<Arc<Registry>>,
         web_tx: Option<Sender<WebServerControl>>,
         config_filepath: PathBuf,
@@ -229,10 +229,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
 }
 
 /// Start and run the web server
-pub async fn start_web_server(
-    configuration: Arc<RwLock<Configuration>>,
-    app: Router,
-) -> Result<(), Error> {
+pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Result<(), Error> {
     let configuration_reader = configuration.read().await;
     let cert_file = configuration_reader.cert_file.clone();
     let cert_key = configuration_reader.cert_key.clone();
@@ -273,7 +270,7 @@ pub async fn start_web_server(
 /// Starts up the web server
 pub async fn run_web_server(
     config_filepath: PathBuf,
-    configuration: Arc<RwLock<Configuration>>,
+    configuration: SendableConfig,
     db: Arc<DatabaseConnection>,
     registry: Arc<Registry>,
     web_tx: Sender<WebServerControl>,

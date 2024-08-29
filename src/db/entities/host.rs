@@ -94,7 +94,7 @@ impl MaremmaEntity for Model {
     }
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<RwLock<Configuration>>,
+        config: SendableConfig,
     ) -> Result<(), Error> {
         for (name, host) in &config.read().await.hosts {
             let model = match Model::find_by_name(name, db).await {

@@ -76,6 +76,9 @@ pub struct ConfigurationParser {
     pub max_concurrent_checks: usize,
 }
 
+/// A sendable configuration, for use across threads
+pub type SendableConfig = Arc<RwLock<Configuration>>;
+
 #[derive(Serialize, Deserialize, Debug, Default, JsonSchema)]
 /// The result of parsing the configuration file, don't instantiate this directly!
 pub struct Configuration {

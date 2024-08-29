@@ -34,10 +34,7 @@ fn export_config(cmd: &OneShotCmd) -> (String, String) {
 }
 
 /// Runs a single check and exits
-pub async fn run_oneshot(
-    cmd: OneShotCmd,
-    _config: Arc<RwLock<Configuration>>,
-) -> Result<(), Error> {
+pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(), Error> {
     if cmd.show_config {
         let (msg, config) = export_config(&cmd);
         eprintln!("{}", msg);

@@ -7,10 +7,9 @@ use chrono::{DateTime, Utc};
 use croner::Cron;
 use sea_orm::prelude::Expr;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
-use tokio::sync::RwLock;
 use tracing::{debug, error, info};
 
-use crate::config::Configuration;
+use crate::config::SendableConfig;
 use crate::constants::{SESSION_EXPIRY_WINDOW_HOURS, STUCK_CHECK_MINUTES};
 use crate::db::entities;
 use crate::db::entities::service_check::Column;
@@ -98,7 +97,7 @@ impl CronTaskTrait for SessionCleanTask {
 /// Task to check if any certificates have changed
 struct CertReloaderTask {
     tx: tokio::sync::mpsc::Sender<WebServerControl>,
-    config: Arc<RwLock<Configuration>>,
+    config: SendableConfig,
     cert_time: DateTime<Utc>,
     key_time: DateTime<Utc>,
 }
@@ -118,9 +117,7 @@ fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
     Ok(DateTime::<Utc>::from(modified))
 }
 
-async fn get_file_times(
-    config: Arc<RwLock<Configuration>>,
-) -> Result<(DateTime<Utc>, DateTime<Utc>), Error> {
+async fn get_file_times(config: SendableConfig) -> Result<(DateTime<Utc>, DateTime<Utc>), Error> {
     let config_reader = config.read().await;
 
     let cert_time = get_file_time(&config_reader.cert_file).inspect_err(|err| {
@@ -143,7 +140,7 @@ async fn get_file_times(
 impl CertReloaderTask {
     async fn new(
         tx: tokio::sync::mpsc::Sender<WebServerControl>,
-        config: Arc<RwLock<Configuration>>,
+        config: SendableConfig,
     ) -> Result<Self, Error> {
         // get the time for the cert
         let config_reader = config.read().await;
@@ -197,7 +194,7 @@ impl CronTaskTrait for CertReloaderTask {
 /// The shepherd wanders around making sure things are in order.
 pub async fn shepherd(
     db: Arc<DatabaseConnection>,
-    config: Arc<RwLock<Configuration>>,
+    config: SendableConfig,
     web_tx: tokio::sync::mpsc::Sender<WebServerControl>,
 ) -> Result<(), Error> {
     // run the clean_up_checking loop every x minutes

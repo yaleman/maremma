@@ -64,7 +64,7 @@ impl MaremmaEntity for Model {
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<RwLock<Configuration>>,
+        config: SendableConfig,
     ) -> Result<(), Error> {
         let mut known_group_list: Vec<String> = Entity::find()
             .all(db)

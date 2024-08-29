@@ -23,9 +23,7 @@ pub async fn test_connect() -> Result<DatabaseConnection, sea_orm::error::DbErr>
 }
 
 #[instrument(level = "info", skip_all)]
-pub async fn connect(
-    config: Arc<RwLock<Configuration>>,
-) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
+pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
     let database_file = config.read().await.database_file.clone();
 
     let connect_string = if database_file == ":memory:" {
@@ -46,7 +44,7 @@ pub async fn connect(
 
 pub async fn update_db_from_config(
     db: &DatabaseConnection,
-    config: Arc<RwLock<Configuration>>,
+    config: SendableConfig,
 ) -> Result<(), Error> {
     // let's go through and update the DB
 

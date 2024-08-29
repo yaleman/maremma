@@ -119,7 +119,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 async fn update_local_services_from_db(
     db: &DatabaseConnection,
-    config: Arc<RwLock<Configuration>>,
+    config: SendableConfig,
 ) -> Result<(), Error> {
     let local_host_id = match host::Entity::find()
         .filter(host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
@@ -202,7 +202,7 @@ impl MaremmaEntity for Model {
     /// It needs to be run AFTER you've added all the hosts and services and host_groups!
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<RwLock<Configuration>>,
+        config: SendableConfig,
     ) -> Result<(), Error> {
         debug!("Starting update of service checks");
         // the easy ones are the locals.
