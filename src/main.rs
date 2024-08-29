@@ -23,17 +23,23 @@ async fn main() -> Result<(), ExitCode> {
         return Err(ExitCode::from(1));
     };
 
+    if let Actions::ExportConfigSchema = cli.action {
+        let schema = schemars::schema_for!(Configuration);
+        println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+        return Ok(());
+    }
+
     // parse the config file
     let config = Configuration::new(&cli.config()).await.map_err(|err| {
         error!("Failed to load config: {:?}", err);
         ExitCode::from(1)
     })?;
 
-    let config = Arc::new(config);
+    let config = Arc::new(RwLock::new(config));
 
     match cli.action {
         Actions::Run(_) => {
-            let db = Arc::new(maremma::db::connect(&config).await.map_err(|err| {
+            let db = Arc::new(maremma::db::connect(config.clone()).await.map_err(|err| {
                 error!("Failed to start up db: {:?}", err);
                 ExitCode::FAILURE
             })?);
@@ -54,10 +60,17 @@ async fn main() -> Result<(), ExitCode> {
             let (web_tx, web_rx) = tokio::sync::mpsc::channel(1);
 
             tokio::select! {
-                check_loop_result = run_check_loop(db.clone(), config.max_concurrent_checks, metrics_meter.clone()) => {
+                check_loop_result = run_check_loop(db.clone(), config.read().await.max_concurrent_checks, metrics_meter.clone()) => {
                     error!("Check loop bailed: {:?}", check_loop_result);
                 },
-                web_server_result = run_web_server(config.clone(), db.clone(), Arc::new(registry), web_tx.clone(), web_rx) => {
+                web_server_result = run_web_server(
+                    cli.config(),
+                    config.clone(),
+                    db.clone(),
+                    Arc::new(registry),
+                    web_tx.clone(),
+                    web_rx,
+                ) => {
                     error!("Web server bailed: {:?}", web_server_result);
                 },
                 shepherd_result = shepherd(db.clone(), config.clone(), web_tx) => {
@@ -72,7 +85,7 @@ async fn main() -> Result<(), ExitCode> {
         Actions::ShowConfig(_show_config) => {
             println!(
                 "{}",
-                serde_json::to_string_pretty(&*config)
+                serde_json::to_string_pretty(&*config.read().await)
                     .unwrap_or(format!("Failed to serialize config: {:?}", &config))
             );
         }
@@ -81,11 +94,7 @@ async fn main() -> Result<(), ExitCode> {
             Err(err) => error!("Failed to run oneshot: {:?}", err),
             Ok(_) => {}
         },
-
-        Actions::ExportConfigSchema => {
-            let schema = schemars::schema_for!(Configuration);
-            println!("{}", serde_json::to_string_pretty(&schema).unwrap());
-        }
+        Actions::ExportConfigSchema => unreachable!(),
     }
     Ok(())
 }

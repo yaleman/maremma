@@ -94,10 +94,10 @@ impl MaremmaEntity for Model {
     }
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<Configuration>,
+        config: Arc<RwLock<Configuration>>,
     ) -> Result<(), Error> {
-        for (name, host) in config.hosts.clone().into_iter() {
-            let model = match Model::find_by_name(&name, db).await {
+        for (name, host) in &config.read().await.hosts {
+            let model = match Model::find_by_name(name, db).await {
                 Ok(val) => val,
                 Err(err) => {
                     error!("Failed to find host '{}': {:?}", name, err);
@@ -108,18 +108,18 @@ impl MaremmaEntity for Model {
             match model {
                 Some(val) => {
                     debug!("Found host '{:?}'", name);
-                    let hostname = match host.hostname {
-                        None => name.to_owned(),
+                    let hostname = match &host.hostname {
+                        None => name,
                         Some(val) => val,
                     };
 
                     let mut existing_host = val.into_active_model();
 
-                    existing_host.check.set_if_not_equals(host.check);
+                    existing_host.check.set_if_not_equals(host.check.to_owned());
                     existing_host
                         .hostname
                         .set_if_not_equals(hostname.to_owned());
-                    existing_host.name.set_if_not_equals(name);
+                    existing_host.name.set_if_not_equals(name.to_string());
                     existing_host.config.set_if_not_equals(json!(host.config));
 
                     if existing_host.is_changed() {

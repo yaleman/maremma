@@ -6,7 +6,10 @@
   "required": [
     "cert_file",
     "cert_key",
-    "hosts"
+    "frontend_url",
+    "hosts",
+    "oidc_client_id",
+    "oidc_issuer"
   ],
   "properties": {
     "database_file": {
@@ -63,25 +66,21 @@
     },
     "frontend_url": {
       "description": "The frontend URL ie `https://maremma.example.com` used for things like OIDC",
+      "type": "string"
+    },
+    "oidc_issuer": {
+      "description": "OIDC issuer (url)",
+      "type": "string"
+    },
+    "oidc_client_id": {
+      "description": "OIDC client_id",
+      "type": "string"
+    },
+    "oidc_client_secret": {
+      "description": "OIDC client_secret",
       "type": [
         "string",
         "null"
-      ]
-    },
-    "oidc_enabled": {
-      "description": "Should we enable OIDC authentication?",
-      "default": false,
-      "type": "boolean"
-    },
-    "oidc_config": {
-      "description": "OIDC configuration, see [OidcConfig]",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/OidcConfig"
-        },
-        {
-          "type": "null"
-        }
       ]
     },
     "cert_file": {
@@ -116,7 +115,6 @@
         },
         "hostname": {
           "description": "The hostname",
-          "default": null,
           "type": [
             "string",
             "null"
@@ -132,7 +130,6 @@
         },
         "config": {
           "description": "Extra configuration for services, the key matches the service name",
-          "default": {},
           "type": "object",
           "additionalProperties": true
         }
@@ -278,31 +275,6 @@
           ]
         }
       ]
-    },
-    "OidcConfig": {
-      "description": "OIDC Config",
-      "type": "object",
-      "required": [
-        "client_id",
-        "issuer"
-      ],
-      "properties": {
-        "issuer": {
-          "description": "OIDC issuer (url)",
-          "type": "string"
-        },
-        "client_id": {
-          "description": "OIDC client_id",
-          "type": "string"
-        },
-        "client_secret": {
-          "description": "OIDC client_secret",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
     }
   }
 }

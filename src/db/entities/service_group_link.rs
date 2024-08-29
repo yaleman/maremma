@@ -81,9 +81,9 @@ impl MaremmaEntity for Model {
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<Configuration>,
+        config: Arc<RwLock<Configuration>>,
     ) -> Result<(), Error> {
-        for (service_name, service) in &config.services {
+        for (service_name, service) in &config.read().await.services {
             let service_model = service::Model::find_by_name(service_name, db)
                 .await?
                 .ok_or(Error::ServiceNotFoundByName(service_name.to_string()))?;

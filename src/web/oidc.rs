@@ -31,9 +31,9 @@ pub async fn rp_logout(
 
     let url: Uri = state
         .configuration
+        .read()
+        .await
         .frontend_url
-        .clone()
-        .unwrap_or("".to_string()) // TODO: eerk.
         .parse()
         .map_err(|err| {
             error!("Failed to parse redirect URL: {:?}", err);
@@ -73,6 +73,8 @@ where
 #[cfg(test)]
 mod tests {
 
+    use std::path::PathBuf;
+
     use tower::ServiceExt;
 
     use crate::db::tests::test_setup;
@@ -82,9 +84,15 @@ mod tests {
     async fn test_logout() {
         let (db, config) = test_setup().await.expect("Failed to setup test");
 
-        let app = build_app(crate::web::WebState::new(db.clone(), config, None, None))
-            .await
-            .expect("Failed to build app");
+        let app = build_app(crate::web::WebState::new(
+            db.clone(),
+            config,
+            None,
+            None,
+            PathBuf::new(),
+        ))
+        .await
+        .expect("Failed to build app");
 
         let res = app
             .oneshot(
@@ -98,6 +106,6 @@ mod tests {
 
         let res = res.expect("Errored out");
 
-        assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
+        assert_eq!(res.status(), axum::http::StatusCode::TEMPORARY_REDIRECT);
     }
 }

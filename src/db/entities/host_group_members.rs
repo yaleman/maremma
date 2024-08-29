@@ -109,18 +109,14 @@ impl MaremmaEntity for Model {
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<Configuration>,
+        config: Arc<RwLock<Configuration>>,
     ) -> Result<(), Error> {
         // group -> (group def, host ids)
         let mut inverted_group_list: HashMap<String, (super::host_group::Model, Vec<Uuid>)> =
             HashMap::new();
 
-        if config.hosts.is_empty() {
-            debug!("Host list is empty!");
-        }
-
-        for (host_name, host) in config.hosts.clone() {
-            let db_host = match super::host::Model::find_by_name(&host_name, db).await? {
+        for (host_name, host) in &config.read().await.hosts {
+            let db_host = match super::host::Model::find_by_name(host_name, db).await? {
                 Some(host) => host,
                 None => {
                     error!(
@@ -130,22 +126,23 @@ impl MaremmaEntity for Model {
                     continue;
                 }
             };
-            for group_name in host.host_groups.clone() {
+            for group_name in &host.host_groups {
                 // try and get the group otherwise create it
-                if let Some((_group, host_list)) = inverted_group_list.get_mut(&group_name) {
+                if let Some((_group, host_list)) = inverted_group_list.get_mut(group_name) {
                     host_list.push(db_host.id);
                 } else {
                     let group = super::host_group::Entity::find()
-                        .filter(super::host_group::Column::Name.eq(&group_name))
+                        .filter(super::host_group::Column::Name.eq(group_name))
                         .one(db)
                         .await?;
 
                     match group {
                         None => {
-                            return Err(Error::HostGroupNotFoundByName(group_name));
+                            return Err(Error::HostGroupNotFoundByName(group_name.clone()));
                         }
                         Some(group) => {
-                            inverted_group_list.insert(group_name, (group, vec![db_host.id]));
+                            inverted_group_list
+                                .insert(group_name.clone(), (group, vec![db_host.id]));
                         }
                     }
                 }

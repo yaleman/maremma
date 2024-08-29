@@ -1,7 +1,16 @@
+use super::prelude::*;
+use crate::db::update_db_from_config;
+use crate::web::Configuration;
 use axum::Form;
 use sea_orm::prelude::Expr;
+use tokio::sync::RwLock;
 
-use super::prelude::*;
+#[cfg(test)]
+use openidconnect::{IssuerUrl, StandardClaims, SubjectIdentifier};
+#[cfg(test)]
+use reqwest::Url;
+#[cfg(test)]
+use std::str::FromStr;
 
 #[derive(Template, Debug)]
 #[template(path = "tools.html")]
@@ -16,6 +25,7 @@ pub(crate) struct ToolsTemplate {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum FormAction {
     SetAllToUrgent,
+    ReloadConfig,
 }
 
 #[derive(Deserialize, Default, Debug)]
@@ -46,6 +56,39 @@ pub(crate) struct ToolsQuery {
     result: Option<String>,
     #[serde(default)]
     status: ActionStatus,
+}
+
+#[instrument(level = "info", skip_all)]
+async fn tools_reload_config(state: WebState) -> Result<(), impl IntoResponse> {
+    info!("Asked to reload config");
+
+    let new_config = Configuration::new(&state.config_filepath)
+        .await
+        .map_err(|e| {
+            error!("Failed to reload config: {:?}", e);
+            Redirect::to("/tools?result=Failed to load config from file&status=error")
+                .into_response()
+        })?;
+
+    *state.configuration.write().await = new_config;
+
+    let new_config = Configuration::new(&state.config_filepath)
+        .await
+        .map_err(|e| {
+            error!("Failed to reload config: {:?}", e);
+            Redirect::to("/tools?result=Failed to load config from file&status=error")
+                .into_response()
+        })?;
+    update_db_from_config(state.db.as_ref(), Arc::new(RwLock::new(new_config)))
+        .await
+        .map_err(|e| {
+            error!("Failed to reload config: {:?}", e);
+            Redirect::to("/tools?result=Failed to reload config&status=error").into_response()
+        })?;
+
+    info!("Reloaded config");
+    // not really an error but we're doing this to show the user that the config was reloaded
+    Err(Redirect::to("/tools?result=Reloaded config&status=success").into_response())
 }
 
 /// Seen at `/tools`
@@ -81,6 +124,11 @@ pub(crate) async fn tools(
                         .into_response(),
                 );
             }
+            FormAction::ReloadConfig => {
+                if let Err(err) = tools_reload_config(state).await {
+                    return Err(err.into_response());
+                };
+            }
         }
     }
 
@@ -91,13 +139,6 @@ pub(crate) async fn tools(
         status: results.status,
     })
 }
-
-#[cfg(test)]
-use openidconnect::{IssuerUrl, StandardClaims, SubjectIdentifier};
-#[cfg(test)]
-use reqwest::Url;
-#[cfg(test)]
-use std::str::FromStr;
 
 #[cfg(test)]
 /// Use this when you want to be "authenticated"

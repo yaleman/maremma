@@ -119,7 +119,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 async fn update_local_services_from_db(
     db: &DatabaseConnection,
-    config: Arc<Configuration>,
+    config: Arc<RwLock<Configuration>>,
 ) -> Result<(), Error> {
     let local_host_id = match host::Entity::find()
         .filter(host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
@@ -148,12 +148,12 @@ async fn update_local_services_from_db(
         }
     };
 
-    for service in config.local_services.services.clone() {
+    for service in &config.read().await.local_services.services {
         debug!("Ensuring local service exists: {}", service);
         // can we find the service?
 
         let service_id = service::Entity::find()
-            .filter(service::Column::Name.eq(service.as_str()))
+            .filter(service::Column::Name.eq(service))
             .one(db)
             .await
             .map_err(Error::from)?
@@ -202,7 +202,7 @@ impl MaremmaEntity for Model {
     /// It needs to be run AFTER you've added all the hosts and services and host_groups!
     async fn update_db_from_config(
         db: &DatabaseConnection,
-        config: Arc<Configuration>,
+        config: Arc<RwLock<Configuration>>,
     ) -> Result<(), Error> {
         debug!("Starting update of service checks");
         // the easy ones are the locals.

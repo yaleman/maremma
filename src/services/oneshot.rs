@@ -34,7 +34,10 @@ fn export_config(cmd: &OneShotCmd) -> (String, String) {
 }
 
 /// Runs a single check and exits
-pub async fn run_oneshot(cmd: OneShotCmd, _config: Arc<Configuration>) -> Result<(), Error> {
+pub async fn run_oneshot(
+    cmd: OneShotCmd,
+    _config: Arc<RwLock<Configuration>>,
+) -> Result<(), Error> {
     if cmd.show_config {
         let (msg, config) = export_config(&cmd);
         eprintln!("{}", msg);
@@ -100,6 +103,8 @@ mod tests {
     #[tokio::test]
 
     async fn test_run_oneshot() {
+        let (_, config) = test_setup().await.expect("Failed to set up test");
+
         let cmd = OneShotCmd {
             sharedopts: SharedOpts::default(),
             check: ServiceType::Ping,
@@ -108,9 +113,7 @@ mod tests {
             show_config: false,
         };
 
-        let config = Arc::new(Configuration::default());
-
-        let res = run_oneshot(cmd, config).await;
+        let res = run_oneshot(cmd, config.clone()).await;
         dbg!(&res);
         assert!(res.is_ok());
 
@@ -122,8 +125,6 @@ mod tests {
             show_config: false,
         };
 
-        let config = Arc::new(Configuration::default());
-
         let res = run_oneshot(cmd, config).await;
         dbg!(&res);
         assert!(res.is_ok());
@@ -131,6 +132,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_config_oneshot() {
+        let (_, config) = test_setup().await.expect("Failed to set up test");
         // this sample config should fill everything, yeeet
         let service_config = json! {{
             "cron_schedule" : "@hourly",
@@ -152,9 +154,9 @@ mod tests {
 
             export_config(&cmd);
 
-            run_oneshot(cmd, Arc::new(Configuration::default()))
+            run_oneshot(cmd, config.clone())
                 .await
-                .unwrap();
+                .expect("failed to run oneshot");
         }
     }
 
