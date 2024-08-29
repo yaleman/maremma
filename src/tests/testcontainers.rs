@@ -134,10 +134,4 @@ async fn test_basic_testcontainer() {
     };
 
     debug!("Response: {:?}", res);
-
-    container
-        .container
-        .stop()
-        .await
-        .expect("Failed to stop container");
 }
