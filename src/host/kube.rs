@@ -147,7 +147,7 @@ mod tests {
             }
         };
 
-        eprintln!("Testing kube host: {}", hostname);
+        dbg!(&hostname);
 
         let host = super::KubeHost::from_hostname(&hostname);
         let result = host.check_up().await;

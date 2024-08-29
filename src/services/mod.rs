@@ -113,12 +113,22 @@ pub trait ServiceTrait: Debug + Sync + Send {
     {
         serde_json::from_value(config.clone()).map_err(Error::from)
     }
+
+    /// Render this as JSON
+    fn as_json_pretty(&self, _host: &entities::host::Model) -> Result<String, Error>;
 }
 
 /// Allows you to overlay host-specific content for services
-pub trait ConfigOverlay {
+pub trait ConfigOverlay: Serialize {
+    /// Serialize to a string for viewing
+    fn as_json(&self) -> Result<Box<str>, Error> {
+        serde_json::to_string(self)
+            .map_err(Error::from)
+            .map(|v| v.into_boxed_str())
+    }
+
     /// Extract a string-value from a map, or return a default
-    fn extract_string(value: &Map<String, Json>, field: &str, default: &str) -> String {
+    fn extract_string(&self, value: &Map<String, Json>, field: &str, default: &str) -> String {
         value
             .get(field)
             .and_then(|v| v.as_str())
@@ -127,14 +137,19 @@ pub trait ConfigOverlay {
     }
 
     /// Extract a bool-value from a map, or return a default
-    fn extract_bool(value: &Map<String, Json>, field: &str, default: bool) -> bool {
+    fn extract_bool(&self, value: &Map<String, Json>, field: &str, default: bool) -> bool {
         value
             .get(field)
             .and_then(|v| v.as_bool())
             .unwrap_or(default)
     }
     /// Extract a bool-value from a map, or return a default
-    fn extract_cron(value: &Map<String, Json>, field: &str, default: &Cron) -> Result<Cron, Error> {
+    fn extract_cron(
+        &self,
+        value: &Map<String, Json>,
+        field: &str,
+        default: &Cron,
+    ) -> Result<Cron, Error> {
         if value.contains_key(field) {
             value
                 .get(field)
@@ -149,7 +164,12 @@ pub trait ConfigOverlay {
     }
 
     /// Extract a value from a map, or return a default
-    fn extract_value<T>(value: &Map<String, Value>, key: &str, default: &T) -> Result<T, Error>
+    fn extract_value<T>(
+        &self,
+        value: &Map<String, Value>,
+        key: &str,
+        default: &T,
+    ) -> Result<T, Error>
     where
         T: serde::de::DeserializeOwned + Clone,
     {
@@ -219,7 +239,6 @@ pub struct Service {
 
     #[serde(skip)]
     /// Internal configuration storage, don't specify this in your config!
-    #[serde(skip_serializing_if = "Option::is_none")]
     config: Option<Box<dyn ServiceTrait>>,
 }
 
@@ -252,7 +271,6 @@ pub(crate) fn service_config_parse(
     };
 
     res.validate()?;
-
     Ok(res)
 }
 

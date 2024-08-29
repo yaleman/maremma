@@ -6,9 +6,21 @@ use std::path::PathBuf;
 use super::prelude::*;
 use crate::prelude::*;
 
-#[derive(Debug, Deserialize, JsonSchema)]
-/// SSH-based service, SSH to a host and run a command
+fn serialize_password<S>(password: &Option<String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if let Some(password) = password {
+        // mask the password
+        let password_mask = "*".repeat(password.len());
+        serializer.serialize_str(&password_mask)
+    } else {
+        serializer.serialize_none()
+    }
+}
 
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+/// SSH-based service, SSH to a host and run a command
 pub struct SshService {
     /// Name of the service
     pub name: String,
@@ -30,7 +42,8 @@ pub struct SshService {
     /// SSH key to use, keys with passphrases are not currently supported (because of ssh-rs... so far)
     pub private_key: Option<PathBuf>,
 
-    /// If you're bad, but you have to
+    /// If you're bad, but you have to. Won't try this is the private key is set.
+    #[serde(serialize_with = "serialize_password")]
     pub password: Option<String>,
 
     /// Expected exit code (Defaults to 0)
@@ -62,15 +75,19 @@ impl Default for SshService {
 impl ConfigOverlay for SshService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
         Ok(Box::new(Self {
-            name: Self::extract_string(value, "name", &self.name),
-            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
-            command_line: Self::extract_string(value, "command_line", &self.command_line),
-            port: Self::extract_value(value, "port", &self.port)?,
-            username: Self::extract_string(value, "username", &self.username),
-            private_key: Self::extract_value(value, "private_key", &self.private_key)?,
-            password: Self::extract_value(value, "password", &self.password)?,
-            exit_code: Self::extract_value(value, "exit_code", &self.exit_code)?,
-            timeout: Self::extract_value(value, "timeout", &self.timeout)?,
+            name: self.extract_string(value, "name", &self.name),
+            cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            command_line: self
+                .extract_string(value, "command_line", &self.command_line)
+                .to_string(),
+            port: self.extract_value(value, "port", &self.port)?,
+            username: self
+                .extract_string(value, "username", &self.username)
+                .to_string(),
+            private_key: self.extract_value(value, "private_key", &self.private_key)?,
+            password: self.extract_value(value, "password", &self.password)?,
+            exit_code: self.extract_value(value, "exit_code", &self.exit_code)?,
+            timeout: self.extract_value(value, "timeout", &self.timeout)?,
         }))
     }
 }
@@ -164,14 +181,19 @@ impl ServiceTrait for SshService {
         }
         Ok(())
     }
+
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
+    use super::*;
     use crate::db::tests::test_setup;
-    use crate::prelude::*;
 
     #[tokio::test]
     /// This will test the SshService and only run if you have the MAREMMA_TEST_SSH_HOST env var set
@@ -345,5 +367,27 @@ mod tests {
         .expect("Failed to parse good_service");
 
         assert_eq!(good_service.validate(), Ok(()));
+    }
+
+    #[test]
+    fn test_serialize_password() {
+        #[derive(Serialize)]
+        struct SecurePassword {
+            #[serde(serialize_with = "serialize_password")]
+            password: Option<String>,
+        }
+
+        let secure = SecurePassword {
+            password: Some("hunter2".to_string()),
+        };
+
+        let serialized = serde_json::to_string(&secure).expect("Failed to serialize password");
+        assert_eq!(serialized, r#"{"password":"*******"}"#);
+
+        let empty_secure = SecurePassword { password: None };
+
+        let empty_serialized =
+            serde_json::to_string(&empty_secure).expect("Failed to serialize empty password");
+        assert_eq!(empty_serialized, r#"{"password":null}"#);
     }
 }

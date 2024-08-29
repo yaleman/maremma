@@ -40,7 +40,7 @@ use views::service_check::{service_check_delete, service_check_get};
 #[derive(Clone)]
 pub(crate) struct WebState {
     pub db: Arc<DatabaseConnection>,
-    pub frontend_url: Arc<String>,
+    pub configuration: Arc<Configuration>,
     pub registry: Option<Arc<Registry>>,
     pub web_tx: Option<Sender<WebServerControl>>,
 }
@@ -48,13 +48,13 @@ pub(crate) struct WebState {
 impl WebState {
     pub fn new(
         db: Arc<DatabaseConnection>,
-        config: &Configuration,
+        configuration: Arc<Configuration>,
         registry: Option<Arc<Registry>>,
         web_tx: Option<Sender<WebServerControl>>,
     ) -> Self {
         Self {
             db,
-            frontend_url: Arc::new(config.frontend_url()),
+            configuration,
             registry,
             web_tx,
         }
@@ -65,7 +65,7 @@ impl WebState {
         let (db, config) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up test");
-        Self::new(db, &config, None, None)
+        Self::new(db, config, None, None)
     }
     #[cfg(test)]
     pub fn with_registry(self) -> Self {
@@ -108,7 +108,7 @@ impl OidcErorHandler {
     }
 }
 
-pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result<Router, Error> {
+pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     let session_store = get_session_store(&state.db);
 
     let session_layer = SessionManagerLayer::new(session_store)
@@ -148,7 +148,7 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .route("/host_groups", get(host_groups))
         .route("/tools", get(views::tools::tools).post(views::tools::tools))
         .route("/auth/logout", get(oidc::logout));
-    if config.oidc_enabled {
+    if state.configuration.oidc_enabled {
         let oidc_login_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
                 error!("Failed to handle OIDC logout: {:?}", e);
@@ -164,23 +164,24 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
     app = app.route("/", get(views::index::index));
     app = app.route("/metrics", get(views::metrics::metrics));
 
-    if config.oidc_enabled {
-        let (issuer, client_id, client_secret) = if let Some(oidc_config) = &config.oidc_config {
-            (
-                oidc_config.issuer.clone(),
-                oidc_config.client_id.clone(),
-                oidc_config.client_secret.clone(),
-            )
-        } else {
-            return Err(Error::Configuration(
-                "OIDC is enabled but no OIDC config is provided".to_string(),
-            ));
-        };
+    if state.configuration.oidc_enabled {
+        let (issuer, client_id, client_secret) =
+            if let Some(oidc_config) = &state.configuration.oidc_config {
+                (
+                    oidc_config.issuer.clone(),
+                    oidc_config.client_id.clone(),
+                    oidc_config.client_secret.clone(),
+                )
+            } else {
+                return Err(Error::Configuration(
+                    "OIDC is enabled but no OIDC config is provided".to_string(),
+                ));
+            };
 
-        let frontend_url = config
-            .frontend_url
-            .clone()
-            .ok_or_else(|| Error::Configuration("Frontend URL is required for OIDC".to_string()))?;
+        let frontend_url =
+            state.configuration.frontend_url.clone().ok_or_else(|| {
+                Error::Configuration("Frontend URL is required for OIDC".to_string())
+            })?;
 
         let application_base_url = Uri::from_str(&frontend_url)
             .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
@@ -219,7 +220,8 @@ pub(crate) async fn build_app(state: WebState, config: &Configuration) -> Result
         .nest_service(
             "/static",
             ServeDir::new(
-                config
+                state
+                    .configuration
                     .static_path
                     .clone()
                     .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH)),
@@ -280,8 +282,7 @@ pub async fn run_web_server(
 ) -> Result<(), Error> {
     let app = build_app(
         // TODO web_tx impl
-        WebState::new(db, &configuration, Some(registry), Some(web_tx)),
-        &configuration,
+        WebState::new(db, configuration.clone(), Some(registry), Some(web_tx)),
     )
     .await?;
 
@@ -337,7 +338,7 @@ mod tests {
     #[tokio::test]
     async fn test_app_requests() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
-        let app = build_app(WebState::new(db.clone(), &config, None, None), &config)
+        let app = build_app(WebState::new(db.clone(), config.clone(), None, None))
             .await
             .expect("Failed to build app");
 
@@ -374,17 +375,27 @@ mod tests {
     async fn test_not_implemented() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
 
-        let res =
-            notimplemented(axum::extract::State(WebState::new(db, &config, None, None))).await;
+        let res = notimplemented(axum::extract::State(WebState::new(
+            db,
+            config.clone(),
+            None,
+            None,
+        )))
+        .await;
         assert!(res.is_err());
     }
     #[tokio::test]
     async fn test_up_endpoint() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
 
-        let res = up(axum::extract::State(WebState::new(db, &config, None, None)))
-            .await
-            .into_response();
+        let res = up(axum::extract::State(WebState::new(
+            db,
+            config.clone(),
+            None,
+            None,
+        )))
+        .await
+        .into_response();
         assert!(res.status() == StatusCode::OK);
     }
 }

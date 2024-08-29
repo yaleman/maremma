@@ -128,7 +128,7 @@ impl MaremmaEntity for Model {
                         debug!("Updating service with {:?}", res);
                         res.update(db).await?
                     } else {
-                        eprintln!("try into model");
+                        debug!("try into model");
                         res.try_into_model().inspect_err(|err| {
                             error!("Failed to convert {:?} to model: {:?}", service_name, err)
                         })?
@@ -158,7 +158,7 @@ impl MaremmaEntity for Model {
                     am.extra_config.set_if_not_equals(json!(extra_config));
 
                     #[cfg(any(test, debug_assertions))]
-                    eprintln!("about to update this: {:?}", am);
+                    debug!("about to update this: {:?}", am);
 
                     debug!("Creating service: {:?}", am);
                     Entity::insert(am).exec_with_returning(db).await?

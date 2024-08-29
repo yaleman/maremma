@@ -32,3 +32,6 @@ pub(crate) use opentelemetry::metrics::Meter;
 
 pub(crate) use schemars::schema::RootSchema;
 pub(crate) use schemars::{schema_for, JsonSchema};
+
+#[cfg(test)]
+pub(crate) use crate::db::tests::test_setup;

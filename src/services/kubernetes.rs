@@ -5,7 +5,7 @@ use kube::Client;
 use super::prelude::*;
 use crate::prelude::*;
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
 /// KubernetesService is a service that checks the availability of a Kubernetes cluster
 pub struct KubernetesService {
     /// Name of the service
@@ -20,13 +20,13 @@ pub struct KubernetesService {
 
 impl ConfigOverlay for KubernetesService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
-        let name = Self::extract_string(value, "name", &self.name);
-        let cron_schedule = Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?;
+        let name = self.extract_string(value, "name", &self.name);
+        let cron_schedule = self.extract_cron(value, "cron_schedule", &self.cron_schedule)?;
 
         Ok(Box::new(Self {
             name,
             cron_schedule,
-            host: Self::extract_value(value, "host", &self.host)?,
+            host: self.extract_value(value, "host", &self.host)?,
         }))
     }
 }
@@ -61,6 +61,11 @@ impl ServiceTrait for KubernetesService {
             status,
             time_elapsed: chrono::Utc::now() - start_time,
         })
+    }
+
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
     }
 }
 

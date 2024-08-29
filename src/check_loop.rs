@@ -194,7 +194,7 @@ pub async fn run_check_loop(
                     if backoff > MAX_BACKOFF_TIME {
                         backoff = MAX_BACKOFF_TIME;
                     }
-                    debug!("Nothing to do, waiting {}ms", backoff.as_millis());
+                    trace!("Nothing to do, waiting {}ms", backoff.as_millis());
                     tokio::time::sleep(backoff).await;
                 }
                 drop(permit); // Release the permit when the task is done

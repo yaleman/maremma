@@ -98,12 +98,12 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[cfg(feature = "test_badssl")]
+
     async fn test_run_oneshot() {
         let cmd = OneShotCmd {
             sharedopts: SharedOpts::default(),
             check: ServiceType::Ping,
-            hostname: "example.com".to_string(),
+            hostname: "localhost".to_string(),
             service_config: json! {{"cron_schedule" : "@hourly"}}.to_string(),
             show_config: false,
         };
@@ -117,7 +117,7 @@ mod tests {
         let cmd = OneShotCmd {
             sharedopts: SharedOpts::default(),
             check: ServiceType::Ping,
-            hostname: "example.com".to_string(),
+            hostname: "localhost".to_string(),
             service_config: json! {{}}.to_string(),
             show_config: false,
         };
@@ -126,7 +126,7 @@ mod tests {
 
         let res = run_oneshot(cmd, config).await;
         dbg!(&res);
-        assert!(res.is_err());
+        assert!(res.is_ok());
     }
 
     #[tokio::test]

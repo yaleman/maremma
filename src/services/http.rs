@@ -5,11 +5,11 @@ use std::num::NonZeroU16;
 
 use super::prelude::*;
 use crate::prelude::*;
-use reqwest::Response;
+use reqwest::{Response, StatusCode};
 use schemars::JsonSchema;
 
-#[derive(Debug, Deserialize, Default, Copy, Clone, Eq, PartialEq)]
-#[serde(rename_all = "UPPERCASE", from = "String")]
+#[derive(Debug, Deserialize, Serialize, Default, Copy, Clone, Eq, PartialEq)]
+#[serde(rename_all = "UPPERCASE", from = "String", into = "String")]
 /// HTTP Methods
 #[allow(missing_docs)]
 pub enum HttpMethod {
@@ -49,6 +49,12 @@ impl From<HttpMethod> for reqwest::Method {
     }
 }
 
+impl From<HttpMethod> for String {
+    fn from(value: HttpMethod) -> Self {
+        value.to_string()
+    }
+}
+
 /// Crimes against strings
 impl Display for HttpMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -75,7 +81,7 @@ fn default_expected_http_status() -> NonZeroU16 {
     NonZeroU16::new(200).expect("Failed to parse 200 as a non-zero u16")
 }
 
-#[derive(Debug, Deserialize, JsonSchema, Clone)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema, Clone)]
 /// An HTTP(s) service check
 pub struct HttpService {
     /// Name of the check
@@ -162,6 +168,7 @@ impl HttpService {
         } else {
             trace!("{}", body);
         }
+
         Ok(("OK".to_string(), ServiceStatus::Ok))
     }
 }
@@ -200,7 +207,7 @@ fn test_from_partial_value() {
 
 impl ConfigOverlay for HttpService {
     fn overlay_host_config(&self, value: &Map<String, Value>) -> Result<Box<Self>, Error> {
-        let name = Self::extract_string(value, "name", &self.name);
+        let name = self.extract_string(value, "name", &self.name);
 
         let http_status: Option<NonZeroU16> = match value.get("http_status") {
             Some(val) => match val.as_u64() {
@@ -216,27 +223,40 @@ impl ConfigOverlay for HttpService {
             },
             None => self.http_status,
         };
-
         Ok(Box::new(Self {
             name,
-            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
-            http_method: Self::extract_value(value, "http_method", &self.http_method)?,
-            http_uri: Self::extract_value(value, "http_uri", &self.http_uri)?,
+            cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            http_method: self.extract_value(value, "http_method", &self.http_method)?,
+            http_uri: self.extract_value(value, "http_uri", &self.http_uri)?,
             http_status,
-            validate_tls: Self::extract_bool(value, "validate_tls", self.validate_tls),
-            connect_timeout: Self::extract_value(value, "connect_timeout", &self.connect_timeout)?,
-            port: Self::extract_value(value, "port", &self.port)?,
-            contains_string: Self::extract_value(value, "contains_string", &self.contains_string)?,
+            validate_tls: self.extract_bool(value, "validate_tls", self.validate_tls),
+            connect_timeout: self.extract_value(value, "connect_timeout", &self.connect_timeout)?,
+            port: self.extract_value(value, "port", &self.port)?,
+            contains_string: self.extract_value(value, "contains_string", &self.contains_string)?,
         }))
     }
 }
 
 #[async_trait]
 impl ServiceTrait for HttpService {
+    fn validate(&self) -> Result<(), Error> {
+        if let Some(http_status) = self.http_status {
+            if StatusCode::try_from(u16::from(http_status)).is_err() {
+                return Err(Error::Configuration(format!(
+                    "Invalid HTTP status code: {}",
+                    http_status
+                )));
+            }
+        }
+        Ok(())
+    }
+
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
 
         // get the client config
+        debug!("Getting host config for {:?}", host);
+
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
         let url = format!(
@@ -255,8 +275,8 @@ impl ServiceTrait for HttpService {
                 env!("CARGO_PKG_NAME"),
                 env!("CARGO_PKG_VERSION")
             ))
-            .danger_accept_invalid_certs(true)
-            .danger_accept_invalid_hostnames(true)
+            .danger_accept_invalid_certs(!config.validate_tls)
+            .danger_accept_invalid_hostnames(!config.validate_tls)
             .connect_timeout(std::time::Duration::from_secs(
                 config.connect_timeout.unwrap_or(DEFAULT_TIMEOUT),
             ))
@@ -280,13 +300,21 @@ impl ServiceTrait for HttpService {
             time_elapsed,
         })
     }
+
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     use crate::db::tests::test_setup;
+    use crate::tests::testcontainers::TestContainer;
+    use crate::tests::tls_utils::TestCertificateBuilder;
 
     #[tokio::test]
     async fn test_httpservice() {
@@ -416,54 +444,77 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "test_badssl")]
     async fn test_skip_tls_verify() {
+        let _ = test_setup().await.expect("Failed to setup test");
+
+        let certs = TestCertificateBuilder::new()
+            .with_name("asdfasdfdsf")
+            .with_expiry((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
+            .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
+            .build();
+
+        let test_container = TestContainer::new(certs, "test_skip_tls_verify").await;
+
         let service = super::HttpService {
-            name: "test".to_string(),
+            name: "localhost".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
-            http_status: Some(super::DEFAULT_EXPECTED_HTTP_STATUS),
+            http_status: Some(super::default_expected_http_status()),
             validate_tls: false,
             connect_timeout: Some(15),
-            port: None,
+            port: NonZeroU16::new(test_container.tls_port),
+            contains_string: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
-            name: "test".to_string(),
-            hostname: "untrusted-root.badssl.com".to_string(),
+            name: "localhost".to_string(),
+            hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
+            config: json!({}),
         };
 
         let res = service.run(&host).await;
-        assert_eq!(service.name, "test".to_string());
+        assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
 
+        drop(test_container);
+
+        let certs = TestCertificateBuilder::new()
+            .with_name("localhost")
+            .with_expiry((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
+            .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
+            .build();
+
+        let test_container = TestContainer::new(certs, "test_skip_tls_verify").await;
+
         let service = super::HttpService {
-            name: "test".to_string(),
+            name: "localhost".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
             http_status: None,
             validate_tls: false,
             connect_timeout: Some(15),
-            port: None,
+            port: NonZeroU16::new(test_container.tls_port),
+            contains_string: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
-            name: "test".to_string(),
-            hostname: "expired.badssl.com".to_string(),
+            name: "localhost".to_string(),
+            hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
+            config: json!({}),
         };
 
         let res = service.run(&host).await;
-        assert_eq!(service.name, "test".to_string());
+        assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
-
+        drop(test_container);
         // now we make sure it fails when we do validate
 
         let service = super::HttpService {
@@ -475,15 +526,18 @@ mod tests {
             validate_tls: true,
             connect_timeout: Some(5),
             port: None,
+            contains_string: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
             name: "test".to_string(),
             hostname: "untrusted-root.badssl.com".to_string(),
             check: crate::host::HostCheck::None,
+            config: json!({}),
         };
 
         let res = service.run(&host).await;
+        dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
         assert_eq!(res.unwrap().status, ServiceStatus::Critical);

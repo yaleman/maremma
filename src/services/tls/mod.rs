@@ -52,12 +52,12 @@ pub struct TlsService {
 impl ConfigOverlay for TlsService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
         Ok(Box::new(Self {
-            name: Self::extract_string(value, "name", &self.name),
-            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
-            port: Self::extract_value(value, "port", &self.port)?,
-            expiry_critical: Self::extract_value(value, "expiry_critical", &self.expiry_critical)?,
-            expiry_warn: Self::extract_value(value, "expiry_warn", &self.expiry_warn)?,
-            timeout: Self::extract_value(value, "timeout", &self.timeout)?,
+            name: self.extract_string(value, "name", &self.name),
+            cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            port: self.extract_value(value, "port", &self.port)?,
+            expiry_critical: self.extract_value(value, "expiry_critical", &self.expiry_critical)?,
+            expiry_warn: self.extract_value(value, "expiry_warn", &self.expiry_warn)?,
+            timeout: self.extract_value(value, "timeout", &self.timeout)?,
         }))
     }
 }
@@ -148,24 +148,54 @@ impl ServiceTrait for TlsService {
         };
 
         let mut status = ServiceStatus::Ok;
-        let mut result_text = "OK".to_string();
+        let mut result_strings = Vec::new();
+
+        dbg!(&self);
+        let expiry_critical_seconds =
+            self.expiry_critical.unwrap_or(DEFAULT_CRITICAL_DAYS) as i64 * 86400;
+        let expiry_warn_seconds = self.expiry_warn.unwrap_or(DEFAULT_WARNING_DAYS) as i64 * 86400;
+
         if result.cert_expired() {
             status = ServiceStatus::Critical;
-            result_text = format!("Certificate expired {} days ago", -result.expiry_days());
-        } else if !result.cert_name_matches {
+            result_strings.push(format!(
+                "Certificate expired {} days ago",
+                -result.expiry_days()
+            ));
+        }
+        if !result.cert_name_matches {
             status = ServiceStatus::Critical;
-            result_text = "Certificate name does not match".to_string();
-        } else if result.intermediate_expired {
+            result_strings.push("Certificate name does not match".to_string());
+        }
+        if result.intermediate_expired {
             status = ServiceStatus::Critical;
-            result_text = "Intermediate certificate expired".to_string();
-        } else if result.expiry_days()
-            <= self.expiry_critical.unwrap_or(DEFAULT_CRITICAL_DAYS) as i64
-        {
+            result_strings.push("Intermediate certificate expired".to_string());
+        }
+        if result.intermediate_untrusted {
             status = ServiceStatus::Critical;
-            result_text = format!("Certificate expires in {} days", result.expiry_days());
-        } else if result.expiry_days() <= self.expiry_warn.unwrap_or(DEFAULT_WARNING_DAYS) as i64 {
+            result_strings.push("Intermediate certificate untrusted".to_string());
+        }
+
+        if result.expiry_seconds() <= expiry_critical_seconds {
+            status = ServiceStatus::Critical;
+            result_strings.push(format!(
+                "Certificate expires in {} days or {} seconds - min set to {}",
+                result.expiry_days(),
+                result.expiry_seconds(),
+                expiry_critical_seconds
+            ));
+        } else if result.expiry_seconds() <= expiry_warn_seconds {
             status = ServiceStatus::Warning;
-            result_text = format!("Certificate expires in {} days", result.expiry_days());
+            result_strings.push(format!(
+                "Certificate expires in {} days or {} seconds - min set to {}",
+                result.expiry_days(),
+                result.expiry_seconds(),
+                expiry_warn_seconds
+            ));
+        }
+
+        let result_text = result_strings.join(", ");
+        if result_text.is_empty() {
+            result_strings.push("OK".to_string());
         }
 
         let timestamp = chrono::Utc::now();
@@ -177,6 +207,11 @@ impl ServiceTrait for TlsService {
             result_text,
         })
     }
+
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -184,6 +219,7 @@ pub(crate) struct TlsPeerState {
     cert_name_matches: bool,
     end_cert_expiry: DateTime<Utc>,
     intermediate_expired: bool,
+    intermediate_untrusted: bool,
     servername: Option<String>,
 }
 
@@ -193,11 +229,15 @@ impl TlsPeerState {
             end_cert_expiry,
             cert_name_matches: false,
             intermediate_expired: false,
+            intermediate_untrusted: false,
             servername: None,
         }
     }
     pub fn set_intermediate_expired(&mut self) {
         self.intermediate_expired = true;
+    }
+    pub fn set_intermediate_untrusted(&mut self) {
+        self.intermediate_untrusted = true;
     }
 
     /// Return if the cert has expired
@@ -209,5 +249,10 @@ impl TlsPeerState {
     pub fn expiry_days(&self) -> i64 {
         let now = chrono::Utc::now();
         (self.end_cert_expiry - now).num_days()
+    }
+    /// Return the number of seconds until the certificate expires
+    pub fn expiry_seconds(&self) -> i64 {
+        let now = chrono::Utc::now();
+        (self.end_cert_expiry - now).num_seconds()
     }
 }

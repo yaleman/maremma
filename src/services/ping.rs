@@ -19,8 +19,8 @@ pub struct PingService {
 impl ConfigOverlay for PingService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
         Ok(Box::new(Self {
-            name: Self::extract_string(value, "name", &self.name),
-            cron_schedule: Self::extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            name: self.extract_string(value, "name", &self.name),
+            cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
         }))
     }
 }
@@ -51,6 +51,10 @@ impl ServiceTrait for PingService {
             time_elapsed: chrono::Duration::from_std(duration)
                 .map_err(|err| Error::Generic(err.to_string()))?,
         })
+    }
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        Ok(serde_json::to_string_pretty(&config)?)
     }
 }
 

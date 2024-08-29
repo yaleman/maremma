@@ -17,6 +17,7 @@ pub(crate) struct ServiceCheckTemplate {
     host: entities::host::Model,
     service: entities::service::Model,
     service_check_history: Vec<entities::service_check_history::Model>,
+    parsed_config: Option<String>,
 }
 
 pub(crate) async fn service_check_get(
@@ -96,43 +97,81 @@ pub(crate) async fn service_check_get(
             )
         })?;
 
+    let mut parsed_service =
+        crate::services::Service::try_from_service_model(&service, state.db.as_ref())
+            .await
+            .map_err(|err| {
+                error!(
+                    "Failed to render service_check {} into service {:?}",
+                    service_check_id, err
+                );
+                Error::Configuration("Failed to parse service definition".to_string())
+            })?;
+
+    parsed_service.parse_config().map_err(|err| {
+        error!(
+            "Failed to render service_check {} into service {:?}",
+            service_check_id, err
+        );
+        Error::Configuration("Failed to parse service definition to config".to_string())
+    })?;
+
+    let parsed_config = parsed_service.config().map(|liveservice| {
+        let res = liveservice
+            .as_json_pretty(&host)
+            .map_err(|err| {
+                error!(
+                    "Failed to render service_check {} into service {:?}",
+                    service_check_id, err
+                );
+                Error::Configuration("Failed to overlay host config".to_string())
+            })
+            .unwrap_or("Failed to render config".to_string());
+        debug!("Parsed config: {}", res);
+        res
+    });
+
     Ok(ServiceCheckTemplate {
         title: format!("Service Check: {}", service_check.id),
         username: Some(user.username()),
-
         message: None,
         status: "".to_string(),
         service_check,
         host,
         service,
         service_check_history,
+        parsed_config,
     })
 }
 
 pub(crate) async fn set_service_check_urgent(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
+    Form(form): Form<RedirectTo>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Urgent).await
+    set_service_check_status(service_check_id, state, ServiceStatus::Urgent, form).await
 }
 pub(crate) async fn set_service_check_disabled(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
+    Form(form): Form<RedirectTo>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Disabled).await
+    set_service_check_status(service_check_id, state, ServiceStatus::Disabled, form).await
 }
 
 pub(crate) async fn set_service_check_enabled(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
+    Form(form): Form<RedirectTo>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Pending).await
+    set_service_check_status(service_check_id, state, ServiceStatus::Pending, form).await
 }
 
 pub(crate) async fn set_service_check_status(
     service_check_id: Uuid,
     state: WebState,
     status: ServiceStatus,
+    form: RedirectTo,
 ) -> Result<Redirect, (StatusCode, String)> {
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
         .one(state.db.as_ref())
@@ -173,13 +212,23 @@ pub(crate) async fn set_service_check_status(
         })?;
     };
     // TODO: make it so we can redirect to... elsewhere based on a query string?
-    Ok(Redirect::to(&format!("/host/{}", host_id.hyphenated())))
+    if let Some(redirect_to) = &form.redirect_to {
+        Ok(Redirect::to(redirect_to))
+    } else {
+        Ok(Redirect::to(&format!("/host/{}", host_id.hyphenated())))
+    }
 }
 
 /// For when you want to redirect people back to where they came from
 #[derive(Deserialize, Debug)]
 pub(crate) struct RedirectTo {
     redirect_to: Option<String>,
+}
+
+impl From<Option<String>> for RedirectTo {
+    fn from(redirect_to: Option<String>) -> Self {
+        Self { redirect_to }
+    }
 }
 
 /// Want to delete a service check? Woo!
@@ -264,7 +313,7 @@ mod tests {
     async fn test_set_service_check_urgent() {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
-        let state = WebState::new(db, &config, None, None);
+        let state = WebState::new(db, config, None, None);
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db.as_ref())
@@ -272,9 +321,21 @@ mod tests {
             .expect("Failed to get service check")
             .expect("No service checks found");
 
-        let res = set_service_check_urgent(Path(service_check.id), State(state.clone())).await;
+        let res = set_service_check_urgent(
+            Path(service_check.id),
+            State(state.clone()),
+            Form(RedirectTo::from(None)),
+        )
+        .await;
         assert!(res.is_ok());
-        let res = set_service_check_urgent(Path(Uuid::new_v4()), State(state)).await;
+        let res = set_service_check_urgent(
+            Path(Uuid::new_v4()),
+            State(state),
+            Form(RedirectTo {
+                redirect_to: Some("/test".to_string()),
+            }),
+        )
+        .await;
         assert!(res.is_err());
     }
     #[tokio::test]
@@ -287,16 +348,26 @@ mod tests {
             .expect("Failed to get service check")
             .expect("No service checks found");
 
-        let res = set_service_check_disabled(Path(service_check.id), State(state.clone())).await;
+        let res = set_service_check_disabled(
+            Path(service_check.id),
+            State(state.clone()),
+            Form(RedirectTo::from(None)),
+        )
+        .await;
         assert!(res.is_ok());
-        let res = set_service_check_disabled(Path(Uuid::new_v4()), State(state)).await;
+        let res = set_service_check_disabled(
+            Path(Uuid::new_v4()),
+            State(state),
+            Form(RedirectTo::from(None)),
+        )
+        .await;
         assert!(res.is_err());
     }
     #[tokio::test]
     async fn test_set_service_check_enabled() {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
-        let state = WebState::new(db, &config, None, None);
+        let state = WebState::new(db, config, None, None);
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db.as_ref())
@@ -304,9 +375,19 @@ mod tests {
             .expect("Failed to get service check")
             .expect("No service checks found");
 
-        let res = set_service_check_enabled(Path(service_check.id), State(state.clone())).await;
+        let res = set_service_check_enabled(
+            Path(service_check.id),
+            State(state.clone()),
+            Form(RedirectTo::from(None)),
+        )
+        .await;
         assert!(res.is_ok());
-        let res = set_service_check_enabled(Path(Uuid::new_v4()), State(state)).await;
+        let res = set_service_check_enabled(
+            Path(Uuid::new_v4()),
+            State(state),
+            Form(RedirectTo::from(None)),
+        )
+        .await;
         assert!(res.is_err());
     }
 

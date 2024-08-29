@@ -81,7 +81,7 @@ impl MigrationTrait for Migration {
 
         for (service_id, host_group) in service_group_pairs {
             // do we have it cached?
-            let mut group_id = group_ids.get(&host_group).cloned();
+            let group_id = group_ids.get(&host_group).cloned();
 
             if group_id.is_none() {
                 // check the db
@@ -91,7 +91,7 @@ impl MigrationTrait for Migration {
                     .await?
                 {
                     group_ids.insert(host_group.name.clone(), host_group.id);
-                    group_id = Some(host_group.id);
+                    // group_id = Some(host_group.id);
 
                     // ensure the service_group_link record exists
                     if entities::service_group_link::Entity::find()
@@ -123,7 +123,7 @@ impl MigrationTrait for Migration {
                     )));
                 }
             }
-            eprintln!("Found group_id: {:?}", group_id);
+            // debug!("Found group_id: {:?}", group_id);
         }
         Ok(())
     }

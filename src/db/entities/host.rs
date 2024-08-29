@@ -77,17 +77,6 @@ impl Model {
                 .all(db)
                 .await?;
         }
-        // let service_checks = super::service_check::Entity::find()
-        //     .filter(super::service_check::Column::HostId.eq(self.id))
-        //     .all(db)
-        //     .await
-        //     .inspect_err(|err| {
-        //         error!(
-        //             "Failed to find service checks for host {} {} {}",
-        //             self.id, self.hostname, err,
-        //         )
-        //     })?;
-
         Ok(())
     }
 }
@@ -131,6 +120,7 @@ impl MaremmaEntity for Model {
                         .hostname
                         .set_if_not_equals(hostname.to_owned());
                     existing_host.name.set_if_not_equals(name);
+                    existing_host.config.set_if_not_equals(json!(host.config));
 
                     if existing_host.is_changed() {
                         info!("Updating {:?}", &existing_host);

@@ -14,3 +14,6 @@ command = "mdbook-mermaid"
 
 [output.html]
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
+git-repository-url = "https://github.com/yaleman/maremma"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/yaleman/maremma/edit/main/docs/{path}"
