@@ -58,8 +58,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Docker
-        uses: crazy-max/ghaction-setup-docker@v3
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.5
       - name: Install Rust
