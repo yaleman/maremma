@@ -309,9 +309,12 @@ impl ServiceTrait for HttpService {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     use crate::db::tests::test_setup;
+    use crate::tests::testcontainers::TestContainer;
+    use crate::tests::tls_utils::TestCertificateBuilder;
 
     #[tokio::test]
     async fn test_httpservice() {
@@ -443,56 +446,75 @@ mod tests {
     #[tokio::test]
     async fn test_skip_tls_verify() {
         let _ = test_setup().await.expect("Failed to setup test");
+
+        let certs = TestCertificateBuilder::new()
+            .with_name("asdfasdfdsf")
+            .with_expiry((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
+            .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
+            .build();
+
+        let test_container = TestContainer::new(certs, "test_skip_tls_verify").await;
+
         let service = super::HttpService {
-            name: "test".to_string(),
+            name: "localhost".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
             http_status: Some(super::default_expected_http_status()),
             validate_tls: false,
             connect_timeout: Some(15),
-            port: None,
+            port: NonZeroU16::new(test_container.tls_port),
             contains_string: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
-            name: "test".to_string(),
-            hostname: "untrusted-root.badssl.com".to_string(),
+            name: "localhost".to_string(),
+            hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
 
         let res = service.run(&host).await;
-        assert_eq!(service.name, "test".to_string());
+        assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
 
+        drop(test_container);
+
+        let certs = TestCertificateBuilder::new()
+            .with_name("localhost")
+            .with_expiry((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
+            .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
+            .build();
+
+        let test_container = TestContainer::new(certs, "test_skip_tls_verify").await;
+
         let service = super::HttpService {
-            name: "test".to_string(),
+            name: "localhost".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
             http_status: None,
             validate_tls: false,
             connect_timeout: Some(15),
-            port: None,
+            port: NonZeroU16::new(test_container.tls_port),
             contains_string: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
-            name: "test".to_string(),
-            hostname: "expired.badssl.com".to_string(),
+            name: "localhost".to_string(),
+            hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
 
         let res = service.run(&host).await;
-        assert_eq!(service.name, "test".to_string());
+        assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
         assert_eq!(res.is_ok(), true);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
-
+        drop(test_container);
         // now we make sure it fails when we do validate
 
         let service = super::HttpService {

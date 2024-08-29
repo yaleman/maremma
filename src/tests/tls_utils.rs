@@ -328,7 +328,7 @@ pub(crate) struct CertHandle {
 }
 
 pub(crate) fn build_cert(
-    domain_name: &str,
+    domain_name: Option<&str>,
     ca_handle: &CaHandle,
     key_type: Option<KeyType>,
     key_bits: Option<u64>,
@@ -341,16 +341,19 @@ pub(crate) fn build_cert(
     let mut req_builder = X509ReqBuilder::new()?;
     req_builder.set_pubkey(&int_key)?;
 
-    let mut x509_name = X509NameBuilder::new()?;
-    x509_name.append_entry_by_text("C", "AU")?;
-    x509_name.append_entry_by_text("ST", "QLD")?;
-    x509_name.append_entry_by_text("O", "Test Organisation")?;
-    x509_name.append_entry_by_text("CN", domain_name)?;
-    // Requirement of packed attestation.
-    x509_name.append_entry_by_text("OU", "Development and Evaluation - NOT FOR PRODUCTION")?;
-    let x509_name = x509_name.build();
+    if let Some(domain_name) = domain_name {
+        let mut x509_name = X509NameBuilder::new()?;
+        x509_name.append_entry_by_text("C", "AU")?;
+        x509_name.append_entry_by_text("ST", "QLD")?;
+        x509_name.append_entry_by_text("O", "Test Organisation")?;
+        x509_name.append_entry_by_text("CN", domain_name)?;
+        // Requirement of packed attestation.
+        x509_name.append_entry_by_text("OU", "Development and Evaluation - NOT FOR PRODUCTION")?;
+        let x509_name = x509_name.build();
 
-    req_builder.set_subject_name(&x509_name)?;
+        req_builder.set_subject_name(&x509_name)?;
+    }
+
     req_builder.sign(&int_key, get_signing_func())?;
     let req = req_builder.build();
     // ==
@@ -398,10 +401,12 @@ pub(crate) fn build_cert(
         .build(&cert_builder.x509v3_context(Some(&ca_handle.cert), None))?;
     cert_builder.append_extension(auth_key_identifier)?;
 
-    let subject_alt_name = SubjectAlternativeName::new()
-        .dns(domain_name)
-        .build(&cert_builder.x509v3_context(Some(&ca_handle.cert), None))?;
-    cert_builder.append_extension(subject_alt_name)?;
+    if let Some(domain_name) = domain_name {
+        let subject_alt_name = SubjectAlternativeName::new()
+            .dns(domain_name)
+            .build(&cert_builder.x509v3_context(Some(&ca_handle.cert), None))?;
+        cert_builder.append_extension(subject_alt_name)?;
+    }
 
     cert_builder.sign(&ca_handle.key, get_signing_func())?;
     let int_cert = cert_builder.build();
@@ -492,6 +497,7 @@ pub struct TestCertificateBuilder {
     pub expiry_time: i64,
     pub hostname: String,
     pub use_sha1_intermediate: bool,
+    pub skip_cert_name: bool,
 }
 
 impl TestCertificateBuilder {
@@ -501,6 +507,7 @@ impl TestCertificateBuilder {
             expiry_time: chrono::Utc::now().timestamp() + TimeDelta::days(30).num_seconds(),
             hostname: "maremma_test".to_string(),
             use_sha1_intermediate: false,
+            skip_cert_name: false,
         }
     }
 
@@ -535,7 +542,15 @@ impl TestCertificateBuilder {
             self.issue_time,
             self.expiry_time,
             self.use_sha1_intermediate,
+            self.skip_cert_name,
         )
+    }
+
+    pub fn without_cert_name(self) -> Self {
+        Self {
+            skip_cert_name: true,
+            ..self
+        }
     }
 }
 
@@ -550,6 +565,7 @@ impl TestCertificates {
         issue_time: i64,
         expiry_time: i64,
         use_sha1_intermediate: bool,
+        skip_cert_name: bool,
     ) -> Self {
         let mut cert_file = NamedTempFile::new().expect("Failed to create temp file");
         let mut key_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -564,6 +580,11 @@ impl TestCertificates {
         };
         let ca_handle = crate::tests::tls_utils::build_ca(Some(ca_config), Some(signing_function))
             .expect("Failed to build CA");
+
+        let hostname = match skip_cert_name {
+            true => None,
+            false => Some(hostname),
+        };
 
         let cert = crate::tests::tls_utils::build_cert(
             hostname,
@@ -602,7 +623,25 @@ fn test_build_cert() {
     let ca_handle = build_ca(Some(ca_config), None).expect("Failed to build CA");
 
     let cert = build_cert(
-        "test.example.com",
+        Some("test.example.com"),
+        &ca_handle,
+        None,
+        None,
+        chrono::Utc::now().timestamp() - 86400,
+        chrono::Utc::now().timestamp() - 3600,
+    );
+
+    assert!(cert.is_ok());
+}
+
+#[test]
+fn test_build_nameless_cert() {
+    let ca_config = CAConfig::default();
+
+    let ca_handle = build_ca(Some(ca_config), None).expect("Failed to build CA");
+
+    let cert = build_cert(
+        None,
         &ca_handle,
         None,
         None,

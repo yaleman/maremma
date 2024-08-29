@@ -29,13 +29,19 @@ pub async fn rp_logout(
 ) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
     session.clear().await;
 
-    let url: Uri = state.frontend_url.parse().map_err(|err| {
-        error!("Failed to parse redirect URL: {:?}", err);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to parse redirect URL, your session has been cleared on our end.",
-        )
-    })?;
+    let url: Uri = state
+        .configuration
+        .frontend_url
+        .clone()
+        .unwrap_or("".to_string()) // TODO: eerk.
+        .parse()
+        .map_err(|err| {
+            error!("Failed to parse redirect URL: {:?}", err);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to parse redirect URL, your session has been cleared on our end.",
+            )
+        })?;
     Ok(logout.with_post_logout_redirect(url))
 }
 
@@ -76,12 +82,9 @@ mod tests {
     async fn test_logout() {
         let (db, config) = test_setup().await.expect("Failed to setup test");
 
-        let app = build_app(
-            crate::web::WebState::new(db.clone(), &config, None, None),
-            &config,
-        )
-        .await
-        .expect("Failed to build app");
+        let app = build_app(crate::web::WebState::new(db.clone(), config, None, None))
+            .await
+            .expect("Failed to build app");
 
         let res = app
             .oneshot(

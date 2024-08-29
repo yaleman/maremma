@@ -8,6 +8,7 @@ use crate::db::entities::host::test_host;
 use crate::db::tests::test_setup;
 use crate::services::tls::TlsService;
 use crate::tests::testcontainers::TestContainer;
+use crate::tests::tls_utils::TestCertificateBuilder;
 
 #[tokio::test]
 async fn test_working_tls_service() {
@@ -113,7 +114,7 @@ async fn test_wrong_cert_host_name() {
 
     let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
     let host = entities::host::Model {
-        name: "wrong.host.badssl.com".to_string(),
+        name: "localhost".to_string(),
         check: crate::host::HostCheck::None,
         id: Uuid::new_v4(),
         hostname: "localhost".to_string(),
@@ -221,14 +222,23 @@ async fn test_tls_no_subject() {
 
     let _ = test_setup().await.expect("Failed to set up test");
 
+    let certs = TestCertificateBuilder::new()
+        .without_cert_name()
+        .with_expiry((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
+        .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
+        .build();
+
+    let test_container = TestContainer::new(certs, "test_tls_no_subject").await;
+
     let service_def = serde_json::json! {{
         "name": "test",
         "cron_schedule": "0 0 * * *",
-        "port": 443,
+        "port": test_container.tls_port,
+        "timeout" : 5,
     }};
 
     let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
-    let bad_hostname = "no-subject.badssl.com".to_string();
+    let bad_hostname = "localhost".to_string();
     let host = entities::host::Model {
         name: bad_hostname.clone(),
         check: crate::host::HostCheck::None,
