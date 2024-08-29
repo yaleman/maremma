@@ -36,6 +36,8 @@ jobs:
           cargo tarpaulin --coveralls ${{ secrets.COVERALLS_REPO_TOKEN }}
   cargo_test:
     runs-on: ubuntu-latest
+    env:
+      MAREMMA_FRONTEND_URL: "http://localhost:8080"
     steps:
       - uses: actions/checkout@v4
       - name: Setup sccache
