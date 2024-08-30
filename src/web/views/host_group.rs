@@ -11,8 +11,7 @@ use serde::Deserialize;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::db::entities;
-use crate::db::entities::host_group::{Column, Entity, Model};
+use crate::db::entities::{host, host_group, host_group_members};
 use crate::web::oidc::User;
 use crate::web::{Error, WebState};
 
@@ -21,7 +20,13 @@ use crate::web::{Error, WebState};
 pub(crate) struct HostGroupsTemplate {
     title: String,
     username: Option<String>,
-    host_groups: Vec<Model>,
+    host_groups: Vec<HostGroupData>,
+}
+
+pub(crate) struct HostGroupData {
+    id: Uuid,
+    name: String,
+    hosts: usize,
 }
 
 pub(crate) async fn host_groups(
@@ -31,14 +36,24 @@ pub(crate) async fn host_groups(
     if claims.is_none() {
         return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
     }
-    let host_groups = Entity::find()
-        .order_by_asc(Column::Name)
+    let res = host_group::Entity::find()
+        .order_by_asc(host_group::Column::Name)
+        .find_with_linked(host_group_members::GroupToHosts)
         .all(state.db.as_ref())
         .await
         .map_err(|e| {
             log::error!("Failed to fetch host groups: {}", e);
             Error::from(e)
         })?;
+
+    let host_groups = res
+        .into_iter()
+        .map(|(group, hosts)| HostGroupData {
+            id: group.id,
+            name: group.name,
+            hosts: hosts.len(),
+        })
+        .collect();
 
     Ok(HostGroupsTemplate {
         title: "Host Groups".to_string(),
@@ -52,8 +67,8 @@ pub(crate) async fn host_groups(
 pub(crate) struct HostGroupTemplate {
     title: String,
     username: Option<String>,
-    host_group: entities::host_group::Model,
-    members: Vec<entities::host::Model>,
+    host_group: host_group::Model,
+    members: Vec<host::Model>,
     message: Option<String>,
 }
 
@@ -74,9 +89,9 @@ pub(crate) async fn host_group(
         return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
     }
 
-    let host_group = entities::host_group::Entity::find()
-        .filter(Column::Id.eq(id))
-        .find_with_linked(entities::host_group_members::GroupToHosts)
+    let host_group = host_group::Entity::find()
+        .filter(host_group::Column::Id.eq(id))
+        .find_with_linked(host_group_members::GroupToHosts)
         .all(state.db.as_ref())
         .await
         .map_err(|e| {
@@ -116,7 +131,7 @@ pub(crate) async fn host_group_member_delete(
         Some(val) => val.into(),
     };
 
-    let host = entities::host::Entity::find_by_id(host_id)
+    let host = host::Entity::find_by_id(host_id)
         .one(state.db.as_ref())
         .await
         .map_err(|e| {
@@ -130,7 +145,7 @@ pub(crate) async fn host_group_member_delete(
         }
     };
 
-    let group = entities::host_group::Entity::find_by_id(group_id)
+    let group = host_group::Entity::find_by_id(group_id)
         .one(state.db.as_ref())
         .await
         .map_err(|e| {
@@ -144,11 +159,11 @@ pub(crate) async fn host_group_member_delete(
         }
     };
 
-    let host_group_membership = entities::host_group_members::Entity::delete_many()
+    let host_group_membership = host_group_members::Entity::delete_many()
         .filter(
-            entities::host_group_members::Column::GroupId
+            host_group_members::Column::GroupId
                 .eq(group_id)
-                .and(entities::host_group_members::Column::HostId.eq(host_id)),
+                .and(host_group_members::Column::HostId.eq(host_id)),
         )
         .exec(state.db.as_ref())
         .await
@@ -168,6 +183,30 @@ pub(crate) async fn host_group_member_delete(
         "/host_group/{}?message=Removed {} from '{}'",
         group_id, host.hostname, group.name
     )))
+}
+
+pub(crate) async fn host_group_delete(
+    Path(group_id): Path<Uuid>,
+    State(state): State<WebState>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+) -> Result<Redirect, (StatusCode, String)> {
+    let _user: User = match claims {
+        None => {
+            // TODO: check that the user is an admin
+            return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
+        }
+        Some(val) => val.into(),
+    };
+
+    host_group::Entity::delete_by_id(group_id)
+        .exec(state.db.as_ref())
+        .await
+        .map_err(|e| {
+            log::error!("Failed to delete host group: {}", e);
+            Error::from(e)
+        })?;
+
+    Ok(Redirect::to("/host_groups"))
 }
 
 #[cfg(test)]

@@ -58,7 +58,7 @@ pub struct TestContainer {
 
 impl TestContainer {
     /// Start up an NGINX container with a TLS config
-    pub async fn new(test_certs: TestCertificates, name: &str) -> Self {
+    pub async fn new(test_certs: &TestCertificates, name: &str) -> Self {
         let nginx_config = get_nginx_config_file();
 
         let container = GenericImage::new("nginx", "latest")
@@ -110,7 +110,7 @@ async fn test_basic_testcontainer() {
         .expect("failed to build reqwest client");
 
     let container = TestContainer::new(
-        TestCertificateBuilder::new().build(),
+        &TestCertificateBuilder::new().build(),
         "test_basic_testcontainer",
     )
     .await;

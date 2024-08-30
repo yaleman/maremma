@@ -21,7 +21,10 @@ impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
         _now: rustls::pki_types::UnixTime,
     ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
         // parse the end cert
-        let (_, cert) = parse_x509_certificate(end_entity.as_ref()).unwrap();
+        let (_, cert) = parse_x509_certificate(end_entity.as_ref()).map_err(|err| {
+            error!("Failed to parse TLS certificate {:?}", err);
+            rustls::Error::General("{}".to_string())
+        })?;
 
         // let this just fail out if it fails because well, too bad
         let parsed_cert = ParsedCertificate::try_from(end_entity)

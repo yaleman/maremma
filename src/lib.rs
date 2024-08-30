@@ -5,17 +5,17 @@
 
 #![warn(missing_docs)]
 #![deny(warnings)]
-#![forbid(unsafe_code)]
 #![deny(clippy::all)]
-#![deny(clippy::correctness)]
-#![deny(clippy::complexity)]
-#![allow(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
-#![deny(clippy::panic)]
-#![deny(clippy::unreachable)]
-#![deny(clippy::needless_pass_by_value)]
 #![deny(clippy::await_holding_lock)]
+#![deny(clippy::complexity)]
+#![deny(clippy::correctness)]
+#![deny(clippy::expect_used)]
+#![deny(clippy::needless_pass_by_value)]
+#![deny(clippy::panic)]
 #![deny(clippy::trivially_copy_pass_by_ref)]
+#![deny(clippy::unreachable)]
+#![deny(clippy::unwrap_used)]
+#![forbid(unsafe_code)]
 
 pub mod check_loop;
 pub mod cli;

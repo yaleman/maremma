@@ -2,6 +2,7 @@
 
 use std::fmt::Display;
 use std::num::NonZeroU16;
+use std::path::PathBuf;
 
 use super::prelude::*;
 use crate::prelude::*;
@@ -115,6 +116,9 @@ pub struct HttpService {
 
     /// Ensure the body has a certain string
     pub contains_string: Option<String>,
+
+    /// CA cert file to use
+    pub ca_file: Option<PathBuf>,
 }
 
 impl HttpService {
@@ -158,12 +162,13 @@ impl HttpService {
         if let Some(expected_string) = client_config.contains_string.as_ref() {
             body = response.text().await?;
             if !body.contains(expected_string) {
+                debug!("Couldn't find {} in boxy", expected_string);
                 return Ok((
                     format!("Expected string '{}' not found in body", expected_string),
                     ServiceStatus::Critical,
                 ));
             } else {
-                debug!("Found {} in body", expected_string);
+                debug!("Found '{}' in body", expected_string);
             }
         } else {
             trace!("{}", body);
@@ -173,8 +178,10 @@ impl HttpService {
     }
 }
 
-#[test]
-fn test_from_partial_value() {
+#[tokio::test]
+async fn test_overlay_host_config() {
+    let _ = test_setup().await.expect("Failed to setup test");
+
     let service = HttpService {
         name: "test".to_string(),
         cron_schedule: Cron::new("@hourly")
@@ -187,11 +194,15 @@ fn test_from_partial_value() {
         connect_timeout: None,
         port: None,
         contains_string: None,
+        ca_file: None,
     };
     let mut value = Map::new();
     value.insert("port".to_string(), 12345.into());
     value.insert("http_uri".to_string(), "/asdfsafd".into());
     value.insert("cron_schedule".to_string(), "@daily".into());
+    value.insert("ca_file".to_string(), "/dev/null".into());
+
+    debug!("Overlay Value: {:?}", value);
 
     let res = service
         .overlay_host_config(&value)
@@ -203,6 +214,8 @@ fn test_from_partial_value() {
         service.cron_schedule.pattern.to_string(),
         res.cron_schedule.pattern.to_string()
     );
+    assert_eq!(res.cron_schedule.pattern.to_string(), "@daily".to_string());
+    assert_eq!(res.ca_file, Some(PathBuf::from("/dev/null")));
 }
 
 impl ConfigOverlay for HttpService {
@@ -223,6 +236,7 @@ impl ConfigOverlay for HttpService {
             },
             None => self.http_status,
         };
+
         Ok(Box::new(Self {
             name,
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
@@ -233,6 +247,7 @@ impl ConfigOverlay for HttpService {
             connect_timeout: self.extract_value(value, "connect_timeout", &self.connect_timeout)?,
             port: self.extract_value(value, "port", &self.port)?,
             contains_string: self.extract_value(value, "contains_string", &self.contains_string)?,
+            ca_file: self.extract_value(value, "ca_file", &self.ca_file)?,
         }))
     }
 }
@@ -269,14 +284,28 @@ impl ServiceTrait for HttpService {
             config.http_uri.as_ref().unwrap_or(&"".to_string())
         );
 
-        let client = reqwest::ClientBuilder::new()
+        let mut client = reqwest::ClientBuilder::new()
             .user_agent(format!(
                 "{}/{}",
                 env!("CARGO_PKG_NAME"),
                 env!("CARGO_PKG_VERSION")
             ))
             .danger_accept_invalid_certs(!config.validate_tls)
-            .danger_accept_invalid_hostnames(!config.validate_tls)
+            .danger_accept_invalid_hostnames(!config.validate_tls);
+
+        if let Some(ca_file) = config.ca_file.as_ref() {
+            debug!("adding CA file");
+            client = client.add_root_certificate(reqwest::Certificate::from_pem(
+                &std::fs::read(ca_file).map_err(|e| {
+                    Error::Generic(format!(
+                        "Failed to read CA file {}: {}",
+                        ca_file.display(),
+                        e
+                    ))
+                })?,
+            )?);
+        }
+        let client = client
             .connect_timeout(std::time::Duration::from_secs(
                 config.connect_timeout.unwrap_or(DEFAULT_TIMEOUT),
             ))
@@ -328,6 +357,7 @@ mod tests {
             http_uri: None,
             contains_string: None,
             http_status: None,
+            ca_file: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -352,29 +382,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_example_com_contains_string() {
+    async fn test_site_contains_string() {
         let _ = test_setup().await.expect("Failed to setup test");
+
+        let certs = TestCertificateBuilder::new()
+            .with_name("localhost")
+            .with_expiry((chrono::Utc::now() + chrono::TimeDelta::days(30)).timestamp())
+            .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
+            .build();
+
+        let test_container = TestContainer::new(&certs, "test_site_contains_string").await;
 
         let service = super::HttpService {
             name: "test".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
-            http_uri: Some("/yaleman/maremma".to_string()),
+            http_uri: Some("/".to_string()),
             http_status: Some(super::default_expected_http_status()),
             validate_tls: true,
             connect_timeout: Some(5),
-            port: None,
-            contains_string: Some("Maremma".to_string()),
+            port: Some(NonZeroU16::new(test_container.tls_port).expect("Failed to parse port")),
+            contains_string: Some("Welcome to nginx!".to_string()),
+            ca_file: Some(PathBuf::from(certs.ca_file.as_ref())),
         };
         let mut host = entities::host::Model {
             id: Uuid::new_v4(),
-            name: "test".to_string(),
-            hostname: "github.com".to_string(),
+            name: "localhost".to_string(),
+            hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
 
         let res = service.run(&host).await;
+        dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
@@ -410,6 +450,7 @@ mod tests {
             connect_timeout: None,
             port: None,
             contains_string: None,
+            ca_file: None,
         };
         let mut host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -453,7 +494,7 @@ mod tests {
             .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
             .build();
 
-        let test_container = TestContainer::new(certs, "test_skip_tls_verify").await;
+        let test_container = TestContainer::new(&certs, "test_skip_tls_verify").await;
 
         let service = super::HttpService {
             name: "localhost".to_string(),
@@ -465,6 +506,7 @@ mod tests {
             connect_timeout: Some(15),
             port: NonZeroU16::new(test_container.tls_port),
             contains_string: None,
+            ca_file: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -488,7 +530,7 @@ mod tests {
             .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
             .build();
 
-        let test_container = TestContainer::new(certs, "test_skip_tls_verify").await;
+        let test_container = TestContainer::new(&certs, "test_skip_tls_verify").await;
 
         let service = super::HttpService {
             name: "localhost".to_string(),
@@ -500,6 +542,7 @@ mod tests {
             connect_timeout: Some(15),
             port: NonZeroU16::new(test_container.tls_port),
             contains_string: None,
+            ca_file: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -527,6 +570,7 @@ mod tests {
             connect_timeout: Some(5),
             port: None,
             contains_string: None,
+            ca_file: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -625,6 +669,7 @@ mod tests {
             connect_timeout: Some(5),
             port: None,
             contains_string: None,
+            ca_file: None,
         };
 
         let client_config = Box::new(service.clone());
