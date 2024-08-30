@@ -557,6 +557,7 @@ impl TestCertificateBuilder {
 pub(crate) struct TestCertificates {
     pub cert_file: NamedTempFile,
     pub key_file: NamedTempFile,
+    pub ca_file: NamedTempFile,
 }
 
 impl TestCertificates {
@@ -567,8 +568,9 @@ impl TestCertificates {
         use_sha1_intermediate: bool,
         skip_cert_name: bool,
     ) -> Self {
-        let mut cert_file = NamedTempFile::new().expect("Failed to create temp file");
-        let mut key_file = NamedTempFile::new().expect("Failed to create temp file");
+        let mut cert_file = NamedTempFile::new().expect("Failed to create cert temp file");
+        let mut key_file = NamedTempFile::new().expect("Failed to create key temp file");
+        let mut ca_file = NamedTempFile::new().expect("Failed to create CA temp file");
 
         let ca_config = crate::tests::tls_utils::CAConfig::default();
         // TODO: signing function here
@@ -596,6 +598,10 @@ impl TestCertificates {
         )
         .expect("Failed to generate TLS Certificate");
 
+        ca_file
+            .write_all(&ca_handle.cert.to_pem().expect("Failed to get CA as pem"))
+            .expect("Failed to write CA cert to file");
+
         cert_file
             .write_all(&cert.cert.to_pem().expect("Failed to get cert pem"))
             .expect("Failed to write cert to file");
@@ -611,7 +617,7 @@ impl TestCertificates {
         Self {
             cert_file,
             key_file,
-            // cert,
+            ca_file,
         }
     }
 }

@@ -23,7 +23,7 @@ async fn test_working_tls_service() {
         .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
         .build();
 
-    let test_container = TestContainer::new(certs, "test_working_tls_service").await;
+    let test_container = TestContainer::new(&certs, "test_working_tls_service").await;
 
     let service = crate::services::tls::TlsService {
         name: "test".to_string(),
@@ -67,7 +67,7 @@ async fn test_expired_tls_service() {
         .with_expiry((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
         .build();
 
-    let test_container = TestContainer::new(certs, "test_expired_tls_service").await;
+    let test_container = TestContainer::new(&certs, "test_expired_tls_service").await;
 
     let service = crate::services::tls::TlsService {
         name: "localhost".to_string(),
@@ -104,7 +104,7 @@ async fn test_wrong_cert_host_name() {
         .with_expiry((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
         .build();
 
-    let test_container = TestContainer::new(certs, "test_wrong_cert_host_name").await;
+    let test_container = TestContainer::new(&certs, "test_wrong_cert_host_name").await;
 
     let service_def = serde_json::json! {{
         "name": "test",
@@ -193,7 +193,7 @@ async fn test_tls_sha1_intermediate() {
         .with_expiry((chrono::Utc::now() + chrono::TimeDelta::days(30)).timestamp())
         .build();
 
-    let test_container = TestContainer::new(certs, "test_tls_sha1_intermediate").await;
+    let test_container = TestContainer::new(&certs, "test_tls_sha1_intermediate").await;
 
     let service_def = serde_json::json! {{
         "name": "test",
@@ -228,7 +228,7 @@ async fn test_tls_no_subject() {
         .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(31)).timestamp())
         .build();
 
-    let test_container = TestContainer::new(certs, "test_tls_no_subject").await;
+    let test_container = TestContainer::new(&certs, "test_tls_no_subject").await;
 
     let service_def = serde_json::json! {{
         "name": "test",
