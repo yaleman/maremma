@@ -11,12 +11,10 @@
 <div class="container">
     <div class="row">
         <h1> Service Check: {{service_check.id}} </h1>
-        {% if let Some(latest) = service_check_history.first() %}
-        <h3>Last status: <span
-                class="badge bg-{{latest.status.as_html_class_background()}} text-{{latest.status.as_html_class_text()}}">{{
-                latest.status
+        <h3>Status: <span
+                class="badge bg-{{service_check.status.as_html_class_background()}} text-{{service_check.status.as_html_class_text()}}">{{
+                service_check.status
                 }}</span></h3>
-        {% endif %}
 
         <script type="text/javascript">
             confirmForm('deleteCheck{{service_check.id}}', 'Are you sure you want to delete this check?');
