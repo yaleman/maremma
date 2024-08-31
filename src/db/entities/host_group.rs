@@ -134,6 +134,9 @@ impl MaremmaEntity for Model {
 #[cfg(test)]
 mod tests {
 
+    use uuid::Uuid;
+
+    use crate::config::Configuration;
     use crate::db::tests::test_setup;
     use crate::prelude::MaremmaEntity;
 
@@ -144,5 +147,22 @@ mod tests {
         super::Model::update_db_from_config(&db, config)
             .await
             .expect("Failed to load config");
+    }
+    #[tokio::test]
+    async fn test_failing_update_db_from_config_hg() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
+
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([[super::Model {
+                id: Uuid::new_v4(),
+                name: "Test".to_owned(),
+            }]])
+            .into_connection();
+
+        let res =
+            super::Model::update_db_from_config(&db, Configuration::load_test_config().await).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
     }
 }

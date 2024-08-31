@@ -163,7 +163,9 @@ mod tests {
     use sea_orm::IntoActiveModel;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use tracing::{debug, info};
+    use uuid::Uuid;
 
+    use crate::config::Configuration;
     use crate::db::entities::MaremmaEntity;
     use crate::db::tests::test_setup;
 
@@ -237,5 +239,26 @@ mod tests {
         host.prune_service_checks(db.as_ref())
             .await
             .expect("Failed to prune service checks");
+    }
+
+    #[tokio::test]
+    async fn test_failing_update_db_from_config_host() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
+
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([[super::Model {
+                id: Uuid::new_v4(),
+                name: "foo".to_string(),
+                hostname: "foo.example.com".to_owned(),
+                check: crate::host::HostCheck::None,
+                config: serde_json::json!({}),
+            }]])
+            .into_connection();
+
+        let res =
+            super::Model::update_db_from_config(&db, Configuration::load_test_config().await).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
     }
 }

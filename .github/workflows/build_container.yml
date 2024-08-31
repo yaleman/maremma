@@ -17,6 +17,7 @@ env:
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
   REGISTRY_IMAGE: "ghcr.io/yaleman/maremma"
+  PLATFORM_PAIR: "linux_amd64" # this should be overridden later
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

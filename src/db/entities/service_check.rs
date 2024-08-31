@@ -351,7 +351,9 @@ impl FullServiceCheck {
 #[cfg(test)]
 mod tests {
     use sea_orm::{EntityTrait, ModelTrait};
+    use uuid::Uuid;
 
+    use crate::config::Configuration;
     use crate::db::tests::test_setup;
     use crate::db::{entities, MaremmaEntity};
     use crate::errors::Error;
@@ -397,5 +399,28 @@ mod tests {
             .expect("Failed to find service_check");
 
         assert!(res.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_failing_update_db_from_config_service_check() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
+
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([[super::Model {
+                id: Uuid::new_v4(),
+                service_id: Uuid::new_v4(),
+                host_id: Uuid::new_v4(),
+                status: super::ServiceStatus::Unknown,
+                last_check: chrono::Utc::now(),
+                next_check: chrono::Utc::now(),
+                last_updated: chrono::Utc::now(),
+            }]])
+            .into_connection();
+
+        let res =
+            super::Model::update_db_from_config(&db, Configuration::load_test_config().await).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
     }
 }

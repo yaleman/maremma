@@ -27,7 +27,7 @@ impl CronTask {
     async fn run_task(&mut self, db: &DatabaseConnection) -> Result<bool, Error> {
         if self.should_run()? {
             self.task.run(db).await?;
-            self.has_run();
+            self.last_run = Utc::now();
             Ok(true)
         } else {
             Ok(false)
@@ -37,10 +37,6 @@ impl CronTask {
     fn should_run(&self) -> Result<bool, Error> {
         let next_occurrence = self.cron.find_next_occurrence(&self.last_run, false)?;
         Ok(next_occurrence <= chrono::Utc::now())
-    }
-
-    fn has_run(&mut self) {
-        self.last_run = Utc::now();
     }
 }
 
@@ -261,6 +257,11 @@ mod tests {
             .run(&db)
             .await
             .expect("Failed to run SessionCleanTask");
+
+        assert_eq!(
+            crontask.should_run().expect("Failed to check should_run"),
+            false
+        );
     }
 
     #[tokio::test]
