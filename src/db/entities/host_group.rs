@@ -18,6 +18,7 @@ pub enum Relation {
     Service,
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::host::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Host.def()
@@ -28,6 +29,7 @@ impl Related<super::host::Entity> for Entity {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::service::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Service.def()
@@ -38,12 +40,14 @@ impl Related<super::service::Entity> for Entity {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::host_group_members::Entity> for Entity {
     fn to() -> RelationDef {
         super::host_group_members::Relation::HostGroup.def()
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::service_group_link::Entity> for Entity {
     fn to() -> RelationDef {
         super::service_group_link::Relation::HostGroup.def()
@@ -134,6 +138,9 @@ impl MaremmaEntity for Model {
 #[cfg(test)]
 mod tests {
 
+    use uuid::Uuid;
+
+    use crate::config::Configuration;
     use crate::db::tests::test_setup;
     use crate::prelude::MaremmaEntity;
 
@@ -144,5 +151,22 @@ mod tests {
         super::Model::update_db_from_config(&db, config)
             .await
             .expect("Failed to load config");
+    }
+    #[tokio::test]
+    async fn test_failing_update_db_from_config_hg() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
+
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([[super::Model {
+                id: Uuid::new_v4(),
+                name: "Test".to_owned(),
+            }]])
+            .into_connection();
+
+        let res =
+            super::Model::update_db_from_config(&db, Configuration::load_test_config().await).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
     }
 }

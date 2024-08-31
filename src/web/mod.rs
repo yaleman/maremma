@@ -5,6 +5,7 @@ pub(crate) mod controller;
 pub(crate) mod oidc;
 pub(crate) mod views;
 use controller::WebServerControl;
+use tokio::sync::RwLockReadGuard;
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -95,11 +96,11 @@ pub fn get_session_store(db: &Arc<DatabaseConnection>) -> entities::session::Mod
 }
 
 #[derive(Clone)]
-struct OidcErorHandler {
+struct OidcErrorHandler {
     web_tx: Option<Sender<WebServerControl>>,
 }
 
-impl OidcErorHandler {
+impl OidcErrorHandler {
     pub fn new(web_tx: Option<Sender<WebServerControl>>) -> Self {
         Self { web_tx }
     }
@@ -111,6 +112,7 @@ impl OidcErorHandler {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     // get all the config variables we need, quickly, so we can drop the lock
     let config_reader = state.configuration.read().await;
@@ -130,7 +132,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     let frontend_url = Uri::from_str(&frontend_url)
         .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
     debug!("Frontend URL: {:?}", frontend_url);
-    let oidc_error_handler = OidcErorHandler::new(state.web_tx.clone());
+    let oidc_error_handler = OidcErrorHandler::new(state.web_tx.clone());
 
     let oidc_login_service = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
@@ -164,7 +166,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             })?,
         );
 
-    let mut app = Router::new()
+    let app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
         .route("/auth/profile", get(views::profile::profile))
         .route(
@@ -202,9 +204,8 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         // after here, the routers don't *require* auth
         .route("/", get(views::index::index))
         .route("/metrics", get(views::metrics::metrics))
-        .layer(oidc_auth_layer);
-    // after here, the URLs cannot have auth
-    app = app
+        .layer(oidc_auth_layer)
+        // after here, the URLs cannot have auth
         .route("/healthcheck", get(up))
         .nest_service(
             "/static",
@@ -226,14 +227,11 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     Ok(app.with_state(state))
 }
 
-/// Start and run the web server
-pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Result<(), Error> {
-    let configuration_reader = configuration.read().await;
-    let cert_file = configuration_reader.cert_file.clone();
-    let cert_key = configuration_reader.cert_key.clone();
-    let listen_address = configuration_reader.listen_addr();
-    drop(configuration_reader);
-
+fn check_certs_exist(
+    config_reader: &RwLockReadGuard<'_, Configuration>,
+) -> Result<(PathBuf, PathBuf), Error> {
+    let cert_file = config_reader.cert_file.clone();
+    let cert_key = config_reader.cert_key.clone();
     if !cert_file.exists() {
         return Err(Error::Generic(format!(
             "TLS is enabled but cert_file {:?} does not exist",
@@ -247,6 +245,18 @@ pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Res
             cert_key
         )));
     };
+    Ok((cert_file, cert_key))
+}
+
+/// Start and run the web server
+#[cfg(not(tarpaulin_include))]
+pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Result<(), Error> {
+    let configuration_reader = configuration.read().await;
+
+    let listen_address = configuration_reader.listen_addr();
+    let (cert_file, cert_key) = check_certs_exist(&configuration_reader)?;
+    drop(configuration_reader);
+
     let tls_config = RustlsConfig::from_pem_file(&cert_file.as_path(), &cert_key.as_path())
         .await
         .map_err(|err| Error::Generic(format!("Failed to load TLS config: {:?}", err)))?;
@@ -330,6 +340,7 @@ mod tests {
 
     use super::*;
     use crate::db::tests::test_setup;
+    use crate::tests::tls_utils::TestCertificateBuilder;
     use axum::body::Body;
     use entities::host;
     // TODO: work out how to test the startup of the server
@@ -409,5 +420,47 @@ mod tests {
         .await
         .into_response();
         assert!(res.status() == StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_oidcerrorhandler() {
+        let _ = test_setup().await.expect("Failed to set up test");
+
+        let _res = OidcErrorHandler::new(None).handle_oidc_error().await;
+
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+
+        let _res = OidcErrorHandler::new(Some(tx)).handle_oidc_error().await;
+    }
+
+    #[tokio::test]
+    async fn test_check_certs_exist() {
+        let (_db, config) = test_setup().await.expect("Failed to set up test");
+
+        let certs = TestCertificateBuilder::new()
+            .with_name("localhost")
+            .with_expiry((chrono::Utc::now() + chrono::TimeDelta::days(30)).timestamp())
+            .with_issue_time((chrono::Utc::now() - chrono::TimeDelta::days(30)).timestamp())
+            .build();
+
+        let mut config_writer = config.write().await;
+        config_writer.cert_file = certs.cert_file.path().to_path_buf();
+        config_writer.cert_key = certs.cert_file.path().to_path_buf();
+        drop(config_writer);
+
+        let (_cert_file, _cert_key) =
+            check_certs_exist(&config.read().await).expect("Failed to check certs");
+
+        let mut config_writer = config.write().await;
+        config_writer.cert_file = PathBuf::from("/asdfasdf");
+        drop(config_writer);
+
+        assert!(check_certs_exist(&config.read().await).is_err());
+        let mut config_writer = config.write().await;
+        config_writer.cert_file = certs.cert_file.path().to_path_buf();
+        config_writer.cert_key = PathBuf::from("/asdfasdf");
+        drop(config_writer);
+
+        assert!(check_certs_exist(&config.read().await).is_err());
     }
 }

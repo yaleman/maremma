@@ -200,6 +200,7 @@ mod tests {
     use serde_json::{json, Value};
     use tokio::sync::RwLock;
     use tracing::info;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_service_entity() {
@@ -295,7 +296,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn find_with_linked() {
+    async fn test_find_with_linked() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let (service, groups) = super::Entity::find()
@@ -309,5 +310,27 @@ mod tests {
 
         dbg!(service);
         dbg!(groups);
+    }
+
+    #[tokio::test]
+    async fn test_failing_update_db_from_config_service() {
+        use sea_orm::{DatabaseBackend, MockDatabase};
+
+        let db = MockDatabase::new(DatabaseBackend::Sqlite)
+            .append_query_results([[super::Model {
+                id: Uuid::new_v4(),
+                name: "test service".to_string(),
+                description: None,
+                service_type: ServiceType::Cli,
+                cron_schedule: "@hourly".to_string(),
+                extra_config: json!({}),
+            }]])
+            .into_connection();
+
+        let res =
+            super::Model::update_db_from_config(&db, Configuration::load_test_config().await).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
     }
 }

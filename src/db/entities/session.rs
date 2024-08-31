@@ -265,5 +265,7 @@ mod tests {
             .data
             .insert("hello".to_string(), serde_json::json! {"world"});
         store.save(&session).await.expect("Failed to save session");
+
+        store.delete(&id).await.expect("Failed to delete!")
     }
 }

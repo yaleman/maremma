@@ -418,4 +418,47 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(res.into_response().status(), StatusCode::NOT_FOUND)
     }
+    #[tokio::test]
+    async fn test_view_service_check_delete() {
+        use super::*;
+        let (db, _config) = test_setup().await.expect("Failed to set up!");
+
+        let state = WebState::test().await;
+
+        let mut service_check_id = Uuid::new_v4();
+        while entities::service_check::Entity::find_by_id(service_check_id)
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for service_check")
+            .is_some()
+        {
+            service_check_id = Uuid::new_v4();
+        }
+        let res = super::service_check_get(
+            Path(service_check_id),
+            State(state.clone()),
+            Some(crate::web::views::tools::test_user_claims()),
+        )
+        .await;
+
+        dbg!(&res);
+        assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::NOT_FOUND);
+
+        // find a valid service check
+        let service_check = entities::service_check::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to get service check")
+            .expect("No service checks found");
+
+        let res = service_check_delete(
+            Path(service_check.id),
+            State(state.clone()),
+            Some(crate::web::views::tools::test_user_claims()),
+            Form(RedirectTo { redirect_to: None }),
+        )
+        .await;
+        assert!(res.is_ok());
+    }
 }

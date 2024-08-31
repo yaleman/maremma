@@ -1,4 +1,4 @@
-use crate::db::get_next_service_check;
+use crate::db::{get_next_service_check, update_db_from_config};
 use crate::prelude::*;
 
 use crate::log::setup_logging;
@@ -63,4 +63,24 @@ async fn test_get_related() {
             .expect("Failed to find linked");
         println!("linked {:?}", linked);
     }
+}
+
+#[tokio::test]
+async fn test_failing_update_db_from_config() {
+    use sea_orm::{DatabaseBackend, MockDatabase};
+
+    let db = MockDatabase::new(DatabaseBackend::Sqlite)
+        .append_query_results([[entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "Apple Pie".to_owned(),
+            hostname: "localhost".to_owned(),
+            check: crate::host::HostCheck::Ping,
+            config: serde_json::json!({}),
+        }]])
+        .into_connection();
+
+    let res = update_db_from_config(&db, Configuration::load_test_config().await).await;
+
+    dbg!(&res);
+    assert!(res.is_err());
 }

@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use croner::Cron;
 use sea_orm::prelude::Expr;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, instrument};
 
 use crate::config::SendableConfig;
 use crate::constants::{SESSION_EXPIRY_WINDOW_HOURS, STUCK_CHECK_MINUTES};
@@ -27,7 +27,7 @@ impl CronTask {
     async fn run_task(&mut self, db: &DatabaseConnection) -> Result<bool, Error> {
         if self.should_run()? {
             self.task.run(db).await?;
-            self.has_run();
+            self.last_run = Utc::now();
             Ok(true)
         } else {
             Ok(false)
@@ -37,10 +37,6 @@ impl CronTask {
     fn should_run(&self) -> Result<bool, Error> {
         let next_occurrence = self.cron.find_next_occurrence(&self.last_run, false)?;
         Ok(next_occurrence <= chrono::Utc::now())
-    }
-
-    fn has_run(&mut self) {
-        self.last_run = Utc::now();
     }
 }
 
@@ -103,6 +99,7 @@ struct CertReloaderTask {
 }
 
 /// Get the last modified time of a file
+#[instrument(level = "debug")]
 fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
     let file = file.canonicalize().inspect_err(|err| {
         error!(
@@ -117,6 +114,7 @@ fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
     Ok(DateTime::<Utc>::from(modified))
 }
 
+#[instrument(level = "debug")]
 async fn get_file_times(config: SendableConfig) -> Result<(DateTime<Utc>, DateTime<Utc>), Error> {
     let config_reader = config.read().await;
 
@@ -231,9 +229,11 @@ pub async fn shepherd(
 #[cfg(test)]
 mod tests {
     use croner::Cron;
+    use tokio::sync::RwLock;
 
+    use super::*;
+    use crate::config::Configuration;
     use crate::db::tests::test_setup;
-    use crate::shepherd::{CronTask, CronTaskTrait, ServiceCheckCleanTask, SessionCleanTask};
 
     #[tokio::test]
     async fn test_servicecheckcleantask() {
@@ -261,6 +261,11 @@ mod tests {
             .run(&db)
             .await
             .expect("Failed to run SessionCleanTask");
+
+        assert_eq!(
+            crontask.should_run().expect("Failed to check should_run"),
+            false
+        );
     }
 
     #[tokio::test]
@@ -276,5 +281,39 @@ mod tests {
         .await;
 
         dbg!(&res);
+    }
+
+    #[tokio::test]
+    async fn test_get_file_time() {
+        let (_db, config) = test_setup().await.expect("Failed to set up tests");
+
+        assert!(get_file_times(config).await.is_err());
+
+        get_file_time(&std::path::Path::new("Cargo.toml"))
+            .expect("Failed to get file time for Cargo.toml");
+    }
+
+    #[tokio::test]
+    async fn test_cert_reloader_task() {
+        let (db, _config) = test_setup().await.expect("Failed to set up tests");
+        let bad_config = Configuration {
+            cert_file: std::path::PathBuf::from("bad_cert_file"),
+            cert_key: std::path::PathBuf::from("bad_cert_key"),
+            ..Default::default()
+        };
+
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+
+        let mut task = CertReloaderTask {
+            tx,
+            config: Arc::new(RwLock::new(bad_config)),
+            cert_time: chrono::Utc::now(),
+            key_time: chrono::Utc::now(),
+        };
+
+        let res = task.run(&db).await;
+
+        dbg!(&res);
+        assert!(res.is_err());
     }
 }

@@ -19,6 +19,23 @@ pub async fn logout(session: Session) -> Result<Redirect, (StatusCode, &'static 
     Ok(Redirect::to("/"))
 }
 
+#[tokio::test]
+async fn test_logout_view() {
+    use tower_sessions::MemoryStore;
+
+    let _ = test_setup().await.expect("Failed to setup test");
+
+    let store = MemoryStore::default();
+    let session = tower_sessions::Session::new(None, Arc::new(store), None);
+    let res = logout(session).await;
+
+    assert!(res.is_ok());
+    let res = res.expect("Errored out").into_response();
+
+    assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
+    assert_eq!(res.headers().get("location").unwrap(), "/");
+}
+
 /// Takes the logout action from the OIDC provider and logs the user out
 #[cfg(not(tarpaulin_include))] // Can't test this because we can't create the `OidcRpInitiatedLogout` object
 #[instrument(level = "info", skip_all, fields(post_logout_redirect_uri=?logout.uri()))]
