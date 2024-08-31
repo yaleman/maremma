@@ -14,11 +14,11 @@ askama = { version = "0.12.1", features = ["with-axum"] }
 askama_axum = "0.4.0"
 async-trait = "0.1.81"
 axum = { version = "0.7.5", features = [
-    "http2",
-    "macros",
-    "tracing",
-    "form",
-    "query",
+  "http2",
+  "macros",
+  "tracing",
+  "form",
+  "query",
 ] }
 axum-oidc = "0.4.0"
 axum-server = { version = "0.7.1", features = ["rustls", "tls-rustls"] }
@@ -34,49 +34,49 @@ opentelemetry = "0.24.0"
 opentelemetry-prometheus = "0.17.0"
 opentelemetry-stdout = "0.5.0"
 opentelemetry_sdk = { version = "0.24.1", features = [
-    "rt-tokio",
-    "serde",
-    "tokio",
-    "url",
+  "rt-tokio",
+  "serde",
+  "tokio",
+  "url",
 ] }
 prometheus = "0.13.4"
 rand = "0.8.5"
 reqwest = { version = "0.12.7", features = ["http2"] }
 rustls = { version = "0.23.12", features = ["zlib"] }
 schemars = { version = "0.8.21", features = [
-    "uuid1",
-    "url",
-    "chrono",
-    "preserve_order",
+  "uuid1",
+  "url",
+  "chrono",
+  "preserve_order",
 ] }
 serde = { version = "1.0.208", features = ["derive"] }
 serde_json = "1.0.125"
 sha256 = "1.5.0"
 sea-orm = { version = "1.0.0", features = [
-    "runtime-tokio-rustls", # this is why we have multiple rustls
-    "sqlx-sqlite",
-    "with-chrono",
-    "with-json",
-    "with-uuid",
-    "debug-print",
-    "mock",
+  "runtime-tokio-rustls", # this is why we have multiple rustls
+  "sqlx-sqlite",
+  "with-chrono",
+  "with-json",
+  "with-uuid",
+  "debug-print",
+  "mock",
 ] }
 sea-orm-migration = { version = "1.0.0", features = [
-    "sqlx-sqlite",
-    "with-chrono",
-    "with-json",
-    "with-uuid",
+  "sqlx-sqlite",
+  "with-chrono",
+  "with-json",
+  "with-uuid",
 ] }
 sqlx = { version = "0.8.0", default-features = false }
 ssh-rs = "0.5.0"
 surge-ping = "0.8.1"
 time = "0.3.36"
 tokio = { version = "1.40.0", features = [
-    "rt-multi-thread",
-    "macros",
-    "process",
-    "tracing",
-    "net",
+  "rt-multi-thread",
+  "macros",
+  "process",
+  "tracing",
+  "net",
 ] }
 tokio-rustls = "0.26.0"
 tower = { version = "0.5.0", features = ["util"] }
