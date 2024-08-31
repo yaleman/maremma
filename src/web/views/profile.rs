@@ -41,11 +41,10 @@ mod tests {
             Some(crate::web::views::tools::test_user_claims()),
         )
         .await;
-
         dbg!(&res);
-        // assert!(res.is_err());
         assert_eq!(res.into_response().status(), StatusCode::OK)
     }
+
     #[tokio::test]
     async fn test_view_profile_noauth() {
         use super::*;
