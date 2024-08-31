@@ -18,6 +18,7 @@ pub enum Relation {
     Service,
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::host::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Host.def()
@@ -28,6 +29,7 @@ impl Related<super::host::Entity> for Entity {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::service::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Service.def()
@@ -38,12 +40,14 @@ impl Related<super::service::Entity> for Entity {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::host_group_members::Entity> for Entity {
     fn to() -> RelationDef {
         super::host_group_members::Relation::HostGroup.def()
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl Related<super::service_group_link::Entity> for Entity {
     fn to() -> RelationDef {
         super::service_group_link::Relation::HostGroup.def()

@@ -95,11 +95,11 @@ pub fn get_session_store(db: &Arc<DatabaseConnection>) -> entities::session::Mod
 }
 
 #[derive(Clone)]
-struct OidcErorHandler {
+struct OidcErrorHandler {
     web_tx: Option<Sender<WebServerControl>>,
 }
 
-impl OidcErorHandler {
+impl OidcErrorHandler {
     pub fn new(web_tx: Option<Sender<WebServerControl>>) -> Self {
         Self { web_tx }
     }
@@ -130,7 +130,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     let frontend_url = Uri::from_str(&frontend_url)
         .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
     debug!("Frontend URL: {:?}", frontend_url);
-    let oidc_error_handler = OidcErorHandler::new(state.web_tx.clone());
+    let oidc_error_handler = OidcErrorHandler::new(state.web_tx.clone());
 
     let oidc_login_service = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
@@ -164,7 +164,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             })?,
         );
 
-    let mut app = Router::new()
+    let app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
         .route("/auth/profile", get(views::profile::profile))
         .route(
@@ -202,9 +202,8 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         // after here, the routers don't *require* auth
         .route("/", get(views::index::index))
         .route("/metrics", get(views::metrics::metrics))
-        .layer(oidc_auth_layer);
-    // after here, the URLs cannot have auth
-    app = app
+        .layer(oidc_auth_layer)
+        // after here, the URLs cannot have auth
         .route("/healthcheck", get(up))
         .nest_service(
             "/static",
@@ -409,5 +408,12 @@ mod tests {
         .await
         .into_response();
         assert!(res.status() == StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_oidcerrorhandler() {
+        let _ = test_setup().await.expect("Failed to set up test");
+
+        let _handler = OidcErrorHandler::new(None).handle_oidc_error().await;
     }
 }

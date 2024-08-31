@@ -1,5 +1,4 @@
 use entities::service_check;
-use sea_orm::{QuerySelect, TransactionTrait};
 
 use crate::prelude::*;
 
@@ -45,42 +44,53 @@ impl Entity {
         count: u64,
     ) -> Result<usize, Error> {
         let mut trimmed = 0;
-        // find all the service checks
 
-        let mut service_checks = Self::find().distinct().group_by(Column::Id);
+        // find all the service checks
+        let mut service_checks = entities::service_check::Entity::find();
         if let Some(sc) = service_check_id {
-            service_checks = service_checks.filter(Column::ServiceCheckId.eq(sc));
+            service_checks = service_checks.filter(entities::service_check::Column::Id.eq(sc));
         }
         let service_checks = service_checks.all(db).await?;
 
-        for check in service_checks {
-            info!("Service check: {}", check.id.hyphenated());
-            // check if there's enough to trim
-            trimmed += db
-                .transaction::<_, usize, DbErr>(|tx| {
-                    Box::pin(async move {
-                        let to_delete = Self::find()
-                            .filter(Column::ServiceCheckId.eq(check.id))
-                            .offset(count)
-                            .all(tx)
-                            .await?;
-                        let num_records = to_delete.len();
-                        if to_delete.is_empty() {
-                            debug!("Less than {} entries for {}", count, check.id);
-                        } else {
-                            debug!("Deleting {} records", num_records);
-                            for record in to_delete {
-                                record.delete(tx).await?;
-                            }
-                        }
-
-                        Ok(num_records)
-                    })
-                })
-                .await
-                .map_err(|err| Error::Generic(err.to_string()))?;
+        if service_checks.len() > 1 && service_check_id.is_some() {
+            Err(Error::Generic(
+                "More than one service check found when asking for a single!".to_string(),
+            ))?;
         }
-        info!("Removed {} records", trimmed);
+
+        for service_check in &service_checks {
+            let to_delete = service_check
+                .find_related(entities::service_check_history::Entity)
+                .all(db)
+                .await?;
+
+            // let mut num_records: usize = to_delete.len();
+            if to_delete.is_empty() {
+                debug!(
+                    "no service check history for service check id {}",
+                    service_check.id
+                );
+                // num_records = 0;
+            } else {
+                let offset_list: Vec<Uuid> = to_delete
+                    .into_iter()
+                    .skip(count as usize)
+                    .map(|x| x.id)
+                    .collect();
+                debug!("Deleting {} records", offset_list.len());
+
+                trimmed += offset_list.len();
+                Entity::delete_many()
+                    .filter(Column::ServiceCheckId.is_in(offset_list))
+                    .exec(db)
+                    .await?;
+            }
+        }
+        info!(
+            "Removed {} records across {} service checks",
+            trimmed,
+            service_checks.len()
+        );
         Ok(trimmed)
     }
 
@@ -121,6 +131,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[cfg(test)]
 mod tests {
+
     use crate::db::tests::test_setup;
 
     use super::*;
@@ -204,5 +215,94 @@ mod tests {
             .expect("Failed to prune nothing");
 
         assert_eq!(res, 0);
+    }
+    #[tokio::test]
+    async fn test_head_service_check_history_sc_id() {
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+
+        let valid_service_check = entities::service_check::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to find service check")
+            .expect("Failed to find service check");
+
+        let result = CheckResult {
+            timestamp: Utc::now(),
+            time_elapsed: chrono::Duration::milliseconds(145),
+            status: ServiceStatus::Ok,
+            result_text: "test".to_string(),
+        };
+        let service_check_history =
+            Model::from_service_check_result(valid_service_check.id, &result);
+
+        service_check_history
+            .clone()
+            .into_active_model()
+            .insert(db.as_ref())
+            .await
+            .expect("Failed to save service check history");
+
+        let res = Entity::head(db.as_ref(), Some(valid_service_check.id), 0)
+            .await
+            .expect("Failed to prune a valid SCID");
+
+        assert_eq!(res, 1);
+
+        let res = Entity::head(db.as_ref(), Some(Uuid::new_v4()), 0)
+            .await
+            .expect("Failed to prune nothing");
+
+        assert_eq!(res, 0);
+    }
+
+    #[tokio::test]
+    async fn test_head_1k() {
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+
+        let valid_service_check = entities::service_check::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to find service check")
+            .expect("Failed to find service check");
+
+        let valid_sc_id = valid_service_check.id.to_owned();
+
+        let result = CheckResult {
+            timestamp: Utc::now(),
+            time_elapsed: chrono::Duration::milliseconds(145),
+            status: ServiceStatus::Ok,
+            result_text: "test".to_string(),
+        };
+
+        let things_to_create: u64 = 50;
+        let num_to_delete = 10;
+
+        for _ in 0..things_to_create {
+            let mut sch =
+                Model::from_service_check_result(valid_sc_id, &result).into_active_model();
+
+            sch.id.set_if_not_equals(Uuid::new_v4());
+            sch.insert(db.as_ref())
+                .await
+                .expect("Failed to save service check history");
+        }
+
+        let res = Entity::find()
+            .filter(Column::ServiceCheckId.eq(valid_sc_id))
+            .all(db.as_ref())
+            .await
+            .expect("Failed to find service check history");
+        assert_eq!(res.len(), things_to_create as usize);
+        info!(
+            "Have {} records for Service check id {}",
+            res.len(),
+            valid_sc_id
+        );
+
+        let res = Entity::head(db.as_ref(), Some(valid_service_check.id), num_to_delete)
+            .await
+            .expect("Failed to prune nothing");
+
+        assert_eq!(res, (things_to_create - num_to_delete) as usize);
     }
 }
