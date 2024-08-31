@@ -59,7 +59,7 @@ pub(crate) struct ToolsQuery {
 }
 
 #[instrument(level = "info", skip_all)]
-async fn tools_reload_config(state: WebState) -> Result<(), impl IntoResponse> {
+async fn tools_reload_config(state: WebState) -> Result<(), Redirect> {
     info!("Asked to reload config");
 
     let new_config = Configuration::new(&state.config_filepath)
@@ -67,7 +67,6 @@ async fn tools_reload_config(state: WebState) -> Result<(), impl IntoResponse> {
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
             Redirect::to("/tools?result=Failed to load config from file&status=error")
-                .into_response()
         })?;
 
     *state.configuration.write().await = new_config;
@@ -77,18 +76,17 @@ async fn tools_reload_config(state: WebState) -> Result<(), impl IntoResponse> {
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
             Redirect::to("/tools?result=Failed to load config from file&status=error")
-                .into_response()
         })?;
     update_db_from_config(state.db.as_ref(), Arc::new(RwLock::new(new_config)))
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
-            Redirect::to("/tools?result=Failed to reload config&status=error").into_response()
+            Redirect::to("/tools?result=Failed to reload config&status=error")
         })?;
 
     info!("Reloaded config");
     // not really an error but we're doing this to show the user that the config was reloaded
-    Err(Redirect::to("/tools?result=Reloaded config&status=success").into_response())
+    Err(Redirect::to("/tools?result=Reloaded config&status=success"))
 }
 
 /// Seen at `/tools`
@@ -155,6 +153,15 @@ pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
 
 #[cfg(test)]
 mod tests {
+
+    use std::io::Write;
+    use std::path::PathBuf;
+
+    use tempfile::NamedTempFile;
+
+    use crate::db::tests::test_setup;
+    // use std::path::PathBuf;
+
     #[tokio::test]
     async fn test_tools_noauth() {
         use super::*;
@@ -211,5 +218,79 @@ mod tests {
         assert_eq!(ActionStatus::Success.to_string(), "success");
         assert_eq!(ActionStatus::Error.to_string(), "danger");
         assert_eq!(ActionStatus::Unknown.to_string(), "primary");
+    }
+
+    #[tokio::test]
+    async fn test_tools_reload_config() {
+        test_setup().await.expect("Failed to start test harness");
+        use super::*;
+
+        let state = WebState::test().await;
+        let res = tools_reload_config(state.clone()).await;
+        assert!(res.is_err());
+        dbg!(&res);
+
+        if let Err(err) = res {
+            let err = err.into_response();
+            assert_eq!(err.status(), StatusCode::SEE_OTHER);
+            let (headers, _body) = err.into_parts();
+            assert_eq!(
+                headers
+                    .headers
+                    .get("location")
+                    .expect("Failed to get location header")
+                    .to_str()
+                    .expect("Failed to get location header value"),
+                "/tools?result=Failed to load config from file&status=error",
+                "Expected an error response"
+            );
+        }
+
+        // test reading an invalid file
+        let mut state = WebState::test().await;
+        let mut tempfile = NamedTempFile::new().expect("Failed to create tempfile");
+        tempfile
+            .write_all(&[0x01])
+            .expect("Failed to write a byte to the tempfile");
+        state.config_filepath = tempfile.path().to_path_buf();
+
+        let res = tools_reload_config(state.clone()).await;
+        if let Err(err) = res {
+            let err = err.into_response();
+            assert_eq!(err.status(), StatusCode::SEE_OTHER);
+            let (headers, _body) = err.into_parts();
+            assert_eq!(
+                headers
+                    .headers
+                    .get("location")
+                    .expect("Failed to get location header")
+                    .to_str()
+                    .expect("Failed to get location header value"),
+                "/tools?result=Failed to load config from file&status=error",
+                "Expected a failed reload"
+            );
+        }
+
+        // test a valid reload
+        let mut state = WebState::test().await;
+        state.config_filepath =
+            PathBuf::from_str("maremma.example.json").expect("failed to pathbuf test config");
+
+        let res = tools_reload_config(state.clone()).await;
+        if let Err(err) = res {
+            let err = err.into_response();
+            assert_eq!(err.status(), StatusCode::SEE_OTHER);
+            let (headers, _body) = err.into_parts();
+            assert_eq!(
+                headers
+                    .headers
+                    .get("location")
+                    .expect("Failed to get location header")
+                    .to_str()
+                    .expect("Failed to get location header value"),
+                "/tools?result=Reloaded config&status=success",
+                "Expected a failed reload"
+            );
+        }
     }
 }

@@ -183,13 +183,16 @@ pub(crate) async fn host_group_delete(
         Some(val) => val.into(),
     };
 
-    host_group::Entity::delete_by_id(group_id)
+    let res = host_group::Entity::delete_by_id(group_id)
         .exec(state.db.as_ref())
         .await
         .map_err(|e| {
             log::error!("Failed to delete host group: {}", e);
             Error::from(e)
         })?;
+    if res.rows_affected == 0 {
+        return Err((StatusCode::NOT_FOUND, "Host Group not found".to_string()));
+    }
 
     Ok(Redirect::to("/host_groups"))
 }
@@ -287,6 +290,40 @@ mod tests {
         let response = res.into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_view_authed_host_group_delete() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let res = super::host_group_delete(
+            Path(Uuid::new_v4()),
+            State(state.clone()),
+            Some(test_user_claims()),
+        )
+        .await;
+        dbg!(&res);
+        assert!(res.is_err());
+        let response = res.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let host_group = host_group::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for host group")
+            .expect("No host group found");
+        let res = super::host_group_delete(
+            Path(host_group.id),
+            State(state.clone()),
+            Some(test_user_claims()),
+        )
+        .await;
+
+        assert!(res.is_ok());
+        let response = res.into_response();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
     }
 
     #[tokio::test]
