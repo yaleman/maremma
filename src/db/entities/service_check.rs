@@ -350,8 +350,10 @@ impl FullServiceCheck {
 
 #[cfg(test)]
 mod tests {
+    use sea_orm::{EntityTrait, ModelTrait};
+
     use crate::db::tests::test_setup;
-    use crate::db::MaremmaEntity;
+    use crate::db::{entities, MaremmaEntity};
     use crate::errors::Error;
 
     #[tokio::test]
@@ -363,5 +365,37 @@ mod tests {
 
         assert!(res.is_err());
         assert_eq!(res.err().unwrap(), Error::NotImplemented);
+    }
+
+    #[tokio::test]
+    // test that service_checks auto-delete because they're linked to services/hosts via foreign keys
+    async fn test_delete_service_checks_when_service_deleted() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let (service_check, services) = entities::service_check::Entity::find()
+            .find_with_related(entities::service::Entity)
+            .all(db.as_ref())
+            .await
+            .expect("Failed to find service")
+            .into_iter()
+            .next()
+            .expect("Failed to get a single service_check");
+        let service = services
+            .into_iter()
+            .next()
+            .expect("Failed to get a single service");
+
+        let service_check_id = service_check.id;
+        service
+            .delete(db.as_ref())
+            .await
+            .expect("Failed to delete service");
+
+        let res = entities::service_check::Entity::find_by_id(service_check_id)
+            .one(db.as_ref())
+            .await
+            .expect("Failed to find service_check");
+
+        assert!(res.is_none());
     }
 }

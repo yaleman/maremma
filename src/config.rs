@@ -319,7 +319,6 @@ impl Configuration {
         }
 
         // check the checks against the config file
-        // TODO: service_checks should auto-delete because they're linked to services/hosts via foreign keys
         Ok(())
     }
 }
