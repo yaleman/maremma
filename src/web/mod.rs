@@ -112,13 +112,12 @@ impl OidcErorHandler {
 }
 
 pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
+    // get all the config variables we need, quickly, so we can drop the lock
     let config_reader = state.configuration.read().await;
     let oidc_issuer = config_reader.oidc_issuer.clone();
     let oidc_client_id = config_reader.oidc_client_id.clone();
     let oidc_client_secret = config_reader.oidc_client_secret.clone();
-
     let frontend_url = config_reader.frontend_url.clone();
-
     drop(config_reader);
 
     let session_store = get_session_store(&state.db);
@@ -127,6 +126,43 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         .with_secure(true)
         .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::seconds(1800)));
+
+    let frontend_url = Uri::from_str(&frontend_url)
+        .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
+    debug!("Frontend URL: {:?}", frontend_url);
+    let oidc_error_handler = OidcErorHandler::new(state.web_tx.clone());
+
+    let oidc_login_service = ServiceBuilder::new()
+        .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
+            error!("Failed to handle OIDC logout: {:?}", e);
+            e.into_response()
+        }))
+        .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
+
+    let oidc_auth_layer = ServiceBuilder::new()
+        .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
+            // TODO: cause this to make the web server restart if it fails
+            oidc_error_handler.handle_oidc_error().await;
+            error!("Failed to handle OIDC in middleware: {:?}", &e);
+            Redirect::to("/auth/logout").into_response()
+        }))
+        .layer(
+            OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
+                frontend_url,
+                oidc_issuer,
+                oidc_client_id,
+                oidc_client_secret,
+                vec!["openid", "groups"]
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+            )
+            .await
+            .map_err(|err| {
+                error!("Failed to set up OIDC: {:?}", err);
+                Error::from(err)
+            })?,
+        );
 
     let mut app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
@@ -160,52 +196,13 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         )
         .route("/host_groups", get(host_groups))
         .route("/tools", get(views::tools::tools).post(views::tools::tools))
-        .route("/auth/logout", get(oidc::logout));
-    let oidc_login_service = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
-            error!("Failed to handle OIDC logout: {:?}", e);
-            e.into_response()
-        }))
-        .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
-    app = app
+        .route("/auth/logout", get(oidc::logout))
         .route("/auth/rp-logout", get(oidc::rp_logout))
-        .layer(oidc_login_service);
-    // after here, the routers don't *require* auth
-
-    app = app.route("/", get(views::index::index));
-    app = app.route("/metrics", get(views::metrics::metrics));
-
-    let application_base_url = Uri::from_str(&frontend_url)
-        .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {:?}", err)))?;
-    debug!("Application base URL: {:?}", application_base_url);
-    let oidc_error_handler = OidcErorHandler::new(state.web_tx.clone());
-
-    app = app.layer(
-        ServiceBuilder::new()
-            .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
-                // TODO: cause this to make the web server restart if it fails
-                oidc_error_handler.handle_oidc_error().await;
-                error!("Failed to handle OIDC in middleware: {:?}", &e);
-                Redirect::to("/auth/logout").into_response()
-            }))
-            .layer(
-                OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
-                    application_base_url,
-                    oidc_issuer,
-                    oidc_client_id,
-                    oidc_client_secret,
-                    vec!["openid", "groups"]
-                        .into_iter()
-                        .map(|s| s.to_string())
-                        .collect(),
-                )
-                .await
-                .map_err(|err| {
-                    error!("Failed to set up OIDC: {:?}", err);
-                    Error::from(err)
-                })?,
-            ),
-    );
+        .layer(oidc_login_service)
+        // after here, the routers don't *require* auth
+        .route("/", get(views::index::index))
+        .route("/metrics", get(views::metrics::metrics))
+        .layer(oidc_auth_layer);
     // after here, the URLs cannot have auth
     app = app
         .route("/healthcheck", get(up))

@@ -280,14 +280,43 @@ impl Configuration {
     }
 
     /// Prune the configuration based on the database, so we can serialize it back
-    pub fn prune(&self, _db: &DatabaseConnection) -> Result<(), Error> {
+    pub async fn prune(&mut self, db: &DatabaseConnection) -> Result<(), Error> {
         // TODO: prune config
 
         // check the hosts against the config file
+        let db_hosts = entities::host::Entity::find().all(db).await?;
+        let config_hosts = self.hosts.keys().cloned().collect::<HashSet<String>>();
+
+        // keep a record of the ones we find in the db
+        let mut db_host_names = HashMap::new();
+
+        for db_host in db_hosts {
+            debug!("Host: {:?}", db_host);
+            if !config_hosts.contains(&db_host.name) {
+                warn!("Need to add Host {} to config", db_host.name);
+            }
+            db_host_names.insert(db_host.name, db_host.id);
+        }
 
         // check the groups against the config file
+        let db_host_groups = entities::host_group::Entity::find().all(db).await?;
+        let config_groups = self.groups();
+        for host_group in db_host_groups {
+            debug!("HostGroup: {:?}", host_group);
+            if !config_groups.contains(&host_group.name) {
+                warn!("Need to add group {} to config", host_group.name);
+            }
+        }
 
         // check the services against the config file
+        let db_services = entities::service::Entity::find().all(db).await?;
+        let config_services = self.services.keys().cloned().collect::<HashSet<String>>();
+        for service in db_services {
+            debug!("Service: {:?}", service);
+            if !config_services.contains(&service.name) {
+                warn!("Service {} not in config", service.name);
+            }
+        }
 
         // check the checks against the config file
         Ok(())
@@ -358,5 +387,17 @@ mod tests {
 
         cfg.static_path = Some("/tmp/does-not-exist".parse().unwrap());
         assert!(Configuration::try_from(cfg).is_err());
+    }
+
+    #[tokio::test]
+    async fn test_config_prune() {
+        let (db, config) = test_setup().await.expect("Failed to setup test");
+
+        config
+            .write()
+            .await
+            .prune(&db)
+            .await
+            .expect("Failed to prune config");
     }
 }

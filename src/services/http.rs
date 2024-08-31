@@ -572,10 +572,11 @@ mod tests {
             contains_string: None,
             ca_file: None,
         };
+
         let host = entities::host::Model {
             id: Uuid::new_v4(),
             name: "test".to_string(),
-            hostname: "untrusted-root.badssl.com".to_string(),
+            hostname: "localhost".to_string(),
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
