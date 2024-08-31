@@ -426,7 +426,11 @@ mod tests {
     async fn test_oidcerrorhandler() {
         let _ = test_setup().await.expect("Failed to set up test");
 
-        let _handler = OidcErrorHandler::new(None).handle_oidc_error().await;
+        let _res = OidcErrorHandler::new(None).handle_oidc_error().await;
+
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+
+        let _res = OidcErrorHandler::new(Some(tx)).handle_oidc_error().await;
     }
 
     #[tokio::test]

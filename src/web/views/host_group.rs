@@ -6,9 +6,9 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use serde::Deserialize;
-use tracing::info;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::db::entities::{host, host_group, host_group_members};
@@ -131,58 +131,43 @@ pub(crate) async fn host_group_member_delete(
         Some(val) => val.into(),
     };
 
-    let host = host::Entity::find_by_id(host_id)
-        .one(state.db.as_ref())
-        .await
-        .map_err(|e| {
-            log::error!("Failed to fetch host: {}", e);
-            Error::from(e)
-        })?;
-    let host = match host {
-        Some(val) => val,
-        None => {
-            return Err((StatusCode::NOT_FOUND, "Host not found".to_string()));
-        }
-    };
+    debug!("looking for group {:?} host {:?}", group_id, host_id);
 
-    let group = host_group::Entity::find_by_id(group_id)
-        .one(state.db.as_ref())
-        .await
-        .map_err(|e| {
-            log::error!("Failed to fetch host: {}", e);
-            Error::from(e)
-        })?;
-    let group = match group {
-        Some(val) => val,
-        None => {
-            return Err((StatusCode::NOT_FOUND, "Group not found".to_string()));
-        }
-    };
-
-    let host_group_membership = host_group_members::Entity::delete_many()
+    let hgm = host_group_members::Entity::find()
         .filter(
             host_group_members::Column::GroupId
                 .eq(group_id)
                 .and(host_group_members::Column::HostId.eq(host_id)),
         )
-        .exec(state.db.as_ref())
+        .one(state.db.as_ref())
         .await
         .map_err(|e| {
-            log::error!("Failed to delete host group membership: {}", e);
+            log::error!("Failed to fetch host group membership: {}", e);
             Error::from(e)
         })?;
+    let hgm = match hgm {
+        Some(val) => val,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                "Host group membership not found".to_string(),
+            ));
+        }
+    };
+
+    let res = hgm.delete(state.db.as_ref()).await.map_err(|e| {
+        log::error!("Failed to delete host group membership: {}", e);
+        Error::from(e)
+    })?;
     info!(
         "user={} Deleted {} host_group_membership row host_id={} group_id={}",
         user.username(),
-        host_group_membership.rows_affected,
+        res.rows_affected,
         host_id.hyphenated(),
         group_id.hyphenated()
     );
 
-    Ok(Redirect::to(&format!(
-        "/host_group/{}?message=Removed {} from '{}'",
-        group_id, host.hostname, group.name
-    )))
+    Ok(Redirect::to(&format!("/host_group/{}", group_id)))
 }
 
 pub(crate) async fn host_group_delete(
@@ -217,6 +202,8 @@ mod tests {
 
     use crate::db::tests::test_setup;
     use crate::web::views::host_group::HostGroupQueries;
+    use crate::web::views::prelude::Order;
+    use crate::web::views::tools::test_user_claims;
     use crate::web::WebState;
 
     #[tokio::test]
@@ -255,5 +242,112 @@ mod tests {
             res.into_response().status(),
             axum::http::StatusCode::UNAUTHORIZED
         )
+    }
+
+    #[tokio::test]
+    async fn test_view_authed_host_group() {
+        use super::*;
+        let state = WebState::test().await;
+        test_setup().await.expect("Failed to setup test harness");
+
+        let host_group = host_group::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for host group")
+            .expect("No host group found");
+        for ord in [Some(Order::Asc), Some(Order::Desc), None].into_iter() {
+            for message in [None, Some("Test Message".to_string())].into_iter() {
+                let res = super::host_group(
+                    Path(host_group.id),
+                    Query(HostGroupQueries { ord, message }),
+                    State(state.clone()),
+                    Some(test_user_claims()),
+                )
+                .await;
+
+                assert!(res.is_ok());
+
+                let response = res.into_response();
+
+                assert_eq!(response.status(), StatusCode::OK);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_view_authed_host_groups() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let res = super::host_groups(State(state.clone()), Some(test_user_claims())).await;
+
+        assert!(res.is_ok());
+
+        let response = res.into_response();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_view_authed_delete_host_group_member() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let (db, _config) = test_setup().await.expect("Failed to setup test harness");
+
+        let state = WebState {
+            db: db.clone(),
+            ..state.clone()
+        };
+
+        let hgm = host_group_members::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to find host group members")
+            .expect("No host group members found");
+        dbg!(&hgm);
+
+        assert!(host_group_members::Entity::find()
+            .filter(
+                host_group_members::Column::GroupId
+                    .eq(hgm.group_id)
+                    .and(host_group_members::Column::HostId.eq(hgm.host_id))
+            )
+            .one(db.as_ref())
+            .await
+            .expect("failed to look up hgm")
+            .is_some());
+
+        let res = super::host_group_member_delete(
+            Path((hgm.group_id, hgm.host_id)),
+            State(state.clone()),
+            Some(test_user_claims()),
+        )
+        .await;
+        dbg!(&res);
+        assert!(res.is_ok());
+
+        let response = res.into_response();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+
+        // test variations of not-found-error
+        for input in [
+            (Uuid::new_v4(), hgm.host_id),
+            (hgm.group_id, Uuid::new_v4()),
+            (Uuid::new_v4(), Uuid::new_v4()),
+        ] {
+            let res = super::host_group_member_delete(
+                Path(input),
+                State(state.clone()),
+                Some(test_user_claims()),
+            )
+            .await;
+
+            dbg!(&res);
+            assert!(res.is_err());
+            let response = res.into_response();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
     }
 }

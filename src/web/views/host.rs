@@ -102,7 +102,7 @@ pub(crate) struct HostsTemplate {
     search_string: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default)]
 pub(crate) struct HostsQuery {
     search: Option<String>,
     #[serde(flatten)]
@@ -188,6 +188,7 @@ pub(crate) async fn delete_host(
 
 #[cfg(test)]
 mod tests {
+    use crate::web::views::tools::test_user_claims;
 
     #[tokio::test]
     async fn test_view_host_with_auth() {
@@ -262,5 +263,82 @@ mod tests {
         dbg!(&res);
         assert!(res.is_err());
         assert_eq!(res.into_response().status(), StatusCode::NOT_FOUND)
+    }
+
+    #[tokio::test]
+    async fn test_view_hosts_with_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        for field in [
+            Some(OrderFields::Host),
+            Some(OrderFields::LastUpdated),
+            Some(OrderFields::NextCheck),
+            Some(OrderFields::Status),
+            Some(OrderFields::Check),
+            None,
+        ]
+        .into_iter()
+        {
+            for ord in [
+                None,
+                Some(crate::web::views::prelude::Order::Asc),
+                Some(crate::web::views::prelude::Order::Desc),
+            ] {
+                let res = super::hosts(
+                    State(state.clone()),
+                    Query(HostsQuery {
+                        search: Some("example".to_string()),
+                        queries: SortQueries { field, ord },
+                    }),
+                    Some(test_user_claims()),
+                )
+                .await;
+
+                assert!(res.is_ok());
+
+                let response = res.into_response();
+
+                assert_eq!(response.status(), StatusCode::OK);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_view_delete_host_with_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let host = entities::host::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for host")
+            .expect("No host found");
+
+        let res = super::delete_host(
+            State(state.clone()),
+            Path(host.id),
+            Some(test_user_claims()),
+        )
+        .await;
+
+        assert!(res.is_ok());
+
+        let response = res.into_response();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    }
+    #[tokio::test]
+    async fn test_view_delete_host_without_auth() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let res = super::delete_host(State(state.clone()), Path(Uuid::new_v4()), None).await;
+
+        assert!(res.is_err());
+
+        let response = res.into_response();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }

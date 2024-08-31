@@ -18,7 +18,7 @@ pub(crate) use uuid::Uuid;
 pub(crate) use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 pub(crate) use tracing::*;
 
-#[derive(Default, Deserialize, Debug)]
+#[derive(Default, Deserialize, Debug, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Order {
     Asc,
@@ -44,7 +44,7 @@ impl From<Order> for sea_orm::Order {
     }
 }
 
-#[derive(Default, Deserialize, Debug)]
+#[derive(Default, Deserialize, Debug, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum OrderFields {
     #[default]
