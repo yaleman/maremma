@@ -274,36 +274,25 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        for field in [
-            Some(OrderFields::Host),
-            Some(OrderFields::LastUpdated),
-            Some(OrderFields::NextCheck),
-            Some(OrderFields::Status),
-            Some(OrderFields::Check),
-            None,
-        ]
-        .into_iter()
-        {
-            for ord in [
-                None,
-                Some(crate::web::views::prelude::Order::Asc),
-                Some(crate::web::views::prelude::Order::Desc),
-            ] {
-                let res = super::hosts(
-                    State(state.clone()),
-                    Query(HostsQuery {
-                        search: Some("example".to_string()),
-                        queries: SortQueries { field, ord },
-                    }),
-                    Some(test_user_claims()),
-                )
-                .await;
+        for search in [None, Some("example".to_string())] {
+            for field in OrderFields::iter_all_and_none().into_iter() {
+                for ord in crate::web::views::prelude::Order::iter_all_and_none().into_iter() {
+                    let res = super::hosts(
+                        State(state.clone()),
+                        Query(HostsQuery {
+                            search: search.clone(),
+                            queries: SortQueries { field, ord },
+                        }),
+                        Some(test_user_claims()),
+                    )
+                    .await;
 
-                assert!(res.is_ok());
+                    assert!(res.is_ok());
 
-                let response = res.into_response();
+                    let response = res.into_response();
 
-                assert_eq!(response.status(), StatusCode::OK);
+                    assert_eq!(response.status(), StatusCode::OK);
+                }
             }
         }
     }

@@ -14,8 +14,6 @@ pub(crate) async fn profile(
 ) -> Result<ProfileTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
-    let user: User = user.into();
-
     Ok(ProfileTemplate {
         title: user.username(),
         username: Some(user.username()),

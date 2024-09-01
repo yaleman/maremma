@@ -16,6 +16,8 @@ pub enum Relation {
     Host,
     #[sea_orm(has_many = "super::service::Entity")]
     Service,
+    #[sea_orm(has_many = "super::service::Entity")]
+    ServiceGroupLink,
 }
 
 #[cfg(not(tarpaulin_include))]

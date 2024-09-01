@@ -1,6 +1,5 @@
 //! log configuration and setup module
 
-#[cfg(not(test))]
 use std::env;
 
 use env_logger::{Builder, Target};
@@ -8,15 +7,23 @@ use log::LevelFilter;
 
 /// Sets up logging
 pub fn setup_logging(debug: bool, db_debug: bool) -> Result<(), log::SetLoggerError> {
+    // check the env vars
     #[cfg(not(test))]
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
     }
+
     let mut builder = Builder::from_default_env();
-    if debug {
-        builder.filter_level(LevelFilter::Debug);
+
+    let level = if debug && env::var("RUST_LOG").is_err() {
+        LevelFilter::Debug
     } else {
-        // ssh-rs is super noisy at info level
+        LevelFilter::Info
+    };
+
+    builder.filter_level(level);
+
+    if level == LevelFilter::Info {
         builder.filter(Some("ssh::"), LevelFilter::Warn);
     }
 
