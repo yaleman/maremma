@@ -22,6 +22,9 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::host_group::Entity")]
     HostGroup,
+
+    #[sea_orm(has_many = "super::service_check::Entity")]
+    ServiceCheck,
 }
 
 impl Related<super::host::Entity> for Entity {
@@ -46,7 +49,7 @@ impl Related<super::host_group::Entity> for Entity {
 
 impl Related<super::service_check::Entity> for Entity {
     fn to() -> RelationDef {
-        super::service_check::Relation::Service.def()
+        super::service_check::Relation::Service.def().rev()
     }
 }
 
@@ -191,12 +194,13 @@ mod tests {
     use std::sync::Arc;
 
     use crate::config::Configuration;
+    use crate::db::entities::service_check;
     use crate::db::tests::test_setup;
     use crate::db::{MaremmaEntity, Service, ServiceType};
 
     use croner::Cron;
-    use sea_orm::IntoActiveModel;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::{IntoActiveModel, ModelTrait};
     use serde_json::{json, Value};
     use tokio::sync::RwLock;
     use tracing::info;
@@ -310,6 +314,25 @@ mod tests {
 
         dbg!(service);
         dbg!(groups);
+    }
+    #[tokio::test]
+    async fn test_find_related_service_to_service_check() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let service = super::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to select service")
+            .expect("Failed to find service");
+
+        let service_checks = service
+            .find_related(service_check::Entity)
+            .all(db.as_ref())
+            .await
+            .expect("Failed to search for service_checks");
+
+        dbg!(service);
+        dbg!(service_checks);
     }
 
     #[tokio::test]

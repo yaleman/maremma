@@ -19,6 +19,52 @@ pub struct Model {
     pub last_updated: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum Relation {
+    Service,
+    Host,
+    ServiceCheckHistory,
+}
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::Service => Entity::belongs_to(service::Entity)
+                .to(service::Column::Id)
+                .from(Column::ServiceId)
+                .into(),
+            Self::Host => Entity::belongs_to(host::Entity)
+                .from(Column::HostId)
+                .to(host::Column::Id)
+                .into(),
+            Self::ServiceCheckHistory => Entity::belongs_to(service_check_history::Entity)
+                .from(Column::Id)
+                .to(service_check_history::Column::ServiceCheckId)
+                .into(),
+        }
+    }
+}
+
+impl Related<service::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Service.def()
+    }
+}
+
+impl Related<host::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Host.def()
+    }
+}
+
+impl Related<service_check_history::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ServiceCheckHistory.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}
+
 impl Model {
     #[instrument(skip(self, db), fields(service_check_id = self.id.hyphenated().to_string(), host_id=self.host_id.hyphenated().to_string()))]
     pub async fn set_status(
@@ -70,52 +116,6 @@ pub async fn set_check_result(
     }
     Ok(())
 }
-
-#[derive(Copy, Clone, Debug, EnumIter)]
-pub enum Relation {
-    Service,
-    Host,
-    ServiceCheckHistory,
-}
-
-impl RelationTrait for Relation {
-    fn def(&self) -> RelationDef {
-        match self {
-            Self::Service => Entity::belongs_to(service::Entity)
-                .from(Column::ServiceId)
-                .to(service::Column::Id)
-                .into(),
-            Self::Host => Entity::belongs_to(host::Entity)
-                .from(Column::HostId)
-                .to(host::Column::Id)
-                .into(),
-            Self::ServiceCheckHistory => Entity::belongs_to(service_check_history::Entity)
-                .from(Column::Id)
-                .to(service_check_history::Column::ServiceCheckId)
-                .into(),
-        }
-    }
-}
-
-impl Related<service::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Service.def()
-    }
-}
-
-impl Related<host::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Host.def()
-    }
-}
-
-impl Related<service_check_history::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::ServiceCheckHistory.def()
-    }
-}
-
-impl ActiveModelBehavior for ActiveModel {}
 
 async fn update_local_services_from_db(
     db: &DatabaseConnection,
@@ -300,7 +300,7 @@ impl MaremmaEntity for Model {
 #[derive(Clone, Debug, PartialEq, Eq, FromQueryResult)]
 
 pub struct FullServiceCheck {
-    pub service_check_id: Uuid,
+    pub id: Uuid,
     pub service_name: String,
     pub service_type: ServiceType,
 
@@ -323,17 +323,17 @@ impl FullServiceCheck {
 
     pub fn all_query() -> Select<Entity> {
         Entity::find()
+            .column_as(service::Column::Id, "service_id")
             .column_as(service::Column::Name, "service_name")
             .column_as(host::Column::Id, "host_id")
             .column_as(host::Column::Hostname, "host_name")
             .column_as(service::Column::ServiceType, "service_type")
             .join(JoinType::LeftJoin, Relation::Service.def())
             .join(JoinType::LeftJoin, Relation::Host.def())
-            .column_as(Column::Id, "service_check_id")
     }
 
     pub fn get_by_service_id_query(service_id: Uuid) -> Select<Entity> {
-        Self::all_query().filter(Column::ServiceId.eq(service_id))
+        Self::all_query().filter(service::Column::Id.eq(service_id))
     }
 
     pub async fn get_by_service_id(
@@ -422,5 +422,24 @@ mod tests {
 
         dbg!(&res);
         assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_from_host_to_service_checks() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let host = entities::host::Entity::find()
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .unwrap();
+
+        let service_checks = host
+            .find_related(super::Entity)
+            .all(db.as_ref())
+            .await
+            .unwrap();
+
+        assert!(!service_checks.is_empty());
     }
 }

@@ -33,7 +33,7 @@ impl Related<super::service::Entity> for Entity {
 #[cfg(not(tarpaulin_include))]
 impl Related<super::service_check::Entity> for Entity {
     fn to() -> RelationDef {
-        super::service_check::Relation::Host.def()
+        super::service_check::Relation::Host.def().rev()
     }
 }
 

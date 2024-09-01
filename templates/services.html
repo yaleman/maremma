@@ -1,0 +1,20 @@
+{% extends "base_template.html" %}
+
+{% block content %}
+
+<h1>Services</h1>
+
+<table class="servicetable">
+    <thead>
+        <th>Service</th>
+    </thead>
+    {% for service in services %}
+    <tr>
+        <td><a
+                href="/service/{{service.id}}">{{service.name}}</a></td>
+    </tr>
+
+    {% endfor %}
+</table>
+
+{% endblock content %}

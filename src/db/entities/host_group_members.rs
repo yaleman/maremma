@@ -194,4 +194,41 @@ mod tests {
         dbg!(&res);
         assert!(res.is_err());
     }
+
+    #[tokio::test]
+    async fn test_linked_host_to_groups() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let hosts = super::super::host::Entity::find()
+            .find_with_linked(super::HostToGroups)
+            .all(db.as_ref())
+            .await
+            .expect("Failed to query host to groups relation");
+
+        assert!(!hosts.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_linked_group_to_hosts() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let groups = super::super::host_group::Entity::find()
+            .find_with_linked(super::GroupToHosts)
+            .all(db.as_ref())
+            .await
+            .expect("Failed to query group to hosts relation");
+
+        assert!(!groups.is_empty());
+        for (group, hosts) in groups {
+            debug!(
+                "Group: {}, hosts: {}",
+                group.name,
+                hosts
+                    .into_iter()
+                    .map(|h| h.name)
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            );
+        }
+    }
 }

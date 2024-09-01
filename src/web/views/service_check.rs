@@ -25,14 +25,7 @@ pub(crate) async fn service_check_get(
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<ServiceCheckTemplate, (StatusCode, String)> {
-    let user = claims.ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
-    })?;
-
-    let user: User = user.into();
+    let user = check_login(claims)?;
 
     let res = entities::service_check::Entity::find_by_id(service_check_id)
         .find_with_related(entities::service_check_history::Entity)
@@ -266,9 +259,9 @@ pub(crate) async fn service_check_delete(
 #[cfg(test)]
 mod tests {
 
-    use std::path::PathBuf;
-
     use crate::db::tests::test_setup;
+    use crate::web::views::tools::test_user_claims;
+    use std::path::PathBuf;
 
     use super::*;
 
@@ -299,7 +292,7 @@ mod tests {
         let res = service_check_get(
             Path(service_check.id),
             State(state.clone()),
-            Some(crate::web::views::tools::test_user_claims()),
+            Some(test_user_claims()),
         )
         .await
         .expect("Failed to auth!");
@@ -332,12 +325,23 @@ mod tests {
         assert!(res.is_ok());
         let res = set_service_check_urgent(
             Path(Uuid::new_v4()),
-            State(state),
+            State(state.clone()),
             Form(RedirectTo {
                 redirect_to: Some("/test".to_string()),
             }),
         )
         .await;
+        assert!(res.is_err());
+
+        let res = set_service_check_urgent(
+            Path(Uuid::new_v4()),
+            State(state.clone()),
+            Form(RedirectTo {
+                redirect_to: Some("/test".to_string()),
+            }),
+        )
+        .await;
+
         assert!(res.is_err());
     }
     #[tokio::test]
@@ -410,7 +414,7 @@ mod tests {
         let res = super::service_check_get(
             Path(service_check_id),
             State(state.clone()),
-            Some(crate::web::views::tools::test_user_claims()),
+            Some(test_user_claims()),
         )
         .await;
 
@@ -437,7 +441,7 @@ mod tests {
         let res = super::service_check_get(
             Path(service_check_id),
             State(state.clone()),
-            Some(crate::web::views::tools::test_user_claims()),
+            Some(test_user_claims()),
         )
         .await;
 
@@ -455,7 +459,7 @@ mod tests {
         let res = service_check_delete(
             Path(service_check.id),
             State(state.clone()),
-            Some(crate::web::views::tools::test_user_claims()),
+            Some(test_user_claims()),
             Form(RedirectTo { redirect_to: None }),
         )
         .await;

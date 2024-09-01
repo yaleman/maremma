@@ -7,6 +7,7 @@ pub(crate) use askama_axum::Template;
 pub(crate) use axum::extract::{Path, Query, State};
 pub(crate) use axum::response::Redirect;
 pub(crate) use chrono::{DateTime, Local};
+use sea_orm::EnumIter;
 pub(crate) use serde::Deserialize;
 pub(crate) use std::sync::Arc;
 
@@ -18,12 +19,23 @@ pub(crate) use uuid::Uuid;
 pub(crate) use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 pub(crate) use tracing::*;
 
-#[derive(Default, Deserialize, Debug, Copy, Clone)]
+#[derive(Default, Deserialize, Debug, Copy, Clone, EnumIter)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Order {
     Asc,
     #[default]
     Desc,
+}
+
+impl Order {
+    #[cfg(test)]
+    pub(crate) fn iter_all_and_none() -> Vec<Option<Self>> {
+        use sea_orm::Iterable;
+
+        let mut v = Self::iter().map(Some).collect::<Vec<Option<Self>>>();
+        v.push(None);
+        v
+    }
 }
 
 impl std::fmt::Display for Order {
@@ -44,15 +56,27 @@ impl From<Order> for sea_orm::Order {
     }
 }
 
-#[derive(Default, Deserialize, Debug, Copy, Clone)]
+#[derive(Default, Deserialize, Debug, Copy, Clone, EnumIter)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum OrderFields {
     #[default]
     LastUpdated,
     Host,
+    Service,
     Status,
     Check,
     NextCheck,
+}
+
+impl OrderFields {
+    #[cfg(test)]
+    pub(crate) fn iter_all_and_none() -> Vec<Option<Self>> {
+        use sea_orm::Iterable;
+
+        let mut v = Self::iter().map(Some).collect::<Vec<Option<Self>>>();
+        v.push(None);
+        v
+    }
 }
 
 #[derive(Eq, PartialEq)]
@@ -76,6 +100,18 @@ impl Ord for Check {
 impl PartialOrd for Check {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+pub(crate) fn check_login(
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+) -> Result<User, (StatusCode, String)> {
+    match claims {
+        Some(user) => Ok(User::from(user)),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            "You must be logged in to view this page".to_string(),
+        )),
     }
 }
 
