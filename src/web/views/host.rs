@@ -6,8 +6,6 @@ use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::web::oidc::User;
-
 #[derive(Template, Debug)] // this will generate the code...
 #[template(path = "host.html")] // using the template in this path, relative
                                 // to the `templates` dir in the crate root
@@ -35,20 +33,15 @@ pub(crate) async fn host(
     Query(queries): Query<SortQueries>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostTemplate, (StatusCode, String)> {
-    let user = claims.ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
-    })?;
+    let user = check_login(claims)?;
 
-    let user: User = user.into();
     let order_field = queries
         .field
         .unwrap_or(crate::web::views::prelude::OrderFields::LastUpdated);
     let order_column = match order_field {
         OrderFields::LastUpdated => entities::service_check::Column::LastUpdated,
         OrderFields::Host => entities::service_check::Column::HostId,
+        OrderFields::Service => entities::service_check::Column::ServiceId,
         OrderFields::Status => entities::service_check::Column::Status,
         OrderFields::Check => entities::service_check::Column::LastCheck,
         OrderFields::NextCheck => entities::service_check::Column::NextCheck,
@@ -104,9 +97,9 @@ pub(crate) struct HostsTemplate {
 
 #[derive(Deserialize, Debug, Default)]
 pub(crate) struct HostsQuery {
-    search: Option<String>,
+    pub(crate) search: Option<String>,
     #[serde(flatten)]
-    queries: SortQueries,
+    pub(crate) queries: SortQueries,
 }
 
 pub(crate) async fn hosts(
@@ -114,13 +107,7 @@ pub(crate) async fn hosts(
     Query(queries): Query<HostsQuery>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostsTemplate, (StatusCode, String)> {
-    let user = claims.ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
-    })?;
-    let user: User = user.into();
+    let user = check_login(claims)?;
 
     let mut hosts = entities::host::Entity::find();
     if let Some(search_string) = queries.search.clone() {
@@ -137,6 +124,7 @@ pub(crate) async fn hosts(
     let ord = queries.queries.ord.unwrap_or(super::prelude::Order::Asc);
     let order_column = match queries.queries.field.unwrap_or_default() {
         OrderFields::Host => entities::host::Column::Hostname,
+        OrderFields::Service => entities::host::Column::Hostname,
         OrderFields::LastUpdated => entities::host::Column::Hostname,
         OrderFields::NextCheck => entities::host::Column::Hostname,
         OrderFields::Status => entities::host::Column::Check,
@@ -201,20 +189,36 @@ mod tests {
             .expect("Failed to get service check")
             .expect("No service checks found");
 
-        let res = super::host(
-            Path(host.id),
-            State(state.clone()),
-            Query(SortQueries::default()),
-            Some(crate::web::views::tools::test_user_claims()),
-        )
-        .await
-        .expect("Failed to auth!");
+        for ord in [
+            None,
+            Some(crate::web::views::prelude::Order::Asc),
+            Some(crate::web::views::prelude::Order::Desc),
+        ] {
+            for field in [
+                None,
+                Some(OrderFields::Host),
+                Some(OrderFields::Service),
+                Some(OrderFields::LastUpdated),
+                Some(OrderFields::NextCheck),
+                Some(OrderFields::Status),
+                Some(OrderFields::Check),
+            ] {
+                let res = super::host(
+                    Path(host.id),
+                    State(state.clone()),
+                    Query(SortQueries { ord, field }),
+                    Some(crate::web::views::tools::test_user_claims()),
+                )
+                .await
+                .expect("Failed to auth!");
 
-        let res = res.to_string();
+                let res = res.to_string();
 
-        dbg!(&res);
+                dbg!(&res);
 
-        assert!(res.contains("Maremma"))
+                assert!(res.contains("Maremma"))
+            }
+        }
     }
     #[tokio::test]
     async fn test_view_host_without_auth() {
@@ -327,6 +331,29 @@ mod tests {
         let response = res.into_response();
 
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
+
+        let mut nonexistent_host_id = Uuid::new_v4();
+        while entities::host::Entity::find_by_id(nonexistent_host_id)
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for host")
+            .is_some()
+        {
+            nonexistent_host_id = Uuid::new_v4();
+        }
+
+        let res = super::delete_host(
+            State(state.clone()),
+            Path(nonexistent_host_id),
+            Some(test_user_claims()),
+        )
+        .await;
+
+        assert!(res.is_err());
+
+        let response = res.into_response();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
     #[tokio::test]
     async fn test_view_delete_host_without_auth() {

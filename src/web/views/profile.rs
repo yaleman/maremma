@@ -12,12 +12,7 @@ pub(crate) async fn profile(
     State(_state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<ProfileTemplate, (StatusCode, String)> {
-    let user = claims.ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
-    })?;
+    let user = check_login(claims)?;
 
     let user: User = user.into();
 

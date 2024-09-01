@@ -50,6 +50,7 @@ pub(crate) enum OrderFields {
     #[default]
     LastUpdated,
     Host,
+    Service,
     Status,
     Check,
     NextCheck,
@@ -76,6 +77,18 @@ impl Ord for Check {
 impl PartialOrd for Check {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+pub(crate) fn check_login(
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+) -> Result<User, (StatusCode, String)> {
+    match claims {
+        Some(user) => Ok(User::from(user)),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            "You must be logged in to view this page".to_string(),
+        )),
     }
 }
 

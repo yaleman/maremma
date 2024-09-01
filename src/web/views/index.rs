@@ -36,6 +36,7 @@ pub(crate) async fn index(
         OrderFields::LastUpdated => {
             checks.order_by(entities::service_check::Column::LastUpdated, sort_order)
         }
+        OrderFields::Service => checks.order_by(entities::service::Column::Name, sort_order),
         OrderFields::Host => checks.order_by(entities::host::Column::Name, sort_order),
         OrderFields::Status => {
             checks.order_by(entities::service_check::Column::LastUpdated, sort_order)

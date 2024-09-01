@@ -25,14 +25,7 @@ pub(crate) async fn service_check_get(
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<ServiceCheckTemplate, (StatusCode, String)> {
-    let user = claims.ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
-    })?;
-
-    let user: User = user.into();
+    let user = check_login(claims)?;
 
     let res = entities::service_check::Entity::find_by_id(service_check_id)
         .find_with_related(entities::service_check_history::Entity)

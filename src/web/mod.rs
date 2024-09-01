@@ -82,9 +82,9 @@ impl WebState {
     }
 }
 
-async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {
-    Err((StatusCode::NOT_FOUND, "Not Implemented yet!"))
-}
+// async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {
+//     Err((StatusCode::NOT_FOUND, "Not Implemented yet!"))
+// }
 
 async fn up(State(_state): State<WebState>) -> impl IntoResponse {
     (StatusCode::OK, "OK")
@@ -115,6 +115,8 @@ impl OidcErrorHandler {
 #[cfg(not(tarpaulin_include))]
 pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     // get all the config variables we need, quickly, so we can drop the lock
+
+    use views::service::service;
     let config_reader = state.configuration.read().await;
     let oidc_issuer = config_reader.oidc_issuer.clone();
     let oidc_client_id = config_reader.oidc_client_id.clone();
@@ -169,6 +171,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     let app = Router::new()
         .route("/auth/login", get(Redirect::temporary("/")))
         .route("/auth/profile", get(views::profile::profile))
+        .route("/services", get(views::service::services))
         .route(
             "/service_check/:service_check_id/urgent",
             post(views::service_check::set_service_check_urgent),
@@ -189,7 +192,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         .route("/hosts", get(views::host::hosts))
         .route("/host/:host_id", get(views::host::host))
         .route("/host/:host_id/delete", post(views::host::delete_host))
-        .route("/service/:service_id", get(notimplemented))
+        .route("/service/:service_id", get(service))
         .route("/host_group/:group_id", get(host_group))
         .route("/host_group/:group_id/delete", post(host_group_delete))
         .route(
@@ -392,20 +395,21 @@ mod tests {
             .unwrap_or_else(|err| panic!("Failed to get {} {:?}", url, err));
     }
 
-    #[tokio::test]
-    async fn test_not_implemented() {
-        let (db, config) = test_setup().await.expect("Failed to set up test");
+    // #[tokio::test]
+    // async fn test_not_implemented() {
+    //     let (db, config) = test_setup().await.expect("Failed to set up test");
 
-        let res = notimplemented(axum::extract::State(WebState::new(
-            db,
-            config.clone(),
-            None,
-            None,
-            PathBuf::new(),
-        )))
-        .await;
-        assert!(res.is_err());
-    }
+    //     let res = notimplemented(axum::extract::State(WebState::new(
+    //         db,
+    //         config.clone(),
+    //         None,
+    //         None,
+    //         PathBuf::new(),
+    //     )))
+    //     .await;
+    //     assert!(res.is_err());
+    // }
+
     #[tokio::test]
     async fn test_up_endpoint() {
         let (db, config) = test_setup().await.expect("Failed to set up test");
