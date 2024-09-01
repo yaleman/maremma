@@ -101,7 +101,7 @@ pub struct HttpService {
     /// Defaults to nothing (ie, no additional path)
     pub http_uri: Option<String>,
 
-    /// Expected status code, defaults to 200 ([DEFAULT_HTTP_STATUS])
+    /// Expected status code, defaults to 200
     pub http_status: Option<NonZeroU16>,
 
     /// Validate TLS, defaults to True

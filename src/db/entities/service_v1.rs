@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "service")]
-/// V1 Service Model, used for the initial version of the service table before [crate::db::migrations::m20240825_create_service_group_link_table] was done.
+/// V1 Service Model, used for the initial version of the service table before `m20240825_create_service_group_link_table`` was done.
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, name = "id")]
     pub id: Uuid,

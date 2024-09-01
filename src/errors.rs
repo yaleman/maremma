@@ -3,6 +3,7 @@
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use croner::errors::CronError;
+use kube::config::KubeconfigError;
 use tracing::error;
 use uuid::Uuid;
 
@@ -125,6 +126,12 @@ impl From<Error> for (StatusCode, String) {
 
 impl From<kube::Error> for Error {
     fn from(value: kube::Error) -> Self {
+        Self::KubeError(value.to_string())
+    }
+}
+
+impl From<KubeconfigError> for Error {
+    fn from(value: KubeconfigError) -> Self {
         Self::KubeError(value.to_string())
     }
 }

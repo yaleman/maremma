@@ -6,6 +6,7 @@
 # Services
 
 - [Configuration](services.md)
+- [Kubernetes](kubernetes.md)
 
 # Internals
 

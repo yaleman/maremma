@@ -83,7 +83,10 @@ impl TryFrom<(&Namespace, &Pod)> for K8sPod {
                 .flat_map(|annotations| {
                     annotations.iter().filter_map(|(key, value)| {
                         if key.starts_with(MAREMMA_SERVICE_NAME) {
-                            Some((key.clone(), value.clone()))
+                            Some((
+                                key.replace(&format!("{}/", MAREMMA_SERVICE_NAME), ""),
+                                value.clone(),
+                            ))
                         } else {
                             None
                         }
@@ -116,8 +119,11 @@ impl TryFrom<(&Namespace, &Ingress)> for K8sIngress {
         if let Some(annotations) = ingress.metadata.annotations.as_ref() {
             for (key, value) in annotations.iter() {
                 if key.starts_with(MAREMMA_SERVICE_NAME) {
-                    info!("  annotation: {}={}", key, value);
-                    res.annotations.insert(key.clone(), value.clone());
+                    debug!("ingress annotation: {}={}", key, value);
+                    res.annotations.insert(
+                        key.replace(&format!("{}/", MAREMMA_SERVICE_NAME), ""),
+                        value.clone(),
+                    );
                 }
             }
         }
@@ -151,8 +157,11 @@ impl TryFrom<(&Namespace, &Service)> for K8sService {
         if let Some(annotations) = service.metadata.annotations.as_ref() {
             for (key, value) in annotations.iter() {
                 if key.starts_with(MAREMMA_SERVICE_NAME) {
-                    res.annotations.insert(key.clone(), value.clone());
-                    info!("  annotation: {}={}", key, value);
+                    debug!("service annotation: {}={}", key, value);
+                    res.annotations.insert(
+                        key.replace(&format!("{}/", MAREMMA_SERVICE_NAME), ""),
+                        value.clone(),
+                    );
                 }
             }
         }
@@ -215,9 +224,37 @@ struct K8sServiceDiscovery {
     pods: Vec<K8sPod>,
 }
 
+async fn discover_ingress(
+    client: Client,
+    namespace: &Namespace,
+    namespace_name: &str,
+) -> Result<Vec<K8sIngress>, Error> {
+    let ingress_api: Api<Ingress> = Api::namespaced(client.clone(), namespace_name);
+
+    let ingresses = ingress_api.list(&ListParams::default()).await?;
+    Ok(ingresses
+        .iter()
+        .flat_map(|ingress| {
+            if has_maremma_annotations(ingress.metadata.annotations.as_ref()) {
+                // info!("  ingress: {:?}", ingress.metadata.name);
+                if let Ok(k8si) = K8sIngress::try_from((namespace, ingress)) {
+                    Some(k8si)
+                } else {
+                    None
+                }
+            } else {
+                debug!("  skipping ingress: {:?}", ingress.metadata.name);
+                None
+            }
+        })
+        .collect::<Vec<K8sIngress>>())
+}
+
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), Error> {
+    use kube::config::KubeConfigOptions;
+
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let ignore_annotation = format!("{}/{}", MAREMMA_SERVICE_NAME, "ignore");
 
@@ -279,21 +316,20 @@ async fn main() -> Result<(), Error> {
                     }
                 }
             }
+            // https://docs.rs/kube-client/0.93.1/kube_client/config/struct.Config.html
+            let config = kube::Config::from_kubeconfig(&KubeConfigOptions {
+                context: None,
+                cluster: None,
+                user: None,
+            })
+            .await?;
+
+            let ingress_client = kube::Client::try_from(config)?;
 
             // get the ingressen
-            let ingress_api: Api<Ingress> = Api::namespaced(client.clone(), namespace_name);
-
-            let ingresses = ingress_api.list(&ListParams::default()).await?;
-            for ingress in ingresses.iter() {
-                if has_maremma_annotations(ingress.metadata.annotations.as_ref()) {
-                    // info!("  ingress: {:?}", ingress.metadata.name);
-                    if let Ok(k8si) = K8sIngress::try_from((&namespace, ingress)) {
-                        discovery_data.ingress.push(k8si);
-                    };
-                } else {
-                    debug!("  skipping ingress: {:?}", ingress.metadata.name);
-                }
-            }
+            discovery_data
+                .ingress
+                .extend(discover_ingress(ingress_client, &namespace, namespace_name).await?);
         } else {
             error!("namespace has no name?");
         }
@@ -301,9 +337,10 @@ async fn main() -> Result<(), Error> {
         debug!("#################################################################");
     }
 
-    // info!("Discovery data: {:#?}", discovery_data);
+    info!("Discovery data: {:#?}", discovery_data);
     info!("Found {} services", discovery_data.services.len());
     info!("Found {} ingresses", discovery_data.ingress.len());
     info!("Found {} pods", discovery_data.pods.len());
+
     Ok(())
 }
