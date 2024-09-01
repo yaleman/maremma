@@ -295,7 +295,7 @@ async fn main() -> Result<(), Error> {
                 }
             }
         } else {
-            error!("namspace has no name?");
+            error!("namespace has no name?");
         }
 
         debug!("#################################################################");
