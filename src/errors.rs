@@ -33,6 +33,8 @@ pub enum Error {
     InvalidInput(String),
     /// When the IO operation failed
     IoError(String),
+    /// K8s things
+    KubeError(String),
     /// Something you asked for isn't implemented yet
     NotImplemented,
     /// Oneshot command failed
@@ -118,6 +120,18 @@ impl From<Error> for (StatusCode, String) {
             StatusCode::INTERNAL_SERVER_ERROR,
             "Please see server logs".to_string(),
         )
+    }
+}
+
+impl From<kube::Error> for Error {
+    fn from(value: kube::Error) -> Self {
+        Self::KubeError(value.to_string())
+    }
+}
+
+impl From<std::net::AddrParseError> for Error {
+    fn from(value: std::net::AddrParseError) -> Self {
+        Self::InvalidInput(format!("invalid IP address: {}", value))
     }
 }
 
