@@ -31,7 +31,7 @@ WORKDIR /maremma
 # ENV RUSTC_WRAPPER="/usr/bin/sccache"
 # ENV CC="/usr/bin/clang"
 # # do the build bits
-RUN cargo build --release --bin maremma
+RUN cargo build --release --bins
 RUN chmod +x /maremma/target/release/maremma
 
 RUN cd /maremma && ./scripts/build_plugins.sh && cd plugins/monitoring-plugins && make install
@@ -41,6 +41,7 @@ FROM gcr.io/distroless/cc-debian12 AS maremma
 # FROM gcr.io/distroless/cc-debian12:debug AS maremma # so you can run --entrypoint=sh
 
 COPY --from=builder /maremma/target/release/maremma /maremma
+COPY --from=builder /maremma/target/release/check_splunk /usr/local/bin/
 COPY --from=builder /maremma/plugins/libexec/* /usr/local/bin/
 COPY ./static /static/
 USER nonroot
