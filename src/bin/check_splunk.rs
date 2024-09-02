@@ -69,7 +69,7 @@ struct SearchResult {
 
 #[tokio::main]
 /// Run a Splunk search looking for a host
-async fn main() {
+async fn main() -> Result<(), String> {
     let args = Cli::parse();
 
     let mut client =
@@ -80,11 +80,13 @@ async fn main() {
             .danger_accept_invalid_hostnames(true);
     }
 
+    let port = args.port.unwrap_or(NonZeroU16::new(8089).ok_or(
+        "Failed to parse 8089 into a non-zero u16, this is an internal error".to_string(),
+    )?);
+
     let url = format!(
         "https://{}:{}/services/search/jobs/",
-        args.splunk_host,
-        args.port
-            .unwrap_or(NonZeroU16::new(8089).expect("Failed to parse 8089 into a non-zero u16"))
+        args.splunk_host, port
     );
 
     let index_stmt = match args.indexes.is_empty() {
@@ -198,7 +200,7 @@ async fn main() {
             if l.trim().is_empty() {
                 None
             } else {
-                match serde_json::from_str(&l.trim()) {
+                match serde_json::from_str(l.trim()) {
                     Ok(r) => Some(r),
                     Err(_) => {
                         eprintln!("Failed to parse this to a search result: {:?}", l);
@@ -221,4 +223,5 @@ async fn main() {
         args.host,
         &args.earliest.unwrap_or("-24h".to_string())
     );
+    Ok(())
 }
