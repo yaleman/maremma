@@ -49,6 +49,60 @@ pub enum ServiceStatus {
     Disabled,
 }
 
+impl From<ServiceStatus> for i8 {
+    fn from(value: ServiceStatus) -> i8 {
+        match value {
+            ServiceStatus::Critical => 127,
+            ServiceStatus::Error => 96,
+            ServiceStatus::Urgent => 64,
+            ServiceStatus::Checking => 48,
+            ServiceStatus::Warning => 32,
+            ServiceStatus::Ok => 16,
+            ServiceStatus::Pending => -8,
+            ServiceStatus::Disabled => -16,
+            ServiceStatus::Unknown => -128,
+        }
+    }
+}
+
+impl Ord for ServiceStatus {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        i8::from(*self).cmp(&i8::from(*other))
+    }
+}
+
+impl PartialOrd for ServiceStatus {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(i8::from(*self).cmp(&i8::from(*other)))
+    }
+}
+
+#[test]
+fn test_servicestatus_order() {
+    use sea_orm::Iterable;
+    let foo: i8 = ServiceStatus::Ok.into();
+    assert_eq!(foo, 16);
+
+    let mut servicestatus_list = ServiceStatus::iter().collect::<Vec<ServiceStatus>>();
+    servicestatus_list.sort();
+    servicestatus_list.reverse();
+
+    assert_eq!(
+        servicestatus_list,
+        vec![
+            ServiceStatus::Critical,
+            ServiceStatus::Error,
+            ServiceStatus::Urgent,
+            ServiceStatus::Checking,
+            ServiceStatus::Warning,
+            ServiceStatus::Ok,
+            ServiceStatus::Pending,
+            ServiceStatus::Disabled,
+            ServiceStatus::Unknown,
+        ]
+    );
+}
+
 impl Display for ServiceStatus {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(

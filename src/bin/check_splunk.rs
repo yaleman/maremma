@@ -15,9 +15,15 @@ struct Cli {
     port: Option<NonZeroU16>,
     /// The host entry to search for
     host: String,
-    /// The earliest time to search for, defaults to last 24 hours
-    #[clap(short, long)]
-    earliest: Option<String>,
+
+    /// Look back this many hours from now, defaults to 24
+    #[clap(long)]
+    lookback: Option<String>,
+
+    /// Earliest time, use Unix seconds
+    #[clap(long)]
+    earliest: Option<u64>,
+
     /// The earliest time to search for, defaults to "now"
     #[clap(short, long)]
     latest: Option<String>,
@@ -126,11 +132,19 @@ async fn main() -> Result<(), String> {
         ("exec_mode".to_string(), "oneshot".to_string()),
     ]);
 
+    let mut time_message = String::new();
+
     if let Some(earliest) = &args.earliest {
         payload.insert("earliest_time".to_string(), earliest.to_string());
-    } else {
-        payload.insert("earliest_time".to_string(), "-24h".to_string());
+        time_message.push_str(&format!("over {}", earliest));
+    } else if let Some(lookback) = &args.lookback {
+        payload.insert(
+            "earliest_time".to_string(),
+            format!("-{}h", lookback.parse::<u64>().unwrap_or(24)),
+        );
+        time_message.push_str(&format!("over -{} hours", lookback));
     }
+
     if let Some(latest) = &args.latest {
         payload.insert("latest_time".to_string(), latest.to_string());
     }
@@ -161,7 +175,7 @@ async fn main() -> Result<(), String> {
     }
     let res = match res {
         Err(err) => {
-            eprintln!(
+            eprint!(
                 "CRITICAL: Failed to send request to splunk at {}: {:?}",
                 url, err
             );
@@ -172,7 +186,7 @@ async fn main() -> Result<(), String> {
 
     if res.status().is_client_error() {
         if res.status() == 401 {
-            println!("CRITICAL: Received 401 from Splunk, check your credentials");
+            print!("CRITICAL: Received 401 from Splunk, check your credentials");
             std::process::exit(1)
         }
         println!(
@@ -186,7 +200,7 @@ async fn main() -> Result<(), String> {
     let body = match res.text().await {
         Ok(val) => val,
         Err(err) => {
-            println!(
+            print!(
                 "CRITICAL: Failed to get response body from Splunk: {:?}",
                 err
             );
@@ -215,13 +229,9 @@ async fn main() -> Result<(), String> {
         println!("{:#?}", results);
     }
     if results.len() != 1 {
-        println!("CRITICAL: Expected 1 result, got {}", results.len());
+        print!("CRITICAL: Expected 1 result, got {}", results.len());
         std::process::exit(1)
     }
-    println!(
-        "OK: Found host {} in {}",
-        args.host,
-        &args.earliest.unwrap_or("-24h".to_string())
-    );
+    print!("OK: Found host {} {}", args.host, time_message);
     Ok(())
 }

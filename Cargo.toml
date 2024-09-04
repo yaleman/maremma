@@ -3,7 +3,7 @@ name = "maremma"
 version = "0.1.6"
 edition = "2021"
 license = "MIT"
-
+default-run = "maremma"
 
 [features]
 
