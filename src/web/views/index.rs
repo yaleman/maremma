@@ -28,30 +28,42 @@ pub(crate) async fn index(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<IndexTemplate, (StatusCode, String)> {
     let sort_order: SeaOrmOrder = queries.ord.unwrap_or_default().into();
-    let order_field = queries.field.unwrap_or(OrderFields::LastUpdated);
+    let order_field = queries.field.unwrap_or(OrderFields::Status);
     debug!("Sorting home page by: {:?} {:?}", order_field, sort_order);
 
     let mut checks = FullServiceCheck::all_query();
     checks = match order_field {
-        OrderFields::LastUpdated => {
-            checks.order_by(entities::service_check::Column::LastUpdated, sort_order)
+        OrderFields::LastUpdated => checks.order_by(
+            entities::service_check::Column::LastUpdated,
+            sort_order.clone(),
+        ),
+        OrderFields::Service => {
+            checks.order_by(entities::service::Column::Name, sort_order.clone())
         }
-        OrderFields::Service => checks.order_by(entities::service::Column::Name, sort_order),
-        OrderFields::Host => checks.order_by(entities::host::Column::Name, sort_order),
-        OrderFields::Status => {
-            checks.order_by(entities::service_check::Column::LastUpdated, sort_order)
-        }
-        OrderFields::Check => checks.order_by(entities::service::Column::Name, sort_order),
-        OrderFields::NextCheck => {
-            checks.order_by(entities::service_check::Column::NextCheck, sort_order)
-        }
+        OrderFields::Host => checks.order_by(entities::host::Column::Name, sort_order.clone()),
+        OrderFields::Status => checks.order_by(
+            entities::service_check::Column::LastUpdated,
+            sort_order.clone(),
+        ),
+        OrderFields::Check => checks.order_by(entities::service::Column::Name, sort_order.clone()),
+        OrderFields::NextCheck => checks.order_by(
+            entities::service_check::Column::NextCheck,
+            sort_order.clone(),
+        ),
     };
 
-    let checks = checks
+    let mut checks = checks
         .into_model()
         .all(state.db.as_ref())
         .await
         .map_err(Error::from)?;
+
+    if order_field == OrderFields::Status {
+        checks.sort_by(|a: &FullServiceCheck, b: &FullServiceCheck| a.status.cmp(&b.status));
+        if sort_order == SeaOrmOrder::Desc {
+            checks.reverse();
+        }
+    }
 
     Ok(IndexTemplate {
         title: "".to_string(),

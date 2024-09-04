@@ -56,7 +56,7 @@ impl From<Order> for sea_orm::Order {
     }
 }
 
-#[derive(Default, Deserialize, Debug, Copy, Clone, EnumIter)]
+#[derive(Default, Deserialize, Debug, Copy, Clone, EnumIter, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum OrderFields {
     #[default]

@@ -86,7 +86,9 @@ impl ServiceTrait for CliService {
         if res.status != std::process::ExitStatus::from_raw(0) {
             return Ok(CheckResult {
                 timestamp: chrono::Utc::now(),
-                result_text: String::from_utf8_lossy(&res.stderr).to_string(),
+                result_text: String::from_utf8_lossy(&res.stderr)
+                    .to_string()
+                    .replace(r#"\\n"#, " "),
                 status: ServiceStatus::Critical,
                 time_elapsed,
             });
@@ -94,7 +96,9 @@ impl ServiceTrait for CliService {
 
         Ok(CheckResult {
             timestamp: chrono::Utc::now(),
-            result_text: String::from_utf8_lossy(&res.stdout).to_string(),
+            result_text: String::from_utf8_lossy(&res.stdout)
+                .to_string()
+                .replace(r#"\\n"#, " "),
             status: ServiceStatus::Ok,
             time_elapsed,
         })
