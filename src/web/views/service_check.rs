@@ -1,5 +1,5 @@
 use axum::Form;
-use sea_orm::{ModelTrait, QuerySelect};
+use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_LIMIT;
 use crate::web::Error;
@@ -28,9 +28,7 @@ pub(crate) async fn service_check_get(
     let user = check_login(claims)?;
 
     let res = entities::service_check::Entity::find_by_id(service_check_id)
-        .find_with_related(entities::service_check_history::Entity)
-        .limit(DEFAULT_SERVICE_CHECK_HISTORY_LIMIT)
-        .all(state.db.as_ref())
+        .one(state.db.as_ref())
         .await
         .map_err(|err| {
             error!(
@@ -42,14 +40,24 @@ pub(crate) async fn service_check_get(
                 format!("Service check with id={} not found", service_check_id),
             )
         })?;
-    let (service_check, service_check_history) = res.into_iter().next().ok_or((
+    let service_check = res.ok_or((
         StatusCode::NOT_FOUND,
         format!("Service check with id={} not found", service_check_id),
     ))?;
 
-    let mut service_check_history = service_check_history;
-    service_check_history.sort_by_key(|x| x.timestamp);
-    service_check_history.reverse();
+    let service_check_history = entities::service_check_history::Entity::find()
+        .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
+        .order_by_desc(entities::service_check_history::Column::Timestamp)
+        .limit(DEFAULT_SERVICE_CHECK_HISTORY_LIMIT)
+        .all(state.db.as_ref())
+        .await
+        .map_err(|err| {
+            error!(
+                "Failed to search for service check history {}: {:?}",
+                service_check_id, err
+            );
+            Error::from(err)
+        })?;
 
     let host = service_check
         .find_related(entities::host::Entity)
