@@ -84,9 +84,11 @@ impl ServiceTrait for CliService {
         let time_elapsed = chrono::Utc::now() - start_time;
 
         if res.status != std::process::ExitStatus::from_raw(0) {
+            let mut combined = res.stderr.to_vec();
+            combined.extend(res.stdout);
             return Ok(CheckResult {
                 timestamp: chrono::Utc::now(),
-                result_text: String::from_utf8_lossy(&res.stderr)
+                result_text: String::from_utf8_lossy(&combined)
                     .to_string()
                     .replace(r#"\\n"#, " "),
                 status: ServiceStatus::Critical,

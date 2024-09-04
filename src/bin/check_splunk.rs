@@ -226,10 +226,10 @@ async fn main() -> Result<(), String> {
         .collect();
 
     if args.debug {
-        println!("{:#?}", results);
+        eprintln!("{:#?}", results);
     }
     if results.len() != 1 {
-        print!("CRITICAL: Expected 1 result, got {}", results.len());
+        eprintln!("CRITICAL: Expected 1 result, got {}", results.len());
         std::process::exit(1)
     }
     print!("OK: Found host {} {}", args.host, time_message);
