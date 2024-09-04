@@ -11,3 +11,17 @@ function confirmForm(elementId, confirmText) {
         }
     });
 };
+
+function resetSearch(formElementId, searchElementId) {
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById(formElementId);
+        if (form) {
+            form.addEventListener('reset', function() {
+                let searchElement = document.getElementById(searchElementId);
+                searchElement.value = "";
+
+                this.submit();
+            });
+        }
+    });
+}
