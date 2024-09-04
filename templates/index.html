@@ -5,9 +5,19 @@
 {% endblock %}
 
 {% block content %}
+<script>
+  resetSearch("searchForm", "search");
+</script>
 
-There are {{ num_checks }} service checks enabled.
+<form method="get" class="form-inline" id="searchForm">  <div class="input-group mb-2 mr-sm-2">
 
+  <input type="text" id="search" name="search" placeholder="Search" value="{{ search }}"  class="form-control mb-2 mr-sm-2" />
+  <input type="hidden" value="{{ ord }}" name="ord" />
+  <input type="hidden" value="{{ field }}" name="field" />
+  <input type="submit" value="Submit"  class="btn btn-primary mb-2"/>
+  <input type="reset" value="Reset"  class="btn btn-secondary mb-2"/>
+  </div>
+</form>
 <table class="checktable">
   <thead>
     <tr>
@@ -65,4 +75,5 @@ There are {{ num_checks }} service checks enabled.
   </tr>
   {% endfor %}
 </table>
+There are {{ num_checks }} service checks enabled.
 {% endblock content %}

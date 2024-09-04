@@ -1,5 +1,5 @@
 use entities::service_check::FullServiceCheck;
-use sea_orm::{Order as SeaOrmOrder, QueryOrder};
+use sea_orm::{ColumnTrait, Order as SeaOrmOrder, QueryFilter, QueryOrder};
 
 use crate::errors::Error;
 
@@ -13,12 +13,16 @@ pub struct IndexTemplate {
     pub checks: Vec<FullServiceCheck>,
     pub page_refresh: u64,
     pub username: Option<String>,
+    pub search: String,
+    pub ord: Order,
+    pub field: OrderFields,
 }
 
 #[derive(Deserialize, Debug, Default)]
 pub(crate) struct SortQueries {
     pub ord: Option<Order>,
     pub field: Option<OrderFields>,
+    pub search: Option<String>,
 }
 
 #[instrument(level = "info", skip(state, claims), fields(http.uri="/", ))]
@@ -32,6 +36,14 @@ pub(crate) async fn index(
     debug!("Sorting home page by: {:?} {:?}", order_field, sort_order);
 
     let mut checks = FullServiceCheck::all_query();
+    if let Some(search) = &queries.search {
+        checks = checks.filter(
+            entities::service::Column::Name
+                .contains(search)
+                .or(entities::host::Column::Name.contains(search))
+                .or(entities::service_check::Column::Status.contains(search)),
+        );
+    }
     checks = match order_field {
         OrderFields::LastUpdated => checks.order_by(
             entities::service_check::Column::LastUpdated,
@@ -71,6 +83,9 @@ pub(crate) async fn index(
         checks,
         page_refresh: 90,
         username: claims.map(|c| User::from(c).username()),
+        search: queries.search.unwrap_or_default(),
+        ord: queries.ord.unwrap_or_default(),
+        field: order_field,
     })
 }
 
@@ -88,6 +103,7 @@ mod tests {
             Query(SortQueries {
                 ord: None,
                 field: None,
+                search: None,
             }),
             State(state),
             None,
@@ -105,6 +121,7 @@ mod tests {
             Query(SortQueries {
                 ord: None,
                 field: None,
+                search: None,
             }),
             State(state),
             Some(test_user_claims()),
@@ -113,5 +130,26 @@ mod tests {
         assert!(res.is_ok());
 
         assert!(res.unwrap().to_string().contains("Maremma"));
+    }
+
+    #[tokio::test]
+    async fn test_index_search() {
+        let state = WebState::test().await;
+        let res = index(
+            Query(SortQueries {
+                ord: None,
+                field: None,
+                search: Some("example.com".to_string()),
+            }),
+            State(state),
+            None,
+        )
+        .await;
+        assert!(res.is_ok());
+
+        let page_content = res.unwrap().to_string();
+
+        assert!(page_content.contains("example.com"));
+        assert!(!page_content.contains("local_lslah"));
     }
 }

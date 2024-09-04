@@ -206,7 +206,11 @@ mod tests {
                 let res = super::host(
                     Path(host.id),
                     State(state.clone()),
-                    Query(SortQueries { ord, field }),
+                    Query(SortQueries {
+                        ord,
+                        field,
+                        search: None,
+                    }),
                     Some(crate::web::views::tools::test_user_claims()),
                 )
                 .await
@@ -281,7 +285,11 @@ mod tests {
                         State(state.clone()),
                         Query(HostsQuery {
                             search: search.clone(),
-                            queries: SortQueries { field, ord },
+                            queries: SortQueries {
+                                field,
+                                ord,
+                                search: None,
+                            },
                         }),
                         Some(test_user_claims()),
                     )

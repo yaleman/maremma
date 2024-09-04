@@ -9,6 +9,8 @@ pub(crate) use axum::response::Redirect;
 pub(crate) use chrono::{DateTime, Local};
 use sea_orm::EnumIter;
 pub(crate) use serde::Deserialize;
+use serde::Serialize;
+use std::fmt::Display;
 pub(crate) use std::sync::Arc;
 
 pub(crate) use axum::http::StatusCode;
@@ -56,7 +58,7 @@ impl From<Order> for sea_orm::Order {
     }
 }
 
-#[derive(Default, Deserialize, Debug, Copy, Clone, EnumIter, Eq, PartialEq)]
+#[derive(Default, Deserialize, Serialize, Debug, Copy, Clone, EnumIter, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum OrderFields {
     #[default]
@@ -66,6 +68,19 @@ pub(crate) enum OrderFields {
     Status,
     Check,
     NextCheck,
+}
+
+impl Display for OrderFields {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OrderFields::LastUpdated => write!(f, "last_updated"),
+            OrderFields::Host => write!(f, "host"),
+            OrderFields::Service => write!(f, "service"),
+            OrderFields::Status => write!(f, "status"),
+            OrderFields::Check => write!(f, "check"),
+            OrderFields::NextCheck => write!(f, "next_check"),
+        }
+    }
 }
 
 impl OrderFields {
