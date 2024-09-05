@@ -25,8 +25,9 @@
     <thead>
         <th>Service</th>
         <th>Status</th>
-        <th>Last Check</th>
+        <th class="hide-on-small">Last Check</th>
         <th>Check ID</th>
+        <th  class="hide-on-small">Actions</th>
     </thead>
     {% for check in checks %}
     <tr>
@@ -36,10 +37,10 @@
             class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">
             {{check.status}}
         </td>
-        <td>{{check.last_check}}</td>
+        <td class="hide-on-small">{{check.last_check}}</td>
         <td><a
                 href="/service_check/{{check.id}}">{{check.id}}</a></td>
-        <td>
+        <td class="hide-on-small">
             {% if check.status == crate::web::ServiceStatus::Disabled %}
             <form action="/service_check/{{check.id}}/enable"
                 method="post" class="buttonform">
