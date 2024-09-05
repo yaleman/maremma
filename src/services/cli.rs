@@ -13,6 +13,8 @@ use std::process::Stdio;
 pub struct CliService {
     /// Name of the service
     pub name: String,
+    /// Hostname for overlaying on the service
+    pub hostname: Option<String>,
     /// Command line to run, you can use #HOSTNAME# to substitute the hostname
     pub command_line: String,
     #[serde(default)]
@@ -27,12 +29,14 @@ pub struct CliService {
 impl ConfigOverlay for CliService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
         let cron_schedule = self.extract_cron(value, "cron_schedule", &self.cron_schedule)?;
+        let hostname = self.extract_value(value, "hostname", &self.hostname)?;
         let name = self.extract_string(value, "name", &self.name);
         let command_line = self.extract_string(value, "command_line", &self.command_line);
         let run_in_shell = self.extract_bool(value, "run_in_shell", self.run_in_shell);
 
         Ok(Box::new(Self {
             name,
+            hostname,
             cron_schedule,
             command_line,
             run_in_shell,
@@ -48,7 +52,12 @@ impl ServiceTrait for CliService {
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
-        let command_line = config.command_line.replace("#HOSTNAME#", &host.hostname);
+        let hostname = match &config.hostname {
+            Some(ref h) => h.to_owned(),
+            None => host.hostname.to_owned(),
+        };
+
+        let command_line = config.command_line.replace("#HOSTNAME#", &hostname);
 
         let mut cmd_split = command_line.split(" ");
         let cmd = match cmd_split.next() {
@@ -122,6 +131,7 @@ mod tests {
     async fn test_cliservice() {
         let service = super::CliService {
             name: "test".to_string(),
+            hostname: None,
             command_line: "ls -lah .".to_string(),
             run_in_shell: false,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
