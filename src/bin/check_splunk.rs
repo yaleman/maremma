@@ -48,7 +48,7 @@ struct Cli {
     #[clap(long, env = "SPLUNK_PASSWORD")]
     /// The Splunk password to use
     password: Option<String>,
-    #[clap(long, short, env = "SPLUNK_TOKEN")]
+    #[clap(long, short, env = "SPLUNK_AUTHTOKEN")]
     /// The Splunk auth token to use
     authtoken: Option<String>,
 
