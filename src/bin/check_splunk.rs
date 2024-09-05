@@ -112,7 +112,7 @@ async fn main() -> Result<(), String> {
         false => {
             let sourcetypes = &args
                 .sourcetypes
-                .into_iter()
+                .iter()
                 .map(|s| format!("\"{s}\""))
                 .collect::<Vec<String>>()
                 .join(",");
@@ -232,6 +232,15 @@ async fn main() -> Result<(), String> {
         eprintln!("CRITICAL: Expected 1 result, got {}", results.len());
         std::process::exit(1)
     }
-    print!("OK: Found host {} {}", args.host, time_message);
+
+    let sourcetype_log = match &args.sourcetypes.is_empty() {
+        false => format!("sourcetype IN ({})", args.sourcetypes.join(",")),
+        true => String::new(),
+    };
+
+    print!(
+        "OK: Found host={} {} {}",
+        args.host, sourcetype_log, time_message
+    );
     Ok(())
 }

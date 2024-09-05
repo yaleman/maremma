@@ -41,14 +41,14 @@
         <a
           href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=status">⬇️</a>
       </th>
-      <th>
+      <th class="hide-on-small">
         <a
           href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=lastupdated">Last
           Check&nbsp;&nbsp;⬆️</a>&nbsp;
         <a
           href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=lastupdated">⬇️</a>
       </th>
-      <th>
+      <th class="hide-on-small">
         <a
           href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=nextcheck">Next
           Check&nbsp;&nbsp;⬆️</a>&nbsp;
@@ -70,8 +70,8 @@
       class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">
       {{check.status}}
     </td>
-    <td>{{check.last_check.format("%Y-%m-%d %H:%M:%S")}}</td>
-    <td>{{check.next_check.format("%Y-%m-%d %H:%M:%S")}}</td>
+    <td class="hide-on-small">{{check.last_check.format("%Y-%m-%d %H:%M:%S")}}</td>
+    <td class="hide-on-small">{{check.next_check.format("%Y-%m-%d %H:%M:%S")}}</td>
   </tr>
   {% endfor %}
 </table>
