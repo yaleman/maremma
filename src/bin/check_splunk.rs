@@ -66,10 +66,17 @@ struct SplunkField {
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct SearchResult {
+    #[serde(default)]
     pub preview: Option<bool>,
+    #[serde(default)]
+    pub post_process_count: Option<u64>,
+    #[serde(default)]
     pub init_offset: Option<u64>,
+    #[serde(default)]
     pub messages: Vec<String>,
+    #[serde(default)]
     pub fields: Vec<SplunkField>,
+    #[serde(default)]
     pub results: Vec<serde_json::Value>,
 }
 
@@ -228,19 +235,46 @@ async fn main() -> Result<(), String> {
     if args.debug {
         eprintln!("{:#?}", results);
     }
-    if results.len() != 1 {
-        eprintln!("CRITICAL: Expected 1 result, got {}", results.len());
-        std::process::exit(1)
-    }
-
+    let result = match results.into_iter().next() {
+        Some(r) => r,
+        None => {
+            eprintln!("CRITICAL: Expected 1 result, got 0");
+            std::process::exit(1)
+        }
+    };
     let sourcetype_log = match &args.sourcetypes.is_empty() {
-        false => format!("sourcetype IN ({})", args.sourcetypes.join(",")),
+        false => format!(" sourcetype IN ({})", args.sourcetypes.join(",")),
         true => String::new(),
     };
 
+    let result_entry = match result.results.into_iter().next() {
+        Some(val) => val,
+        None => {
+            print!(
+                "CRITICAL: No results found for host={}{}",
+                args.host, sourcetype_log
+            );
+            std::process::exit(1)
+        }
+    };
+    #[derive(Deserialize)]
+    struct GetCount {
+        count: String,
+        #[serde(flatten)]
+        _rest: serde_json::Value,
+    }
+
+    let count = match serde_json::from_value::<GetCount>(result_entry) {
+        Ok(val) => val.count,
+        Err(err) => {
+            print!("CRITICAL: Failed to parse count from result: {:?}", err);
+            std::process::exit(1)
+        }
+    };
+
     print!(
-        "OK: Found host={} {} {}",
-        args.host, sourcetype_log, time_message
+        "OK: Found host={} count={} {}{}",
+        args.host, count, sourcetype_log, time_message
     );
     Ok(())
 }
