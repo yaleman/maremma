@@ -128,6 +128,6 @@ mod tests {
 
         let res = res.expect("Errored out");
 
-        assert_eq!(res.status(), axum::http::StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
     }
 }

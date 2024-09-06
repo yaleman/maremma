@@ -303,7 +303,7 @@ pub struct FullServiceCheck {
     pub id: Uuid,
     pub service_name: String,
     pub service_type: ServiceType,
-
+    pub service_id: Uuid,
     pub host_id: Uuid,
     pub host_name: String,
 
