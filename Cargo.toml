@@ -94,4 +94,4 @@ rand = "0.8.5"
 openidconnect = { version = "3.5.0", default-features = false }
 openssl = "0.10.66"
 tempfile = "3.12.0"
-testcontainers = { version = "0.21.1" }
+testcontainers = { version = "0.22.0" }
