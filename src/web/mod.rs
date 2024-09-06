@@ -147,8 +147,12 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
             // TODO: cause this to make the web server restart if it fails
             oidc_error_handler.handle_oidc_error().await;
-            error!("Failed to handle OIDC in middleware: {:?}", &e);
-            Redirect::to("/auth/logout").into_response()
+            if let MiddlewareError::SessionNotFound = e {
+                debug!("No OIDC session found, redirecting to logout to clear it client-side");
+            } else {
+                error!("Failed to handle OIDC in middleware: {:?}", &e);
+            }
+            return Redirect::to("/auth/logout").into_response();
         }))
         .layer(
             OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
