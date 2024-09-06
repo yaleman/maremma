@@ -100,14 +100,20 @@ struct OidcErrorHandler {
     web_tx: Option<Sender<WebServerControl>>,
 }
 
+const RELOAD_TIME: u64 = 1000;
+
 impl OidcErrorHandler {
     pub fn new(web_tx: Option<Sender<WebServerControl>>) -> Self {
         Self { web_tx }
     }
 
-    async fn handle_oidc_error(&self) {
+    async fn handle_oidc_error(&self, error: &MiddlewareError) {
         if let Some(tx) = &self.web_tx {
-            let _ = tx.send(WebServerControl::Stop).await;
+            error!(
+                "Reloading web server in {}ms due to OIDC error: {:?}",
+                RELOAD_TIME, error
+            );
+            let _ = tx.send(WebServerControl::ReloadAfter(RELOAD_TIME)).await;
         }
     }
 }
@@ -145,12 +151,10 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
 
     let oidc_auth_layer = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
-            // TODO: cause this to make the web server restart if it fails
-            oidc_error_handler.handle_oidc_error().await;
             if let MiddlewareError::SessionNotFound = e {
-                debug!("No OIDC session found, redirecting to logout to clear it client-side");
+                error!("No OIDC session found, redirecting to logout to clear it client-side");
             } else {
-                error!("Failed to handle OIDC in middleware: {:?}", &e);
+                oidc_error_handler.handle_oidc_error(&e).await;
             }
             Redirect::to("/auth/logout").into_response()
         }))
@@ -326,10 +330,21 @@ pub async fn run_web_server(
             server_message = web_server_controller.recv() => {
                 match server_message {
                     Some(WebServerControl::Stop) => {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        info!("Web server stopping");
+                        return Ok(());
+                    },
+                    Some(WebServerControl::StopAfter(millis)) => {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(millis)).await;
                         info!("Web server stopping");
                         return Ok(());
                     },
                     Some(WebServerControl::Reload) => {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                        info!("Web server reloading");
+                    },
+                    Some(WebServerControl::ReloadAfter(millis)) => {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(millis)).await;
                         info!("Web server reloading");
                     },
                     None => {
@@ -434,11 +449,15 @@ mod tests {
     async fn test_oidcerrorhandler() {
         let _ = test_setup().await.expect("Failed to set up test");
 
-        let _res = OidcErrorHandler::new(None).handle_oidc_error().await;
+        let _res = OidcErrorHandler::new(None)
+            .handle_oidc_error(&MiddlewareError::SessionNotFound)
+            .await;
 
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
 
-        let _res = OidcErrorHandler::new(Some(tx)).handle_oidc_error().await;
+        let _res = OidcErrorHandler::new(Some(tx))
+            .handle_oidc_error(&MiddlewareError::SessionNotFound)
+            .await;
     }
 
     #[tokio::test]
