@@ -152,7 +152,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             } else {
                 error!("Failed to handle OIDC in middleware: {:?}", &e);
             }
-            return Redirect::to("/auth/logout").into_response();
+            Redirect::to("/auth/logout").into_response()
         }))
         .layer(
             OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
