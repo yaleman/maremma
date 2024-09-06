@@ -32,7 +32,7 @@
     {% for check in checks %}
     <tr>
         <td><a
-                href="/service/{{check.id}}">{{check.service_name}}</a></td>
+                href="/service/{{check.service_id}}">{{check.service_name}}</a></td>
         <td
             class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">
             {{check.status}}
