@@ -35,7 +35,20 @@ mod tests {
         )
         .await;
         dbg!(&res);
-        assert_eq!(res.into_response().status(), StatusCode::OK)
+        let res_body = res.expect("Failed to get response").to_string();
+        assert!(res_body.contains("testuser@example.com"));
+        let res = super::profile(
+            State(state.clone()),
+            Some(crate::web::views::tools::test_user_claims()),
+        )
+        .await;
+        dbg!(&res);
+        assert_eq!(
+            res.expect("Failed to get response")
+                .into_response()
+                .status(),
+            StatusCode::OK
+        )
     }
 
     #[tokio::test]

@@ -13,6 +13,7 @@ use tracing::*;
 
 pub const MAREMMA_SERVICE_NAME: &str = "maremma.terminaloutcomes.com";
 
+#[cfg(not(tarpaulin_include))]
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "UPPERCASE")]
 enum Protocol {
@@ -23,6 +24,7 @@ enum Protocol {
     Unknown,
 }
 
+#[cfg(not(tarpaulin_include))]
 #[derive(Debug, Serialize, Deserialize)]
 struct K8sPod {
     name: String,
@@ -30,6 +32,7 @@ struct K8sPod {
     annotations: HashMap<String, String>,
 }
 
+#[cfg(not(tarpaulin_include))]
 #[derive(Debug, Serialize, Deserialize)]
 struct K8sIngress {
     name: String,
@@ -37,6 +40,7 @@ struct K8sIngress {
     annotations: HashMap<String, String>,
 }
 
+#[cfg(not(tarpaulin_include))]
 #[derive(Debug, Deserialize, Serialize)]
 struct K8sService {
     name: String,
@@ -48,6 +52,8 @@ struct K8sService {
     annotations: HashMap<String, String>,
 }
 
+#[cfg(not(tarpaulin_include))]
+/// Check if the maremma annotations are in a set of annotations
 fn has_maremma_annotations(input: Option<&BTreeMap<String, String>>) -> bool {
     if let Some(annotations) = input {
         for (key, _value) in annotations.iter() {
@@ -59,6 +65,7 @@ fn has_maremma_annotations(input: Option<&BTreeMap<String, String>>) -> bool {
     false
 }
 
+#[cfg(not(tarpaulin_include))]
 impl TryFrom<(&Namespace, &Pod)> for K8sPod {
     type Error = Error;
 
@@ -96,6 +103,8 @@ impl TryFrom<(&Namespace, &Pod)> for K8sPod {
         })
     }
 }
+
+#[cfg(not(tarpaulin_include))]
 impl TryFrom<(&Namespace, &Ingress)> for K8sIngress {
     type Error = Error;
 
@@ -131,6 +140,8 @@ impl TryFrom<(&Namespace, &Ingress)> for K8sIngress {
         Ok(res)
     }
 }
+
+#[cfg(not(tarpaulin_include))]
 impl TryFrom<(&Namespace, &Service)> for K8sService {
     type Error = Error;
     fn try_from(input: (&Namespace, &Service)) -> Result<Self, Error> {
@@ -217,6 +228,7 @@ impl TryFrom<(&Namespace, &Service)> for K8sService {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 #[derive(Debug, Deserialize, Serialize, Default)]
 struct K8sServiceDiscovery {
     services: Vec<K8sService>,
@@ -224,6 +236,7 @@ struct K8sServiceDiscovery {
     pods: Vec<K8sPod>,
 }
 
+#[cfg(not(tarpaulin_include))]
 async fn discover_ingress(
     client: Client,
     namespace: &Namespace,

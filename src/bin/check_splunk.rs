@@ -6,6 +6,7 @@ use clap::*;
 use reqwest::ClientBuilder;
 use serde::Deserialize;
 
+#[cfg(not(tarpaulin_include))]
 #[derive(Parser)]
 struct Cli {
     /// The Splunk instance to connect to
@@ -57,14 +58,18 @@ struct Cli {
     debug: bool,
 }
 
+#[cfg(not(tarpaulin_include))]
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
+/// Used to parse a field from a Splunk search result
 struct SplunkField {
     pub name: String,
 }
 
+#[cfg(not(tarpaulin_include))]
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
+/// Used to parse a search result from Splunk
 struct SearchResult {
     #[serde(default)]
     pub preview: Option<bool>,
@@ -80,6 +85,7 @@ struct SearchResult {
     pub results: Vec<serde_json::Value>,
 }
 
+#[cfg(not(tarpaulin_include))]
 #[tokio::main]
 /// Run a Splunk search looking for a host
 async fn main() -> Result<(), String> {
