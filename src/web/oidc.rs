@@ -1,5 +1,6 @@
 //! OIDC Things
 
+use super::urls::Urls;
 use super::WebState;
 use crate::prelude::*;
 
@@ -16,7 +17,7 @@ use tower_sessions::Session;
 /// Logs the user out
 pub async fn logout(session: Session) -> Result<Redirect, (StatusCode, &'static str)> {
     session.clear().await;
-    Ok(Redirect::to("/"))
+    Ok(Redirect::to(Urls::Index.as_ref()))
 }
 
 #[tokio::test]
@@ -33,7 +34,7 @@ async fn test_logout_view() {
     let res = res.expect("Errored out").into_response();
 
     assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
-    assert_eq!(res.headers().get("location").unwrap(), "/");
+    assert_eq!(res.headers().get("location").unwrap(), Urls::Index.as_ref());
 }
 
 /// Takes the logout action from the OIDC provider and logs the user out
@@ -96,6 +97,7 @@ mod tests {
 
     use crate::db::tests::test_setup;
     use crate::web::build_app;
+    use crate::web::urls::Urls;
 
     #[tokio::test]
     async fn test_logout() {
@@ -118,7 +120,7 @@ mod tests {
 
         let res = app
             .oneshot(
-                axum::http::Request::get("/auth/logout")
+                axum::http::Request::get(Urls::Logout.as_ref())
                     .body(axum::body::Body::empty())
                     .unwrap(),
             )

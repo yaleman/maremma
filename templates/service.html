@@ -8,7 +8,7 @@
     confirmForm("deleteHost", "Are you sure you want to delete this host?");
 </script>
 
-<form method="post" action="/host/{{service.id}}/delete" id="deleteHost">
+<form method="post" action="{{Urls::Host}}/{{service.id}}/delete" id="deleteHost">
     <input type="submit" class="btn btn-danger" value="Delete Service"
         style="float:right;" />
 </form>
@@ -22,31 +22,30 @@
     </thead>
     {% for check in service_checks %}
     <tr>
-        <td><a href="/host/{{check.host_id}}">{{check.host_name}}</td>
+        <td><a href="{{Urls::Host}}/{{check.host_id}}">{{check.host_name}}</td>
             <td><a
-                    href="/service_check/{{check.id}}">{{check.service_name}}</a></td>
+                    href="{{Urls::ServiceCheck}}/{{check.id}}">{{check.service_name}}</a></td>
             <td
                 class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">
                 {{check.status}}
             </td>
             <td>{{check.last_check}}</td>
-            <!-- <td><a
-                href="/service_check/{{check.id}}">{{check.id}}</a></td> -->
+
             <td>
                 {% if check.status == crate::web::ServiceStatus::Disabled %}
-                <form action="/service_check/{{check.id}}/enable"
+                <form action="{{Urls::ServiceCheck}}/{{check.id}}/enable"
                     method="post" class="buttonform">
                     <input type="submit" class="btn btn-success"
                         value="Enable" />
                 </form>
                 {% else %}
-                <form action="/service_check/{{check.id}}/disable"
+                <form action="{{Urls::ServiceCheck}}/{{check.id}}/disable"
                     method="post" class="buttonform">
                     <input type="submit" class="btn btn-danger"
                         value="Disable" />
                 </form>
                 {% endif %}
-                <form action="/service_check/{{check.id}}/urgent"
+                <form action="{{Urls::ServiceCheck}}/{{check.id}}/urgent"
                     method="post" class="buttonform">
                     <input type="submit" class="btn btn-warning"
                         value="Run ASAP" />
@@ -55,13 +54,13 @@
                 confirmForm('deleteCheck{{check.id}}', "are you sure you want to delete this check?");
             </script>
                 <form
-                    action="/service_check/{{check.id}}/delete"
+                    action="{{Urls::ServiceCheck}}/{{check.id}}/delete"
                     id="deleteCheck{{check.id}}"
                     method="post" class="buttonform">
                     <input type="submit" class="btn btn-warning"
                         value="Delete" />
                     <input type="hidden" name="redirect_to"
-                        value="/host/{{service.id}}" />
+                        value="{{Urls::Host}}/{{service.id}}" />
                 </form>
             </td>
         </tr>

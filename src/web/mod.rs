@@ -3,15 +3,11 @@
 
 pub(crate) mod controller;
 pub(crate) mod oidc;
+pub(crate) mod urls;
 pub(crate) mod views;
-use controller::WebServerControl;
-use tokio::sync::RwLockReadGuard;
 
 use std::path::PathBuf;
 use std::str::FromStr;
-
-use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
-use crate::prelude::*;
 
 use askama_axum::IntoResponse;
 use axum::error_handling::HandleErrorLayer;
@@ -24,9 +20,9 @@ use axum_oidc::error::MiddlewareError;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
 use axum_server::bind_rustls;
 use axum_server::tls_rustls::RustlsConfig;
-use tokio::sync::mpsc::{Receiver, Sender};
-
 use prometheus::Registry;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::RwLockReadGuard;
 use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
@@ -34,8 +30,14 @@ use tower_sessions::{
     cookie::{time::Duration, SameSite},
     Expiry, SessionManagerLayer,
 };
+
+use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
+use crate::prelude::*;
+use controller::WebServerControl;
+use urls::Urls;
 use views::handler_404;
 use views::host_group::{host_group, host_group_delete, host_group_member_delete, host_groups};
+use views::service::service;
 use views::service_check::{service_check_delete, service_check_get};
 
 #[derive(Clone)]
@@ -122,7 +124,6 @@ impl OidcErrorHandler {
 pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     // get all the config variables we need, quickly, so we can drop the lock
 
-    use views::service::service;
     let config_reader = state.configuration.read().await;
     let oidc_issuer = config_reader.oidc_issuer.clone();
     let oidc_client_id = config_reader.oidc_client_id.clone();
@@ -156,7 +157,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             } else {
                 oidc_error_handler.handle_oidc_error(&e).await;
             }
-            Redirect::to("/auth/logout").into_response()
+            Redirect::to(Urls::Logout.as_ref()).into_response()
         }))
         .layer(
             OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
@@ -177,49 +178,64 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         );
 
     let app = Router::new()
-        .route("/auth/login", get(Redirect::temporary("/")))
-        .route("/auth/profile", get(views::profile::profile))
-        .route("/services", get(views::service::services))
         .route(
-            "/service_check/:service_check_id/urgent",
+            Urls::Login.as_ref(),
+            get(Redirect::temporary(Urls::Index.as_ref())),
+        )
+        .route(Urls::Profile.as_ref(), get(views::profile::profile))
+        .route(Urls::Services.as_ref(), get(views::service::services))
+        .route(
+            &format!("{}/:service_check_id/urgent", Urls::ServiceCheck),
             post(views::service_check::set_service_check_urgent),
         )
         .route(
-            "/service_check/:service_check_id/disable",
+            &format!("{}/:service_check_id/disable", Urls::ServiceCheck),
             post(views::service_check::set_service_check_disabled),
         )
         .route(
-            "/service_check/:service_check_id/enable",
+            &format!("{}/:service_check_id/enable", Urls::ServiceCheck),
             post(views::service_check::set_service_check_enabled),
         )
         .route(
-            "/service_check/:service_check_id/delete",
+            &format!("{}/:service_check_id/delete", Urls::ServiceCheck),
             post(service_check_delete),
         )
-        .route("/service_check/:service_check_id", get(service_check_get))
-        .route("/hosts", get(views::host::hosts))
-        .route("/host/:host_id", get(views::host::host))
-        .route("/host/:host_id/delete", post(views::host::delete_host))
-        .route("/service/:service_id", get(service))
-        .route("/host_group/:group_id", get(host_group))
-        .route("/host_group/:group_id/delete", post(host_group_delete))
         .route(
-            "/host_group/:group_id/member/:host_id/delete",
+            &format!("{}/:service_check_id", Urls::ServiceCheck),
+            get(service_check_get),
+        )
+        .route(Urls::Hosts.as_ref(), get(views::host::hosts))
+        .route(&format!("{}/:host_id", Urls::Host), get(views::host::host))
+        .route(
+            &format!("{}/:host_id/delete", Urls::Host),
+            post(views::host::delete_host),
+        )
+        .route(&format!("{}/:service_id", Urls::Service), get(service))
+        .route(&format!("{}/:group_id", Urls::HostGroup), get(host_group))
+        .route(
+            &format!("{}/:group_id/delete", Urls::HostGroup),
+            post(host_group_delete),
+        )
+        .route(
+            &format!("{}/:group_id/member/:host_id/delete", Urls::HostGroup),
             post(host_group_member_delete),
         )
-        .route("/host_groups", get(host_groups))
-        .route("/tools", get(views::tools::tools).post(views::tools::tools))
-        .route("/auth/logout", get(oidc::logout))
-        .route("/auth/rp-logout", get(oidc::rp_logout))
+        .route(Urls::HostGroups.as_ref(), get(host_groups))
+        .route(
+            Urls::Tools.as_ref(),
+            get(views::tools::tools).post(views::tools::tools),
+        )
+        .route(Urls::Logout.as_ref(), get(oidc::logout))
+        .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout))
         .layer(oidc_login_service)
         // after here, the routers don't *require* auth
-        .route("/", get(views::index::index))
-        .route("/metrics", get(views::metrics::metrics))
+        .route(Urls::Index.as_ref(), get(views::index::index))
+        .route(Urls::Metrics.as_ref(), get(views::metrics::metrics))
         .layer(oidc_auth_layer)
         // after here, the URLs cannot have auth
-        .route("/healthcheck", get(up))
+        .route(Urls::HealthCheck.as_ref(), get(up))
         .nest_service(
-            "/static",
+            Urls::Static.as_ref(),
             ServeDir::new(
                 state
                     .configuration
@@ -365,8 +381,8 @@ mod tests {
     use crate::tests::tls_utils::TestCertificateBuilder;
     use axum::body::Body;
     use entities::host;
-    // TODO: work out how to test the startup of the server
     use tower::util::ServiceExt;
+    use urls::Urls;
 
     #[tokio::test]
     async fn test_app_requests() {
@@ -386,7 +402,11 @@ mod tests {
         .expect("Failed to build app");
 
         app.clone()
-            .oneshot(axum::http::Request::get("/").body(Body::empty()).unwrap())
+            .oneshot(
+                axum::http::Request::get(Urls::Index.as_ref())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .expect("Failed to run app");
 
@@ -396,7 +416,7 @@ mod tests {
             .expect("Failed to query db for host")
             .expect("Failed to find host");
 
-        let url = format!("/host/{}", host.id);
+        let url = format!("{}/{}", Urls::Host, host.id);
         app.clone()
             .oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
             .await
@@ -408,7 +428,7 @@ mod tests {
             .expect("Failed to query db for service_check")
             .expect("Failed to find service_check");
 
-        let url = format!("/service_check/{}", service_check.id);
+        let url = format!("{}/{}", Urls::ServiceCheck, service_check.id);
         app.oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
             .await
             .unwrap_or_else(|err| panic!("Failed to get {} {:?}", url, err));

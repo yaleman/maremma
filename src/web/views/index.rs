@@ -25,7 +25,7 @@ pub(crate) struct SortQueries {
     pub search: Option<String>,
 }
 
-#[instrument(level = "info", skip(state, claims), fields(http.uri="/", ))]
+#[instrument(level = "info", skip(state, claims), fields(http.uri=Urls::Index.as_ref(), ))]
 pub(crate) async fn index(
     Query(queries): Query<SortQueries>,
     State(state): State<WebState>,

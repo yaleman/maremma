@@ -23,48 +23,48 @@
     <tr>
       <th>
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=host">Host
+          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}">Host
           &nbsp;&nbsp;⬆️</a>&nbsp;
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=host">⬇️</a>
+          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}">⬇️</a>
       </th>
       <th>
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=host">Service
+          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}">Service
           Check&nbsp;&nbsp;⬆️</a>&nbsp;
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=host">⬇️</a>
+          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}">⬇️</a>
       </th>
       <th>
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=status">Status&nbsp;&nbsp;⬆️</a>&nbsp;
+          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}">Status&nbsp;&nbsp;⬆️</a>&nbsp;
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=status">⬇️</a>
+          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Status}}">⬇️</a>
       </th>
       <th class="hide-on-small">
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=lastupdated">Last
+          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::LastUpdated}}">Last
           Check&nbsp;&nbsp;⬆️</a>&nbsp;
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=lastupdated">⬇️</a>
+          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::LastUpdated}}">⬇️</a>
       </th>
       <th class="hide-on-small">
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Asc}}&field=nextcheck">Next
+          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::NextCheck}}">Next
           Check&nbsp;&nbsp;⬆️</a>&nbsp;
         <a
-          href="/?ord={{crate::web::views::prelude::Order::Desc}}&field=nextcheck">⬇️</a>
+          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::NextCheck}}">⬇️</a>
       </th>
     </tr>
   </thead>
   {% for check in checks %}
   <tr>
     <td>
-      <a href="/host/{{check.host_id}}">{{check.host_name}}</a>
+      <a href="{{Urls::Host}}/{{check.host_id}}">{{check.host_name}}</a>
     </td>
     <td>
       <a
-        href="/service_check/{{check.id}}">{{check.service_name}}</a>
+        href="{{Urls::ServiceCheck}}/{{check.id}}">{{check.service_name}}</a>
     </td>
     <td
       class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">

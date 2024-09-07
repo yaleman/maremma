@@ -344,6 +344,7 @@ mod tests {
     use crate::db::tests::test_setup;
     use crate::tests::testcontainers::TestContainer;
     use crate::tests::tls_utils::TestCertificateBuilder;
+    use crate::web::urls::Urls;
 
     #[tokio::test]
     async fn test_httpservice() {
@@ -397,7 +398,7 @@ mod tests {
             name: "test".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
-            http_uri: Some("/".to_string()),
+            http_uri: Some(Urls::Index.to_string()),
             http_status: Some(super::default_expected_http_status()),
             validate_tls: true,
             connect_timeout: Some(5),
