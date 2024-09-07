@@ -171,7 +171,7 @@ pub(crate) async fn delete_host(
     };
 
     host.delete(state.db.as_ref()).await.map_err(Error::from)?;
-    Ok(Redirect::to("/hosts"))
+    Ok(Redirect::to(Urls::Hosts.as_ref()))
 }
 
 #[cfg(test)]

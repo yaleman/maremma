@@ -13,13 +13,13 @@ confirmForm('deleteCheck{{host_group.id}}', "Are you sure you want to delete thi
 </script>
 <div style="float:right;">
     <form
-        action="/host_group/{{host_group.id}}/delete"
+        action="{{Urls::HostGroup}}/{{host_group.id}}/delete"
         id="deleteCheck{{host_group.id}}"
         method="post" class="buttonform">
         <input type="submit" class="btn btn-warning"
             value="Delete This" />
         <input type="hidden" name="redirect_to"
-            value="/host_groups" />
+            value="{{Urls::HostGroups}}" />
     </form></div>
 
 <h1>Host Group: {{host_group.name}}</h1>
@@ -37,9 +37,9 @@ confirmForm('deleteCheck{{host_group.id}}', "Are you sure you want to delete thi
     </thead>
     {% for member in members %}
     <tr>
-        <td><a href="/host/{{member.id}}">{{member.name}}</a></td>
+        <td><a href="{{Urls::Host}}/{{member.id}}">{{member.name}}</a></td>
         <td><form method="post"
-                action="/host_group/{{host_group.id}}/member/{{member.id}}/delete"><input
+                action="{{Urls::HostGroup}}/{{host_group.id}}/member/{{member.id}}/delete"><input
                     type="submit" value="Remove Member" /></form></td>
     </tr>
     {% endfor %}

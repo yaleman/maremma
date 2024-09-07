@@ -11,6 +11,7 @@ use serde::Deserialize;
 use tracing::{debug, info};
 use uuid::Uuid;
 
+use super::prelude::*;
 use crate::db::entities::{host, host_group, host_group_members};
 use crate::web::oidc::User;
 use crate::web::{Error, WebState};
@@ -42,7 +43,7 @@ pub(crate) async fn host_groups(
         .all(state.db.as_ref())
         .await
         .map_err(|e| {
-            log::error!("Failed to fetch host groups: {}", e);
+            error!("Failed to fetch host groups: {}", e);
             Error::from(e)
         })?;
 
@@ -95,7 +96,7 @@ pub(crate) async fn host_group(
         .all(state.db.as_ref())
         .await
         .map_err(|e| {
-            log::error!("Failed to fetch host groups: {}", e);
+            error!("Failed to fetch host groups: {}", e);
             Error::from(e)
         })?;
 
@@ -142,7 +143,7 @@ pub(crate) async fn host_group_member_delete(
         .one(state.db.as_ref())
         .await
         .map_err(|e| {
-            log::error!("Failed to fetch host group membership: {}", e);
+            error!("Failed to fetch host group membership: {}", e);
             Error::from(e)
         })?;
     let hgm = match hgm {
@@ -156,7 +157,7 @@ pub(crate) async fn host_group_member_delete(
     };
 
     let res = hgm.delete(state.db.as_ref()).await.map_err(|e| {
-        log::error!("Failed to delete host group membership: {}", e);
+        error!("Failed to delete host group membership: {}", e);
         Error::from(e)
     })?;
     info!(
@@ -167,7 +168,7 @@ pub(crate) async fn host_group_member_delete(
         group_id.hyphenated()
     );
 
-    Ok(Redirect::to(&format!("/host_group/{}", group_id)))
+    Ok(Redirect::to(&format!("{}/{}", Urls::HostGroup, group_id)))
 }
 
 pub(crate) async fn host_group_delete(
@@ -187,14 +188,14 @@ pub(crate) async fn host_group_delete(
         .exec(state.db.as_ref())
         .await
         .map_err(|e| {
-            log::error!("Failed to delete host group: {}", e);
+            error!("Failed to delete host group: {}", e);
             Error::from(e)
         })?;
     if res.rows_affected == 0 {
         return Err((StatusCode::NOT_FOUND, "Host Group not found".to_string()));
     }
 
-    Ok(Redirect::to("/host_groups"))
+    Ok(Redirect::to(Urls::HostGroups.as_ref()))
 }
 
 #[cfg(test)]
@@ -205,7 +206,6 @@ mod tests {
 
     use crate::db::tests::test_setup;
     use crate::web::views::host_group::HostGroupQueries;
-    use crate::web::views::prelude::Order;
     use crate::web::views::tools::test_user_claims;
     use crate::web::WebState;
 

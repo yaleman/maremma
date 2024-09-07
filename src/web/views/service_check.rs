@@ -216,7 +216,11 @@ pub(crate) async fn set_service_check_status(
     if let Some(redirect_to) = &form.redirect_to {
         Ok(Redirect::to(redirect_to))
     } else {
-        Ok(Redirect::to(&format!("/host/{}", host_id.hyphenated())))
+        Ok(Redirect::to(&format!(
+            "{}/{}",
+            Urls::Host,
+            host_id.hyphenated()
+        )))
     }
 }
 
@@ -260,7 +264,7 @@ pub(crate) async fn service_check_delete(
     if let Some(redirect_to) = redirect_form.redirect_to {
         Ok(Redirect::to(&redirect_to))
     } else {
-        Ok(Redirect::to("/"))
+        Ok(Redirect::to(Urls::Index.as_ref()))
     }
 }
 

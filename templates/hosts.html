@@ -12,16 +12,16 @@
     <thead>
         <th>
             <a
-                href="?ord={{crate::web::views::prelude::Order::Asc}}&field=host&search={{search_string}}">Host
+                href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}&search={{search_string}}">Host
                 &nbsp;&nbsp;⬆️</a>&nbsp;
             <a
-                href="?ord={{crate::web::views::prelude::Order::Desc}}&field=host&search={{search_string}}">⬇️</a>
+                href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}&search={{search_string}}">⬇️</a>
         </th>
     </thead>
     {% for host in hosts %}
     <tr>
         <td><a
-                href="/host/{{host.id}}">{{host.name}}</a></td>
+                href="{{Urls::Host}}/{{host.id}}">{{host.name}}</a></td>
     </tr>
 
     {% endfor %}

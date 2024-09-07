@@ -11,7 +11,7 @@
     {% for service in services %}
     <tr>
         <td><a
-                href="/service/{{service.id}}">{{service.name}}</a></td>
+                href="{{Urls::Service}}/{{service.id}}">{{service.name}}</a></td>
     </tr>
 
     {% endfor %}

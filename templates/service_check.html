@@ -21,9 +21,9 @@
         </script>
 
         <p>
-            <strong>Host:</strong> <a href="/host/{{host.id}}">{{ host.hostname
+            <strong>Host:</strong> <a href="{{Urls::Host}}/{{host.id}}">{{ host.hostname
                 }}</a><br />
-            <strong>Service: </strong><a href="/service/{{service.id}}">{{
+            <strong>Service: </strong><a href="{{Urls::Service}}/{{service.id}}">{{
                 service.name
                 }}</a><br />
             {% if let Some(description) = service.description %}
@@ -39,22 +39,22 @@
                     Show Config
                 </button>
                 {% endif %}
-                <form action="/service_check/{{service_check.id}}/urgent"
+                <form action="{{Urls::ServiceCheck}}/{{service_check.id}}/urgent"
                     method="post" class="buttonform">
                     <input type="submit" class="btn btn-warning"
                         value="Run ASAP" />
                     <input type="hidden" name="redirect_to"
-                        value="/service_check/{{service_check.id}}" />
+                        value="{{Urls::ServiceCheck}}/{{service_check.id}}" />
                 </form>
 
                 <form
-                    action="/service_check/{{service_check.id}}/delete"
+                    action="{{Urls::ServiceCheck}}/{{service_check.id}}/delete"
                     id="deleteCheck{{service_check.id}}"
                     method="post" class="buttonform">
                     <input type="submit" class="btn btn-warning"
                         value="Delete This" />
                     <input type="hidden" name="redirect_to"
-                        value="/host/{{host.id}}" />
+                        value="{{Urls::Host}}/{{host.id}}" />
                 </form>
             </div>
             {% if let Some(config) = parsed_config %}

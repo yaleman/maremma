@@ -1,6 +1,7 @@
 pub(crate) use crate::db::entities;
 pub(crate) use crate::services::ServiceStatus;
 pub(crate) use crate::web::oidc::User;
+pub(crate) use crate::web::urls::Urls;
 pub(crate) use crate::web::WebState;
 
 pub(crate) use askama_axum::Template;

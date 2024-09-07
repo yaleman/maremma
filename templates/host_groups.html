@@ -4,7 +4,7 @@
 
 <ul>
     {% for group in host_groups %}
-    <li><a href="/host_group/{{group.id}}">{{group.name}}</a> ({{group.hosts}}
+    <li><a href="{{Urls::HostGroup}}/{{group.id}}">{{group.name}}</a> ({{group.hosts}}
         hosts)</li>
     {% endfor %}
 </ul>

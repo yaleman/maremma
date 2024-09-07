@@ -66,7 +66,11 @@ async fn tools_reload_config(state: WebState) -> Result<(), Redirect> {
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
-            Redirect::to("/tools?result=Failed to load config from file&status=error")
+            Redirect::to(&format!(
+                "{}?result=Failed to load config from file&status={}",
+                Urls::Tools,
+                ActionStatus::Error,
+            ))
         })?;
 
     *state.configuration.write().await = new_config;
@@ -75,18 +79,30 @@ async fn tools_reload_config(state: WebState) -> Result<(), Redirect> {
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
-            Redirect::to("/tools?result=Failed to load config from file&status=error")
+            Redirect::to(&format!(
+                "{}?result=Failed to load config from file&status={}",
+                Urls::Tools,
+                ActionStatus::Error,
+            ))
         })?;
     update_db_from_config(state.db.as_ref(), Arc::new(RwLock::new(new_config)))
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
-            Redirect::to("/tools?result=Failed to reload config&status=error")
+            Redirect::to(&format!(
+                "{}?result=Failed to reload config&status={}",
+                Urls::Tools,
+                ActionStatus::Error,
+            ))
         })?;
 
     info!("Reloaded config");
     // not really an error but we're doing this to show the user that the config was reloaded
-    Err(Redirect::to("/tools?result=Reloaded config&status=success"))
+    Err(Redirect::to(&format!(
+        "{}?result=Reloaded config&status={}",
+        Urls::Tools,
+        ActionStatus::Success,
+    )))
 }
 
 /// Seen at `/tools`
@@ -114,13 +130,19 @@ pub(crate) async fn tools(
                     .await
                     .map_err(|e| {
                         error!("Failed to set all to urgent: {:?}", e);
-                        Redirect::to("/tools?result=Failed to set all tasks to urgent&status=error")
-                            .into_response()
+                        Redirect::to(&format!(
+                            "{}?result=Failed to set all tasks to urgent&status={}",
+                            Urls::Tools,
+                            ActionStatus::Error,
+                        ))
+                        .into_response()
                     })?;
-                return Err(
-                    Redirect::to("/tools?result=Set all tasks to urgent&status=success")
-                        .into_response(),
-                );
+                return Err(Redirect::to(&format!(
+                    "{}?result=Set all tasks to urgent&status={}",
+                    Urls::Tools,
+                    ActionStatus::Success,
+                ))
+                .into_response());
             }
             FormAction::ReloadConfig => {
                 if let Err(err) = tools_reload_config(state).await {
@@ -241,7 +263,11 @@ mod tests {
                     .expect("Failed to get location header")
                     .to_str()
                     .expect("Failed to get location header value"),
-                "/tools?result=Failed to load config from file&status=error",
+                &format!(
+                    "{}?result=Failed to load config from file&status={}",
+                    Urls::Tools,
+                    ActionStatus::Error,
+                ),
                 "Expected an error response"
             );
         }
@@ -266,7 +292,11 @@ mod tests {
                     .expect("Failed to get location header")
                     .to_str()
                     .expect("Failed to get location header value"),
-                "/tools?result=Failed to load config from file&status=error",
+                &format!(
+                    "{}?result=Failed to load config from file&status={}",
+                    Urls::Tools,
+                    ActionStatus::Error,
+                ),
                 "Expected a failed reload"
             );
         }
@@ -288,7 +318,11 @@ mod tests {
                     .expect("Failed to get location header")
                     .to_str()
                     .expect("Failed to get location header value"),
-                "/tools?result=Reloaded config&status=success",
+                &format!(
+                    "{}?result=Reloaded config&status={}",
+                    Urls::Tools,
+                    ActionStatus::Success
+                ),
                 "Expected a failed reload"
             );
         }
