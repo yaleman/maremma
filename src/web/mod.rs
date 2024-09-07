@@ -136,6 +136,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(true)
         .with_same_site(SameSite::Lax)
+        .with_http_only(true)
         .with_expiry(Expiry::OnInactivity(Duration::seconds(1800)));
 
     let frontend_url = Uri::from_str(&frontend_url)
@@ -225,15 +226,15 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             Urls::Tools.as_ref(),
             get(views::tools::tools).post(views::tools::tools),
         )
-        .route(Urls::Logout.as_ref(), get(oidc::logout))
         .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout))
         .layer(oidc_login_service)
         // after here, the routers don't *require* auth
         .route(Urls::Index.as_ref(), get(views::index::index))
-        .route(Urls::Metrics.as_ref(), get(views::metrics::metrics))
         .layer(oidc_auth_layer)
+        .route(Urls::Metrics.as_ref(), get(views::metrics::metrics))
         // after here, the URLs cannot have auth
         .route(Urls::HealthCheck.as_ref(), get(up))
+        .route(Urls::Logout.as_ref(), get(oidc::logout))
         .nest_service(
             Urls::Static.as_ref(),
             ServeDir::new(

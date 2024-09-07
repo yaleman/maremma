@@ -17,6 +17,7 @@ use tower_sessions::Session;
 /// Logs the user out
 pub async fn logout(session: Session) -> Result<Redirect, (StatusCode, &'static str)> {
     session.clear().await;
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     Ok(Redirect::to(Urls::Index.as_ref()))
 }
 

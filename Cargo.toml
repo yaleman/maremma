@@ -82,7 +82,7 @@ tokio = { version = "1.40.0", features = [
 tokio-rustls = "0.26.0"
 tower = { version = "0.5.0", features = ["util"] }
 tower-http = { version = "0.5.2", features = ["fs"] }
-tower-sessions = "0.13.0"
+tower-sessions = "0.12.3"
 tracing = { version = "0.1.40", features = ["release_max_level_debug"] }
 uuid = { version = "1.10.0", features = ["serde", "v4"] }
 webpki-roots = "0.26.3"
