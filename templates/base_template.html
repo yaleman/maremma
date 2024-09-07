@@ -21,7 +21,7 @@
         </header>
         <div class="navbar navbar-dark bg-dark shadow-sm">
             <div class="container">
-                <a href={{Urls::Index.as_ref()}}
+                <a href={{Urls::Index}}
                     class="navbar-brand d-flex align-items-left">
                     <img src="{{Urls::Static}}/img/maremma-icon.svg"
                         class="navbar-logo" /><div class="hide-on-small"> Maremma{%
@@ -40,7 +40,7 @@
                             class="nav-link text-white">Hosts</a></li>
                     {% if let Some(username) = username %}
                     <li class="nav hide-on-small">
-                        <a href="{{Urls::Profile.as_ref()}}"
+                        <a href="{{Urls::Profile}}"
                             class="nav-link text-white">
                             {{username}}</a></li>
                     <li class="nav">
