@@ -152,6 +152,10 @@ impl IntoResponse for Error {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use askama_axum::IntoResponse;
+    use reqwest::StatusCode;
 
     #[test]
     fn test_error_from_serde_json_error() {
@@ -186,6 +190,45 @@ mod tests {
                 "CronPattern cannot be an empty string.".to_string()
             ),
             crate::errors::Error::from(croner::errors::CronError::EmptyPattern)
+        );
+    }
+
+    #[test]
+    fn error_into_response() {
+        let err = crate::errors::Error::Generic("test".to_string());
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let err = crate::errors::Error::Generic("test".to_string());
+        let (status, _body) = err.into();
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn error_from_kube_error() {
+        let err = kube::Error::LinesCodecMaxLineLengthExceeded;
+        assert_eq!(
+            crate::errors::Error::KubeError(err.to_string()),
+            crate::errors::Error::from(err)
+        );
+    }
+    #[test]
+    fn error_from_kubeconfig_error() {
+        let err = kube::config::KubeconfigError::CurrentContextNotSet;
+        assert_eq!(
+            crate::errors::Error::KubeError(err.to_string()),
+            crate::errors::Error::from(err)
+        );
+    }
+
+    #[test]
+    fn error_from_addrparseerror() {
+        let err = std::net::IpAddr::from_str("Invalid IP address").unwrap_err();
+        assert_eq!(
+            crate::errors::Error::InvalidInput(
+                "invalid IP address: invalid IP address syntax".to_string()
+            ),
+            crate::errors::Error::from(err)
         );
     }
 }
