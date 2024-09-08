@@ -14,6 +14,8 @@ WORKDIR /maremma
 RUN ./scripts/build_plugins.sh
 RUN cd plugins/monitoring-plugins && make install
 
+# MIBS path usr/share/snmp/mibs/
+
 FROM debian:latest AS cargo_builder
 
 # fixing the issue with getting OOMKilled in BuildKit
@@ -52,14 +54,17 @@ RUN cargo build --release --bins
 RUN chmod +x /maremma/target/release/maremma
 
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
-FROM gcr.io/distroless/cc-debian12 AS maremma
+FROM debian:latest AS maremma
 # FROM gcr.io/distroless/cc-debian12:debug AS maremma # so you can run --entrypoint=sh
+
+RUN apt-get update && apt-get install -y \
+    snmp snmpd libsnmp-base \
+    && rm -rf /var/lib/apt/ /var/cache/apt/
 
 COPY --from=cargo_builder /maremma/target/release/maremma /maremma
 COPY --from=cargo_builder /maremma/target/release/check_splunk /usr/local/bin/
 COPY --from=plugin_builder /maremma/plugins/libexec/* /usr/local/bin/
-COPY --from=plugin_builder /usr/bin/snmpget /usr/bin/snmpget
 COPY ./static /static/
-USER nonroot
+# USER nonroot
 ENTRYPOINT ["/maremma"]
 CMD [ "run" ]
