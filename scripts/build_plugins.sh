@@ -2,7 +2,7 @@
 
 set -e
 
-CURRDIR="$(cargo metadata --format-version 1 | jq -r .workspace_root)"
+CURRDIR="$(pwd)"
 
 if [ -z "${PREFIX}" ]; then
     PREFIX="${CURRDIR}/plugins"
@@ -18,7 +18,8 @@ fi
 tar -xvf "monitoring-plugins-${PLUGINS_VERSION}.tar.gz"
 mv "monitoring-plugins-${PLUGINS_VERSION}" monitoring-plugins
 
-cd "${CURRDIR}"
+cd "${CURRDIR}" || exit 1
+
 
 ./scripts/fix_plugins_ioctl.sh
 
@@ -32,6 +33,8 @@ fi
 cd plugins/monitoring-plugins && ./configure \
     --prefix="${PREFIX}" \
     --without-systemd \
+    --with-snmpget="$(which snmpget)" \
+    --with-snmpgetnext="$(which snmpgetnext)" \
     --with-ipv6 \
     $OPENSSL_DIR_STRING \
     && make
