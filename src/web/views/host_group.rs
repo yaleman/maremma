@@ -327,6 +327,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_view_unauthed_host_group_delete() {
+        use super::*;
+        let state = WebState::test().await;
+
+        let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let res = super::host_group_delete(Path(Uuid::new_v4()), State(state.clone()), None).await;
+        dbg!(&res);
+        assert!(res.is_err());
+        let response = res.into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let host_group = host_group::Entity::find()
+            .one(state.db.as_ref())
+            .await
+            .expect("Failed to search for host group")
+            .expect("No host group found");
+        let res = super::host_group_delete(
+            Path(host_group.id),
+            State(state.clone()),
+            Some(test_user_claims()),
+        )
+        .await;
+
+        assert!(res.is_ok());
+        let response = res.into_response();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    }
+
+    #[tokio::test]
     async fn test_view_authed_delete_host_group_member() {
         use super::*;
         let state = WebState::test().await;
