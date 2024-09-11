@@ -82,6 +82,17 @@ impl WebState {
             ..self
         }
     }
+
+    #[cfg(test)]
+    pub fn get_session(&self) -> tower_sessions::Session {
+        let session_store = get_session_store(&self.db);
+
+        tower_sessions::Session::new(None, std::sync::Arc::new(session_store), None)
+    }
+
+    pub fn new_csrf_token(&self) -> String {
+        rand::random::<u64>().to_string()
+    }
 }
 
 // async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {
@@ -327,7 +338,7 @@ pub async fn run_web_server(
     let frontend_url = configuration.read().await.frontend_url.clone();
 
     info!(
-        "Starting web server on {} (listen address is {}",
+        "🐕 Starting web server on {} (listen address is {}) 🐕",
         &frontend_url,
         configuration.read().await.listen_addr()
     );

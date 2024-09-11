@@ -18,6 +18,8 @@ pub enum Error {
     ConnectionFailed,
     /// When the cron pattern is invalid
     CronParseError(String),
+    /// CSRF token validation failed
+    CsrfValidationFailed,
     /// When the date is in the future
     DateIsInTheFuture,
     /// Failed to deserialize a value
@@ -104,6 +106,13 @@ impl From<reqwest::Error> for Error {
 impl From<rustls::Error> for Error {
     fn from(value: rustls::Error) -> Self {
         Self::TlsError(value.to_string())
+    }
+}
+
+#[cfg(not(tarpaulin_include))]
+impl From<tower_sessions::session::Error> for Error {
+    fn from(value: tower_sessions::session::Error) -> Self {
+        Self::Session(value.to_string())
     }
 }
 

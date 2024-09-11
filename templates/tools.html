@@ -12,14 +12,16 @@
     <form method="POST">
         <input type="submit" value="Set all to urgent"
             class="btn btn-warning" />
-        <input type="hidden" name="action" value="set_all_to_urgent" />
+        <input type="hidden" name="action" value={{ FormAction::SetAllToUrgent.as_ref() }} />
+        <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
     </form>
 </p>
 <p>
     <form method="POST">
         <input type="submit" value="Reload System Configuration from File"
             class="btn btn-warning" />
-        <input type="hidden" name="action" value="reload_config" />
+        <input type="hidden" name="action" value={{ FormAction::ReloadConfig.as_ref() }} />
+        <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
     </form>
 </p>
 {% endblock content %}
