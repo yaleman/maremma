@@ -105,12 +105,11 @@ pub(crate) async fn run_service_check(
         db,
     )
     .await
-    .map_err(|err| {
+    .inspect_err(|err| {
         error!(
-            "Failed to set status for service check: {:?}",
-            service_check_id
+            "Failed to set status for service check: {:?} - {:?}",
+            service_check_id, err
         );
-        err
     })?;
 
     if let Err(err) =
