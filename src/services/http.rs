@@ -317,7 +317,7 @@ impl ServiceTrait for HttpService {
             .await
         {
             Ok(val) => self.validate_response(val, config).await?,
-            Err(err) => (err.to_string(), ServiceStatus::Critical),
+            Err(err) => (format!("{:?}", err), ServiceStatus::Critical),
         };
 
         let time_elapsed = chrono::Utc::now() - start_time;
