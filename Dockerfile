@@ -57,6 +57,7 @@ RUN chmod +x /maremma/target/release/maremma
 FROM debian:12-slim AS maremma
 
 RUN apt-get update && apt-get install -y \
+    libssl-dev ca-certificates \
     snmp snmpd libsnmp-base \
     && rm -rf /var/lib/apt/ /var/cache/apt/
 
