@@ -62,11 +62,11 @@ mod tests {
         assert!(test1.is_ok());
         // it'll probably throw an error because we're trying to re-init the logger, but we're in test so it's OK.
         let test2 = setup_logging(true, true);
-        dbg!(&test1);
+        dbg!(&test2);
         assert!(test2.is_ok());
-        // it'll probably throw an error because we're trying to re-init the logger, but we're in test so it's OK.
-        let test2 = setup_logging(true, false);
-        dbg!(&test1);
-        assert!(test2.is_ok());
+
+        let test3 = setup_logging(true, false);
+        dbg!(&test3);
+        assert!(test3.is_ok());
     }
 }
