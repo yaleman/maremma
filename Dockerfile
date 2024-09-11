@@ -1,4 +1,4 @@
-FROM debian:12 as plugin_builder
+FROM debian:12 AS plugin_builder
 
 RUN apt-get update && apt-get install -y \
     curl \
@@ -55,7 +55,6 @@ RUN chmod +x /maremma/target/release/maremma
 
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
 FROM debian:12-slim AS maremma
-# FROM gcr.io/distroless/cc-debian12:debug AS maremma # so you can run --entrypoint=sh
 
 RUN apt-get update && apt-get install -y \
     snmp snmpd libsnmp-base \
