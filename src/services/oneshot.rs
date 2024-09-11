@@ -1,4 +1,4 @@
-//! Implements the one-shot command
+//! Implements the `oneshot` CLI command and its related functions
 
 use crate::cli::OneShotCmd;
 use crate::prelude::*;

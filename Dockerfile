@@ -1,4 +1,22 @@
-FROM debian:latest AS builder
+FROM debian:12 as plugin_builder
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    build-essential \
+    pkg-config \
+    procps \
+    snmp
+
+RUN mkdir /maremma/
+COPY . /maremma/
+WORKDIR /maremma
+RUN ./scripts/build_plugins.sh
+RUN cd plugins/monitoring-plugins && make install
+
+# MIBS path usr/share/snmp/mibs/
+
+FROM debian:12 AS cargo_builder
 
 # fixing the issue with getting OOMKilled in BuildKit
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
@@ -26,24 +44,27 @@ COPY . /maremma/
 
 WORKDIR /maremma
 
-# ENV CARGO_HOME="/cargo"
+RUN ./scripts/copy_linker_config.sh
+
 # ENV SCCACHE_DIR="/sccache"
 # ENV RUSTC_WRAPPER="/usr/bin/sccache"
-# ENV CC="/usr/bin/clang"
+ENV CC="/usr/bin/clang"
 # # do the build bits
 RUN cargo build --release --bins
 RUN chmod +x /maremma/target/release/maremma
 
-RUN cd /maremma && ./scripts/build_plugins.sh && cd plugins/monitoring-plugins && make install
-
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
-FROM gcr.io/distroless/cc-debian12 AS maremma
+FROM debian:12-slim AS maremma
 # FROM gcr.io/distroless/cc-debian12:debug AS maremma # so you can run --entrypoint=sh
 
-COPY --from=builder /maremma/target/release/maremma /maremma
-COPY --from=builder /maremma/target/release/check_splunk /usr/local/bin/
-COPY --from=builder /maremma/plugins/libexec/* /usr/local/bin/
+RUN apt-get update && apt-get install -y \
+    snmp snmpd libsnmp-base \
+    && rm -rf /var/lib/apt/ /var/cache/apt/
+
+COPY --from=cargo_builder /maremma/target/release/maremma /maremma
+COPY --from=cargo_builder /maremma/target/release/check_splunk /usr/local/bin/
+COPY --from=plugin_builder /maremma/plugins/libexec/* /usr/local/bin/
 COPY ./static /static/
-USER nonroot
+# USER nonroot
 ENTRYPOINT ["/maremma"]
 CMD [ "run" ]

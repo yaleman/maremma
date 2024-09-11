@@ -78,6 +78,7 @@ impl ServiceTrait for TlsService {
 
         //  we use our own verifier because we want all the data
         let tls_verifier = Arc::new(TlsCertVerifier);
+        // nosemgrep: rust.lang.security.rustls-dangerous.rustls-dangerous
         client_config
             .dangerous()
             .set_certificate_verifier(tls_verifier);

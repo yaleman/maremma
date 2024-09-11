@@ -20,7 +20,8 @@ pub(crate) use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
 pub(crate) use uuid::Uuid;
 
 pub(crate) use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-pub(crate) use tracing::*;
+pub(crate) use tower_sessions::Session;
+pub(crate) use tracing::{debug, error, info, instrument};
 
 #[derive(Default, Deserialize, Debug, Copy, Clone, EnumIter)]
 #[serde(rename_all = "lowercase")]

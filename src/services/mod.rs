@@ -1,4 +1,12 @@
 //! Service check implementations
+//!
+//! If you're looking to configure them:
+//!
+//! - [cli::CliService]
+//! - [http::HttpService]
+//! - [tls::TlsService]
+//! - [ping::PingService]
+//! - [kubernetes::KubernetesService]
 
 pub mod cli;
 pub mod http;

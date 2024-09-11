@@ -21,3 +21,6 @@ pub(crate) const SESSION_EXPIRY_WINDOW_HOURS: i64 = 8;
 
 /// How many minutes a check will be in "Checking" state before we consider it stuck
 pub const STUCK_CHECK_MINUTES: i64 = 5;
+
+/// Just so we don't typo things
+pub(crate) const SESSION_CSRF_TOKEN: &str = "csrf_token";

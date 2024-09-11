@@ -1,6 +1,7 @@
 use super::prelude::*;
+use crate::constants::SESSION_CSRF_TOKEN;
 use crate::db::update_db_from_config;
-use crate::web::Configuration;
+use crate::web::{Configuration, Error};
 use axum::Form;
 use sea_orm::prelude::Expr;
 use tokio::sync::RwLock;
@@ -19,6 +20,7 @@ pub(crate) struct ToolsTemplate {
     username: Option<String>,
     message: Option<String>,
     status: ActionStatus,
+    csrf_token: String,
 }
 
 #[derive(Deserialize)]
@@ -26,6 +28,24 @@ pub(crate) struct ToolsTemplate {
 pub(crate) enum FormAction {
     SetAllToUrgent,
     ReloadConfig,
+}
+
+impl std::fmt::Display for FormAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FormAction::SetAllToUrgent => write!(f, "Set all to urgent"),
+            FormAction::ReloadConfig => write!(f, "Reload config"),
+        }
+    }
+}
+
+impl AsRef<str> for FormAction {
+    fn as_ref(&self) -> &str {
+        match self {
+            FormAction::SetAllToUrgent => "set_all_to_urgent",
+            FormAction::ReloadConfig => "reload_config",
+        }
+    }
 }
 
 #[derive(Deserialize, Default, Debug)]
@@ -47,9 +67,10 @@ impl std::fmt::Display for ActionStatus {
     }
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 pub(crate) struct ToolsForm {
     action: Option<FormAction>,
+    csrf_token: Option<String>,
 }
 #[derive(Deserialize, Default)]
 pub(crate) struct ToolsQuery {
@@ -59,7 +80,7 @@ pub(crate) struct ToolsQuery {
 }
 
 #[instrument(level = "info", skip_all)]
-async fn tools_reload_config(state: WebState) -> Result<(), Redirect> {
+async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
     info!("Asked to reload config");
 
     let new_config = Configuration::new(&state.config_filepath)
@@ -110,6 +131,7 @@ pub(crate) async fn tools(
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     Query(results): Query<ToolsQuery>,
+    session: Session,
     Form(form): Form<ToolsForm>,
 ) -> Result<ToolsTemplate, impl IntoResponse> {
     if claims.is_none() {
@@ -117,7 +139,32 @@ pub(crate) async fn tools(
         return Err(StatusCode::UNAUTHORIZED.into_response());
     }
 
-    if let Some(action) = form.action {
+    if let (Some(action), Some(csrf_token)) = (&form.action, &form.csrf_token) {
+        // pull the CSRF token from the session store
+        let session_csrf_token = session
+            .get::<String>(SESSION_CSRF_TOKEN)
+            .await
+            .map_err(|err| Error::from(err).into_response())?;
+        if session_csrf_token.is_none() {
+            debug!("CSRF token not found in session");
+            return Err((
+                StatusCode::FORBIDDEN,
+                "CSRF token not found in session".to_string(),
+            )
+                .into_response());
+        }
+        if let Some(token) = &session_csrf_token {
+            if token != csrf_token {
+                debug!(
+                    "CSRF token mismatch: session={} form={}",
+                    &token, csrf_token
+                );
+                return Err(
+                    (StatusCode::FORBIDDEN, "CSRF token mismatch".to_string()).into_response()
+                );
+            }
+        }
+
         match action {
             FormAction::SetAllToUrgent => {
                 info!("Asked to set all to urgent");
@@ -145,18 +192,24 @@ pub(crate) async fn tools(
                 .into_response());
             }
             FormAction::ReloadConfig => {
-                if let Err(err) = tools_reload_config(state).await {
+                if let Err(err) = tools_reload_config(&state).await {
                     return Err(err.into_response());
                 };
             }
         }
     }
+    let csrf_token = state.new_csrf_token();
+    session
+        .insert(SESSION_CSRF_TOKEN, &csrf_token)
+        .await
+        .map_err(|err| Error::from(err).into_response())?;
 
     Ok(ToolsTemplate {
         title: "Tools".to_string(),
         username: claims.map(|c: OidcClaims<EmptyAdditionalClaims>| User::from(c).username()),
         message: results.result,
         status: results.status,
+        csrf_token,
     })
 }
 
@@ -193,7 +246,11 @@ mod tests {
             State(state.clone()),
             None,
             Query(ToolsQuery::default()),
-            Form(ToolsForm::default()),
+            state.get_session(),
+            Form(ToolsForm {
+                action: None,
+                csrf_token: None,
+            }),
         )
         .await;
 
@@ -206,11 +263,22 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
+        let csrf_token = "foo".to_string();
+        let session = state.get_session();
+        session
+            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
+            .await
+            .expect("Failed to insert CSRF token into session");
+
         let res = super::tools(
             State(state.clone()),
             Some(test_user_claims()),
             Query(ToolsQuery::default()),
-            Form(ToolsForm::default()),
+            session.clone(),
+            Form(ToolsForm {
+                action: None,
+                csrf_token: None,
+            }),
         )
         .await;
 
@@ -219,19 +287,31 @@ mod tests {
     #[tokio::test]
     async fn test_tools_auth_setallurgent() {
         use super::*;
+        let _ = test_setup().await.expect("Failed to start test harness");
         let state = WebState::test().await;
+
+        let csrf_token = "foo".to_string();
+        let session = state.get_session();
+        session
+            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
+            .await
+            .expect("Failed to insert CSRF token into session");
 
         let res = super::tools(
             State(state.clone()),
             Some(test_user_claims()),
             Query(ToolsQuery::default()),
+            session,
             Form(ToolsForm {
                 action: Some(FormAction::SetAllToUrgent),
+                csrf_token: Some(csrf_token),
             }),
         )
-        .await;
+        .await
+        .into_response();
 
-        assert_eq!(res.into_response().status(), StatusCode::SEE_OTHER)
+        dbg!(&res);
+        assert_eq!(res.status(), StatusCode::SEE_OTHER)
     }
 
     #[test]
@@ -248,7 +328,7 @@ mod tests {
         use super::*;
 
         let state = WebState::test().await;
-        let res = tools_reload_config(state.clone()).await;
+        let res = tools_reload_config(&state).await;
         assert!(res.is_err());
         dbg!(&res);
 
@@ -280,7 +360,7 @@ mod tests {
             .expect("Failed to write a byte to the tempfile");
         state.config_filepath = tempfile.path().to_path_buf();
 
-        let res = tools_reload_config(state.clone()).await;
+        let res = tools_reload_config(&state).await;
         if let Err(err) = res {
             let err = err.into_response();
             assert_eq!(err.status(), StatusCode::SEE_OTHER);
@@ -306,7 +386,7 @@ mod tests {
         state.config_filepath =
             PathBuf::from_str("maremma.example.json").expect("failed to pathbuf test config");
 
-        let res = tools_reload_config(state.clone()).await;
+        let res = tools_reload_config(&state).await;
         if let Err(err) = res {
             let err = err.into_response();
             assert_eq!(err.status(), StatusCode::SEE_OTHER);
