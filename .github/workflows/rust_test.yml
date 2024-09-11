@@ -42,7 +42,7 @@ jobs:
       - name: "Cargo coverage"
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin --coveralls ${{ secrets.COVERALLS_REPO_TOKEN }}
+          cargo tarpaulin --coveralls "${{ secrets.COVERALLS_REPO_TOKEN }}"
   cargo_test:
     runs-on: ubuntu-latest
     steps:
