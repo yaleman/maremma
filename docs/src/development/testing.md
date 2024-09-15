@@ -11,5 +11,7 @@ Here's the (as of 2024-08-31) envs:
 - MAREMMA_TEST_SSH_HOST
 - MAREMMA_TEST_SSH_KEY
 - MAREMMA_TEST_SSH_USERNAME
+- MAREMMA_TEST_PUSHOVER_TOKEN
+- MAREMMA_TEST_PUSHOVER_USER
 
 You need docker-or-some-docker-compatible thing running, it'll run Nginx using [testcontainers](https://crates.io/crates/testcontainers) to test TLS checks.
