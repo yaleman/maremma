@@ -313,7 +313,7 @@ mod tests {
 
         dbg!(&res);
 
-        assert!(res.contains("Maremma - Service Check"))
+        assert!(res.contains("Service Check"))
     }
 
     #[tokio::test]

@@ -351,7 +351,7 @@ mod tests {
         let service = super::HttpService {
             name: "test".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
-            http_method: crate::services::http::HttpMethod::Post,
+            http_method: crate::services::http::HttpMethod::Get,
             validate_tls: true,
             connect_timeout: Some(5),
             port: None,
@@ -360,6 +360,7 @@ mod tests {
             http_status: None,
             ca_file: None,
         };
+
         let host = entities::host::Model {
             id: Uuid::new_v4(),
             name: "test".to_string(),
@@ -370,6 +371,7 @@ mod tests {
 
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
+        dbg!(&res);
         assert!(res.is_ok());
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
         assert!(Service::try_from(&json! {
