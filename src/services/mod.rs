@@ -85,32 +85,6 @@ impl PartialOrd for ServiceStatus {
     }
 }
 
-#[test]
-fn test_servicestatus_order() {
-    use sea_orm::Iterable;
-    let foo: i8 = ServiceStatus::Ok.into();
-    assert_eq!(foo, 16);
-
-    let mut servicestatus_list = ServiceStatus::iter().collect::<Vec<ServiceStatus>>();
-    servicestatus_list.sort();
-    servicestatus_list.reverse();
-
-    assert_eq!(
-        servicestatus_list,
-        vec![
-            ServiceStatus::Critical,
-            ServiceStatus::Error,
-            ServiceStatus::Urgent,
-            ServiceStatus::Checking,
-            ServiceStatus::Warning,
-            ServiceStatus::Ok,
-            ServiceStatus::Pending,
-            ServiceStatus::Disabled,
-            ServiceStatus::Unknown,
-        ]
-    );
-}
-
 impl Display for ServiceStatus {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
@@ -487,6 +461,7 @@ mod tests {
     #[test]
     fn test_servicestatus_display() {
         for status in ServiceStatus::iter() {
+            println!("{}", status);
             assert_eq!(
                 format!("{}", status),
                 format!("{:?}", status)
@@ -675,6 +650,32 @@ mod tests {
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
             Cron::new("@hourly").parse().unwrap().pattern.to_string()
+        );
+    }
+
+    #[test]
+    fn test_servicestatus_order() {
+        use sea_orm::Iterable;
+        let foo: i8 = ServiceStatus::Ok.into();
+        assert_eq!(foo, 16);
+
+        let mut servicestatus_list = ServiceStatus::iter().collect::<Vec<ServiceStatus>>();
+        servicestatus_list.sort();
+        servicestatus_list.reverse();
+
+        assert_eq!(
+            servicestatus_list,
+            vec![
+                ServiceStatus::Critical,
+                ServiceStatus::Error,
+                ServiceStatus::Urgent,
+                ServiceStatus::Checking,
+                ServiceStatus::Warning,
+                ServiceStatus::Ok,
+                ServiceStatus::Pending,
+                ServiceStatus::Disabled,
+                ServiceStatus::Unknown,
+            ]
         );
     }
 }
