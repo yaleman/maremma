@@ -25,9 +25,8 @@
                 <a href={{Urls::Index}}
                     class="navbar-brand d-flex align-items-left">
                     <img src="{{Urls::Static}}/img/maremma-icon.svg"
-                        class="navbar-logo" /><div class="hide-on-small"> Maremma{%
-                    if !title.is_empty() %} - {% endif %}{{
-                    title }}</a></div>
+                        class="navbar-logo" /><div class="hide-on-small">
+                            {% if !title.is_empty() %}{{ title }}{% else %}Maremma{% endif %}</a></div>
                 <ul
                     class="nav col-11 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
 

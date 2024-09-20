@@ -133,7 +133,7 @@ pub(crate) async fn service_check_get(
     });
 
     Ok(ServiceCheckTemplate {
-        title: format!("Service Check: {}", service_check.id),
+        title: format!("Service Check: {}", &service.name),
         username: Some(user.username()),
         message: None,
         status: "".to_string(),
@@ -313,7 +313,7 @@ mod tests {
 
         dbg!(&res);
 
-        assert!(res.contains("Maremma - Service Check"))
+        assert!(res.contains("Service Check"))
     }
 
     #[tokio::test]

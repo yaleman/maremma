@@ -1,0 +1,61 @@
+# Same as '--quiet'
+# Default is false
+quiet: false
+
+# Same as '--debug'
+# Default is false
+debug: false
+
+# Same as '--insecure'
+# Default is false
+insecure: false
+
+# Same as '--timeout'
+# Default is '5m'
+timeout: 10m
+
+# Same as '--format'
+# Default is 'table'
+format: table
+
+# Same as '--report' (available with 'trivy k8s')
+# Default is all
+report: all
+
+# Same as '--template'
+# Default is empty
+template:
+
+# Same as '--dependency-tree'
+# Default is false
+dependency-tree: false
+
+# Same as '--list-all-pkgs'
+# Default is false
+list-all-pkgs: false
+
+# Same as '--ignore-policy'
+# Default is empty
+ignore-policy:
+
+# Same as '--exit-code'
+# Default is 0
+exit-code: 0
+
+# Same as '--exit-on-eol'
+# Default is 0
+exit-on-eol: 0
+
+# Same as '--output'
+# Default is empty (stdout)
+output:
+
+# Same as '--severity'
+# Default is all severities
+severity:
+  - MEDIUM
+  - HIGH
+  - CRITICAL
+
+skip_dirs:
+  - target/doc/*

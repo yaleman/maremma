@@ -17,6 +17,7 @@
 #![deny(clippy::unwrap_used)]
 #![forbid(unsafe_code)]
 
+pub mod actions;
 pub mod check_loop;
 pub mod cli;
 pub mod config;

@@ -123,3 +123,11 @@ doc_fix:
 	find . -type f  -not -path './target/*' -not -path '*/.venv/*' -not -path './vendor/*'\
 		-name \*.md \
 		-exec deno fmt --options-line-width=100 "{}" +
+
+# Run trivy on the image
+trivy_image:
+    trivy image ghcr.io/yaleman/maremma:latest --scanners misconfig,vuln,secret
+
+# Run trivy on the repo
+trivy_repo:
+    trivy repo $(pwd) --skip-dirs 'target/**' --skip-files .envrc -d

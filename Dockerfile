@@ -56,8 +56,8 @@ RUN chmod +x /maremma/target/release/maremma
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
 FROM debian:12-slim AS maremma
 
-RUN apt-get update && apt-get install -y \
-    libssl-dev ca-certificates \
+RUN apt-get update && apt-get upgrade && apt-get install -y \
+    ca-certificates \
     snmp snmpd libsnmp-base \
     && rm -rf /var/lib/apt/ /var/cache/apt/
 

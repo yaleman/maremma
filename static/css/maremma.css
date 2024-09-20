@@ -76,3 +76,10 @@ form.buttonform {
         padding-inline-start: 0;
     }
   }
+
+pre.configblock {
+    border:rgb(55, 0, 97) 1px solid;
+    margin-top: 0.5em;
+    padding: 0.5em;
+    box-shadow: 0.1em 0.1em 0.5em rgb(109, 74, 135);
+}

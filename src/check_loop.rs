@@ -163,11 +163,13 @@ pub async fn run_check_loop(
                             run_service_check(&db_clone, &service_check, service).await
                         {
                             error!("Failed to run service check: {:?}", err);
-                            let mut am = service_check.into_active_model();
-                            am.status.set_if_not_equals(ServiceStatus::Error);
-                            am.last_updated.set_if_not_equals(chrono::Utc::now());
+                            let mut service_check = service_check.into_active_model();
+                            service_check.status.set_if_not_equals(ServiceStatus::Error);
+                            service_check
+                                .last_updated
+                                .set_if_not_equals(chrono::Utc::now());
 
-                            if let Err(err) = am.update(db_clone.as_ref()).await {
+                            if let Err(err) = service_check.update(db_clone.as_ref()).await {
                                 error!(
                                     "Failed to update service service_check {} check status to error: {:?}",
                                     sc_id, err
@@ -182,7 +184,10 @@ pub async fn run_check_loop(
                             checks_run_since_startup_clone.add(
                                 1,
                                 &[
-                                    KeyValue::new("result", "success"),
+                                    KeyValue::new(
+                                        "result",
+                                        ToString::to_string(&ServiceStatus::Ok),
+                                    ),
                                     KeyValue::new("id", sc_id),
                                 ],
                             );
