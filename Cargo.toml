@@ -42,7 +42,11 @@ opentelemetry_sdk = { version = "0.24.1", features = [
 ] }
 prometheus = "0.13.4"
 rand = "0.8.5"
-reqwest = { version = "0.12.7", features = ["http2", "json"] }
+reqwest = { version = "0.12.7", features = [
+  "http2",
+  "json",
+  "rustls-tls",
+], default-features = false }
 rustls = { version = "0.23.12", features = ["zlib"] }
 schemars = { version = "0.8.21", features = [
   "uuid1",
@@ -92,6 +96,6 @@ x509-parser = "0.16.0"
 rand = "0.8.5"
 
 openidconnect = { version = "3.5.0", default-features = false }
-openssl = "0.10.66"
+openssl = { version = "0.10.66" }
 tempfile = "3.12.0"
 testcontainers = { version = "0.22.0" }
