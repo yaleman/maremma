@@ -2,7 +2,6 @@ FROM debian:12 AS plugin_builder
 
 RUN apt-get update && apt-get install -y \
     curl \
-    jq \
     build-essential \
     pkg-config \
     procps \
@@ -27,11 +26,8 @@ RUN apt-get update && apt-get install -y \
     sccache \
     curl \
     git \
-    jq \
     clang \
     build-essential \
-    pkg-config \
-    libssl-dev \
     procps \
     mold
 
