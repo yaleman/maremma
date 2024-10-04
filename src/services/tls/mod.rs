@@ -64,7 +64,10 @@ impl ConfigOverlay for TlsService {
 
 #[async_trait]
 impl ServiceTrait for TlsService {
-    #[instrument(level = "debug")]
+    #[instrument(level = "debug", skip(self), fields(name=self.name, cron=self.cron_schedule.pattern.to_string(),port=self.port,
+    expiry_critical=self.expiry_critical,
+    expiry_warn=self.expiry_warn,
+    timeout=self.timeout))]
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
 
@@ -132,7 +135,7 @@ impl ServiceTrait for TlsService {
 
         let result: TlsPeerState = match connector.connect(dnsname, stream).await {
             Ok(_val) => return Err(Error::Generic(
-                "Something went hinky in the TLS check parser, it should always return an 'error'!"
+                "Something went hinky in the TLS check parser, it should always return an 'Error'!"
                     .to_string(),
             )),
 
@@ -153,7 +156,6 @@ impl ServiceTrait for TlsService {
         let mut status = ServiceStatus::Ok;
         let mut result_strings = Vec::new();
 
-        dbg!(&self);
         let expiry_critical_seconds =
             self.expiry_critical.unwrap_or(DEFAULT_CRITICAL_DAYS) as i64 * 86400;
         let expiry_warn_seconds = self.expiry_warn.unwrap_or(DEFAULT_WARNING_DAYS) as i64 * 86400;
@@ -239,6 +241,7 @@ impl TlsPeerState {
     pub fn set_intermediate_expired(&mut self) {
         self.intermediate_expired = true;
     }
+    #[allow(dead_code)] // because the verify function is busted
     pub fn set_intermediate_untrusted(&mut self) {
         self.intermediate_untrusted = true;
     }

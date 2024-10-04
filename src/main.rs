@@ -23,6 +23,8 @@ async fn main() -> Result<(), ExitCode> {
         return Err(ExitCode::from(1));
     };
 
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     if let Actions::ExportConfigSchema = cli.action {
         let schema = schemars::schema_for!(Configuration);
         println!("{}", serde_json::to_string_pretty(&schema).unwrap());
