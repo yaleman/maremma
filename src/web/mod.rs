@@ -342,7 +342,6 @@ pub async fn run_web_server(
         &frontend_url,
         configuration.read().await.listen_addr()
     );
-    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     loop {
         tokio::select! {

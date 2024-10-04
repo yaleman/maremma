@@ -1,16 +1,16 @@
 use super::TlsPeerState;
 use crate::prelude::*;
-use rustls::client::{verify_server_cert_signed_by_trust_anchor, verify_server_name};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::client::verify_server_name;
+use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::server::ParsedCertificate;
-use rustls::{RootCertStore, SignatureScheme};
+use rustls::SignatureScheme;
 use x509_parser::parse_x509_certificate;
 
 #[derive(Debug, Default)]
 pub(crate) struct TlsCertVerifier;
 
 impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
-    #[instrument(level = "debug", skip_all, fields(server_name))]
+    #[instrument(level = "debug", skip_all, fields(server_name=server_name.to_str().to_string()))]
     /// This is ALWAYS going to throw a [rustls::Error] error, because we don't have a way to pass state back out
     fn verify_server_cert(
         &self,
@@ -39,32 +39,36 @@ impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
 
         tls_peer_state.cert_name_matches = verify_server_name(&parsed_cert, server_name).is_ok();
 
-        let root_store = RootCertStore {
-            roots: webpki_roots::TLS_SERVER_ROOTS.into(),
-        };
+        // let root_store = rustls::RootCertStore {
+        //     roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+        // };
 
         for intermediate in intermediates {
-            if let Ok(parsed_intermediate) = ParsedCertificate::try_from(intermediate) {
-                if verify_server_cert_signed_by_trust_anchor(
-                    &parsed_intermediate,
-                    &root_store,
-                    &[],
-                    UnixTime::now(),
-                    &[],
-                )
-                .is_err()
-                {
-                    tls_peer_state.set_intermediate_untrusted();
-                    debug!("Intermediate is untrusted");
-                }
-            }
+            // TODO: for some reason this won't work with letsencrypt certs and I can't work out why :'(
+            // if let Ok(parsed_intermediate) = ParsedCertificate::try_from(intermediate) {
+            //     let remaining_intermediates: Vec<_> =
+            //         intermediates.iter().skip(index).cloned().collect();
+            //     debug!("Remaining intermediates {:?}", remaining_intermediates);
+            //     if verify_server_cert_signed_by_trust_anchor(
+            //         &parsed_intermediate,
+            //         &root_store,
+            //         &remaining_intermediates,
+            //         now,
+            //         webpki::ALL_VERIFICATION_ALGS,
+            //     )
+            //     .is_err()
+            //     {
+            //         tls_peer_state.set_intermediate_untrusted();
+            //         debug!("Intermediate at index {} is untrusted", index);
+            //     } else {
+            //         debug!("Intermediate at index {} is trusted", index);
+            //     }
+            // }
 
             if let Ok((_, cert)) = parse_x509_certificate(intermediate.as_ref()) {
                 if !cert.validity.is_valid() {
                     tls_peer_state.set_intermediate_expired();
                 }
-
-                // TODO: match cert signing algo
             }
         }
 
