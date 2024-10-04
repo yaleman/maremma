@@ -18,7 +18,7 @@ impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
         intermediates: &[CertificateDer<'_>],
         server_name: &ServerName<'_>,
         _ocsp_response: &[u8],
-        _now: rustls::pki_types::UnixTime,
+        now: rustls::pki_types::UnixTime,
     ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
         // parse the end cert
         let (_, cert) = parse_x509_certificate(end_entity.as_ref()).map_err(|err| {
@@ -39,19 +39,18 @@ impl rustls::client::danger::ServerCertVerifier for TlsCertVerifier {
 
         tls_peer_state.cert_name_matches = verify_server_name(&parsed_cert, server_name).is_ok();
 
-        // let root_store = rustls::RootCertStore {
-        //     roots: webpki_roots::TLS_SERVER_ROOTS.into(),
-        // };
-
-        for intermediate in intermediates {
+        for (index, intermediate) in intermediates.iter().enumerate() {
             // TODO: for some reason this won't work with letsencrypt certs and I can't work out why :'(
+            debug!("Checking intermediate at index {} at {:?}", index, now);
             // if let Ok(parsed_intermediate) = ParsedCertificate::try_from(intermediate) {
             //     let remaining_intermediates: Vec<_> =
             //         intermediates.iter().skip(index).cloned().collect();
             //     debug!("Remaining intermediates {:?}", remaining_intermediates);
-            //     if verify_server_cert_signed_by_trust_anchor(
+            //     if rustls::client::verify_server_cert_signed_by_trust_anchor(
             //         &parsed_intermediate,
-            //         &root_store,
+            //         &rustls::RootCertStore {
+            //             roots: webpki_roots::TLS_SERVER_ROOTS.into(),
+            //         },
             //         &remaining_intermediates,
             //         now,
             //         webpki::ALL_VERIFICATION_ALGS,
