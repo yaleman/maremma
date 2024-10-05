@@ -51,6 +51,9 @@ pub struct SshService {
 
     /// Connection timeout (seconds), not runtime-timeout
     pub timeout: Option<u32>,
+
+    /// Add random jitter in 0..n seconds to the check
+    pub jitter: Option<u16>,
 }
 
 impl Default for SshService {
@@ -68,6 +71,7 @@ impl Default for SshService {
             exit_code: None,
             password: None,
             timeout: None,
+            jitter: None,
         }
     }
 }
@@ -88,6 +92,7 @@ impl ConfigOverlay for SshService {
             password: self.extract_value(value, "password", &self.password)?,
             exit_code: self.extract_value(value, "exit_code", &self.exit_code)?,
             timeout: self.extract_value(value, "timeout", &self.timeout)?,
+            jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
     }
 }
@@ -185,6 +190,10 @@ impl ServiceTrait for SshService {
     fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
+    }
+
+    fn jitter_value(&self) -> u32 {
+        self.jitter.unwrap_or(0) as u32
     }
 }
 

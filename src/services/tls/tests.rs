@@ -35,6 +35,7 @@ async fn test_working_tls_service() {
         expiry_critical: Some(0),
         expiry_warn: Some(3),
         timeout: None,
+        jitter: None,
     };
     let host: entities::host::Model = entities::host::Model {
         check: crate::host::HostCheck::None,
@@ -79,6 +80,7 @@ async fn test_expired_tls_service() {
         expiry_critical: Some(30),
         expiry_warn: Some(60),
         timeout: None,
+        jitter: None,
     };
     let host = entities::host::Model {
         name: "localhost".to_string(),
@@ -316,6 +318,7 @@ async fn test_service_parser() {
             expiry_critical: Some(1),
             expiry_warn: Some(7),
             timeout: Some(5),
+            jitter: None,
         })),
     };
     let _ = service.parse_config().expect("Failed to parse config!");
@@ -350,6 +353,7 @@ fn test_failed_service_parser() {
             expiry_critical: Some(1),
             expiry_warn: Some(7),
             timeout: Some(5),
+            jitter: None,
         })),
     };
     assert!(service.parse_config().is_err());

@@ -152,6 +152,9 @@ pub trait ServiceTrait: Debug + Sync + Send {
 
     /// Render this as JSON
     fn as_json_pretty(&self, _host: &entities::host::Model) -> Result<String, Error>;
+
+    /// Get the jitter value (in seconds) of a service
+    fn jitter_value(&self) -> u32;
 }
 
 /// Allows you to overlay host-specific content for services

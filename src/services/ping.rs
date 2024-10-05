@@ -14,6 +14,9 @@ pub struct PingService {
     /// The cron schedule for this service
     #[schemars(with = "String")]
     pub cron_schedule: Cron,
+
+    /// Add random jitter in 0..n seconds to the check
+    pub jitter: Option<u16>,
 }
 
 impl ConfigOverlay for PingService {
@@ -21,6 +24,7 @@ impl ConfigOverlay for PingService {
         Ok(Box::new(Self {
             name: self.extract_string(value, "name", &self.name),
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
+            jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
     }
 }
@@ -56,6 +60,10 @@ impl ServiceTrait for PingService {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }
+
+    fn jitter_value(&self) -> u32 {
+        self.jitter.unwrap_or(0) as u32
+    }
 }
 
 #[cfg(test)]
@@ -70,6 +78,7 @@ mod tests {
         let test_service = super::PingService {
             name: "test".to_string(),
             cron_schedule: Cron::new("* * * * *").parse().unwrap(),
+            jitter: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),

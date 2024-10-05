@@ -24,6 +24,8 @@ pub struct CliService {
     #[schemars(with = "String")]
     /// Cron schedule for the service
     pub cron_schedule: Cron,
+    /// Add random jitter in 0..n seconds to the check
+    pub jitter: Option<u16>,
 }
 
 impl ConfigOverlay for CliService {
@@ -32,14 +34,14 @@ impl ConfigOverlay for CliService {
         let hostname = self.extract_value(value, "hostname", &self.hostname)?;
         let name = self.extract_string(value, "name", &self.name);
         let command_line = self.extract_string(value, "command_line", &self.command_line);
-        let run_in_shell = self.extract_bool(value, "run_in_shell", self.run_in_shell);
 
         Ok(Box::new(Self {
             name,
             hostname,
             cron_schedule,
             command_line,
-            run_in_shell,
+            run_in_shell: self.extract_bool(value, "run_in_shell", self.run_in_shell),
+            jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
     }
 }
@@ -119,6 +121,10 @@ impl ServiceTrait for CliService {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }
+
+    fn jitter_value(&self) -> u32 {
+        self.jitter.unwrap_or(0) as u32
+    }
 }
 
 #[cfg(test)]
@@ -135,6 +141,7 @@ mod tests {
             command_line: "ls -lah .".to_string(),
             run_in_shell: false,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            jitter: None,
         };
         let host = entities::host::Model {
             check: crate::host::HostCheck::None,

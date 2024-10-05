@@ -28,6 +28,8 @@ pub const DEFAULT_WARNING_DAYS: u16 = 1;
 /// For when you want to check TLS things like certificate expiries etc
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 pub struct TlsService {
+    // TODO: CA cert
+    // TODO: sni/hostname to check
     /// Name of the service
     pub name: String,
     #[serde(with = "crate::serde::cron")]
@@ -45,8 +47,9 @@ pub struct TlsService {
 
     /// Defaults to 10 seconds
     pub timeout: Option<u16>,
-    // TODO: CA cert
-    // TODO: sni/hostname to check
+
+    /// Add random jitter in 0..n seconds to the check
+    pub jitter: Option<u16>,
 }
 
 impl ConfigOverlay for TlsService {
@@ -58,6 +61,7 @@ impl ConfigOverlay for TlsService {
             expiry_critical: self.extract_value(value, "expiry_critical", &self.expiry_critical)?,
             expiry_warn: self.extract_value(value, "expiry_warn", &self.expiry_warn)?,
             timeout: self.extract_value(value, "timeout", &self.timeout)?,
+            jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
     }
 }
@@ -216,6 +220,10 @@ impl ServiceTrait for TlsService {
     fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
+    }
+
+    fn jitter_value(&self) -> u32 {
+        self.jitter.unwrap_or(0) as u32
     }
 }
 
