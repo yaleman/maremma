@@ -119,6 +119,8 @@ pub struct HttpService {
 
     /// CA cert file to use
     pub ca_file: Option<PathBuf>,
+    /// Add random jitter in 0..n seconds to the check
+    pub jitter: Option<u16>,
 }
 
 impl HttpService {
@@ -195,6 +197,7 @@ async fn test_overlay_host_config() {
         port: None,
         contains_string: None,
         ca_file: None,
+        jitter: None,
     };
     let mut value = Map::new();
     value.insert("port".to_string(), 12345.into());
@@ -248,6 +251,7 @@ impl ConfigOverlay for HttpService {
             port: self.extract_value(value, "port", &self.port)?,
             contains_string: self.extract_value(value, "contains_string", &self.contains_string)?,
             ca_file: self.extract_value(value, "ca_file", &self.ca_file)?,
+            jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
     }
 }
@@ -334,6 +338,10 @@ impl ServiceTrait for HttpService {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }
+
+    fn jitter_value(&self) -> u32 {
+        self.jitter.unwrap_or(0) as u32
+    }
 }
 
 #[cfg(test)]
@@ -359,6 +367,7 @@ mod tests {
             contains_string: None,
             http_status: None,
             ca_file: None,
+            jitter: None,
         };
 
         let host = entities::host::Model {
@@ -407,6 +416,7 @@ mod tests {
             port: Some(NonZeroU16::new(test_container.tls_port).expect("Failed to parse port")),
             contains_string: Some("Welcome to nginx!".to_string()),
             ca_file: Some(PathBuf::from(certs.ca_file.as_ref())),
+            jitter: None,
         };
         let mut host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -454,6 +464,7 @@ mod tests {
             port: None,
             contains_string: None,
             ca_file: None,
+            jitter: None,
         };
         let mut host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -510,6 +521,7 @@ mod tests {
             port: NonZeroU16::new(test_container.tls_port),
             contains_string: None,
             ca_file: None,
+            jitter: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -546,6 +558,7 @@ mod tests {
             port: NonZeroU16::new(test_container.tls_port),
             contains_string: None,
             ca_file: None,
+            jitter: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -574,6 +587,7 @@ mod tests {
             port: None,
             contains_string: None,
             ca_file: None,
+            jitter: None,
         };
 
         let host = entities::host::Model {
@@ -674,6 +688,7 @@ mod tests {
             port: None,
             contains_string: None,
             ca_file: None,
+            jitter: None,
         };
 
         let client_config = Box::new(service.clone());

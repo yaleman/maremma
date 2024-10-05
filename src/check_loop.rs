@@ -91,6 +91,7 @@ pub(crate) async fn run_service_check(
             result_text: format!("Error: {:?}", err),
         },
     };
+    let jitter = config.jitter_value();
     debug!(
         "done service_check={:?} result={:?}",
         service_check, result.status
@@ -103,6 +104,7 @@ pub(crate) async fn run_service_check(
         chrono::Utc::now(),
         result.status,
         db,
+        jitter,
     )
     .await
     .inspect_err(|err| {

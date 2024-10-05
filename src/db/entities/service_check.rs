@@ -1,8 +1,8 @@
+use crate::prelude::*;
 use entities::host::test_host;
 use entities::host_group;
+use rand::seq::IteratorRandom;
 use sea_orm::{FromQueryResult, JoinType, QuerySelect, Set, TryIntoModel};
-
-use crate::prelude::*;
 
 use super::{host, host_group_members, service, service_check_history, service_group_link};
 
@@ -96,17 +96,23 @@ pub async fn set_check_result(
     last_check: chrono::DateTime<chrono::Utc>,
     status: ServiceStatus,
     db: &DatabaseConnection,
+    jitter: u32,
 ) -> Result<(), Error> {
     let mut model = model.into_active_model();
     model.last_check.set_if_not_equals(last_check);
     model.status.set_if_not_equals(status);
+
+    // get a number between 0 and jitter
+    let jitter: i64 = (0..jitter).choose(&mut rand::thread_rng()).unwrap_or(0) as i64;
+
     let next_check = Cron::new(&service.cron_schedule)
         .parse()?
-        .find_next_occurrence(&chrono::Utc::now(), false)?;
+        .find_next_occurrence(&chrono::Utc::now(), false)?
+        + chrono::Duration::seconds(jitter);
     model.next_check.set_if_not_equals(next_check);
 
     if model.is_changed() {
-        debug!("saving {:?}", model);
+        debug!("Saving {:?}", model);
         model.save(db).await.map_err(|err| {
             error!("{} error saving {:?}", service.id.hyphenated(), err);
             Error::from(err)

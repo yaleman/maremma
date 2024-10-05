@@ -16,6 +16,8 @@ pub struct KubernetesService {
     /// The cron schedule for this service
     #[schemars(with = "String")]
     pub cron_schedule: Cron,
+    /// Add random jitter in 0..n seconds to the check
+    pub jitter: Option<u16>,
 }
 
 impl ConfigOverlay for KubernetesService {
@@ -27,6 +29,7 @@ impl ConfigOverlay for KubernetesService {
             name,
             cron_schedule,
             host: self.extract_value(value, "host", &self.host)?,
+            jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
     }
 }
@@ -67,6 +70,10 @@ impl ServiceTrait for KubernetesService {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }
+
+    fn jitter_value(&self) -> u32 {
+        self.jitter.unwrap_or(0) as u32
+    }
 }
 
 #[cfg(test)]
@@ -105,6 +112,7 @@ mod tests {
             name: "kubernetes".to_string(),
             host,
             cron_schedule: Cron::new("0 0 * * *").parse().unwrap(),
+            jitter: None,
         };
 
         let result = service
