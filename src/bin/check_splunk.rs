@@ -66,6 +66,15 @@ struct SplunkField {
     pub name: String,
 }
 
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+/// Search messages
+struct SearchMessage {
+    #[serde(alias = "type")]
+    type_: String,
+    text: String,
+}
+
 #[cfg(not(tarpaulin_include))]
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
@@ -78,7 +87,7 @@ struct SearchResult {
     #[serde(default)]
     pub init_offset: Option<u64>,
     #[serde(default)]
-    pub messages: Vec<String>,
+    pub messages: Vec<SearchMessage>,
     #[serde(default)]
     pub fields: Vec<SplunkField>,
     #[serde(default)]
@@ -283,4 +292,18 @@ async fn main() -> Result<(), String> {
         args.host, count, sourcetype_log, time_message
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_searchmessage() {
+        let input = r#"{"messages":[{"type":"WARN","text":"Search not executed: The maximum number of concurrent historical searches on this instance has been reached., concurrency_category=\"historical\", concurrency_context=\"instance-wide\", current_concurrency=10, concurrency_limit=10","help":""}]}"#;
+
+        let result: SearchResult =
+            serde_json::from_str(input).expect("Failed to deserialize messages");
+        assert_eq!(result.messages.len(), 1);
+    }
 }
