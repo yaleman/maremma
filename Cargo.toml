@@ -32,7 +32,9 @@ kube = { version = "0.95.0", features = ["config"] }
 k8s-openapi = { version = "0.23.0", features = ["latest"] }
 num_cpus = "1.16.0"
 opentelemetry = "0.26.0"
-opentelemetry-prometheus = "0.17.0"
+opentelemetry-prometheus = { git = "https://github.com/yaleman/opentelemetry-rust.git", branch = "prom-0.26" }
+
+# opentelemetry-prometheus = "0.17.0"
 opentelemetry-stdout = "0.26.0"
 opentelemetry_sdk = { version = "0.26.0", features = [
   "rt-tokio",
