@@ -81,7 +81,13 @@ impl TestContainer {
             ))
             .start()
             .await
-            .expect("Failed to start container!");
+            .map_err(|err| {
+                panic!(
+                    "Failed to start container is docker running? Error:\n{:?}",
+                    err
+                );
+            })
+            .expect("Failed!");
         let ports = handle_err_or_shutdown_container(&container, container.ports().await).await;
         let tls_port = match ports.map_to_host_port_ipv4(443) {
             Some(port) => port,
