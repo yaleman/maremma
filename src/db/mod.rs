@@ -22,18 +22,20 @@ pub async fn test_connect() -> Result<DatabaseConnection, sea_orm::error::DbErr>
     connect(config).await
 }
 
-#[instrument(level = "info", skip_all)]
-pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
+pub async fn get_connect_string(config: SendableConfig) -> String {
     let database_file = config.read().await.database_file.clone();
 
-    let connect_string = if database_file == ":memory:" {
+    if database_file == ":memory:" {
         info!("Using in-memory database!");
         "sqlite::memory:".to_string()
     } else {
         format!("sqlite://{}?mode=rwc", database_file)
-    };
+    }
+}
 
-    let db = Database::connect(connect_string).await?;
+#[instrument(level = "info", skip_all)]
+pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
+    let db = Database::connect(get_connect_string(config).await).await?;
     // start a transaction so if it doesn't work, we can roll back.
     let db_transaction = db.begin().await?;
     Migrator::up(&db_transaction, None).await?;

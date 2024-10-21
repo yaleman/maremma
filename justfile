@@ -51,6 +51,15 @@ book:
 run:
     cargo run run
 
+# Run in docker
+run_docker:
+    docker run -it --rm \
+        -p 8888:8888 \
+        --init \
+        --mount "type=bind,source=$(pwd)/maremma.json,target=/maremma.json" \
+        --mount "type=bind,source=$(pwd)/,target=/data/" \
+        --mount "type=bind,source=$CERTDIR,target=/certs/" \
+        ghcr.io/yaleman/maremma:latest
 
 # Run all the checks
 check: codespell clippy test doc_check

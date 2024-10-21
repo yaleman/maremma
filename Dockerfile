@@ -54,13 +54,15 @@ FROM debian:12-slim AS maremma
 
 RUN apt-get update && apt-get upgrade && apt-get install -y \
     ca-certificates \
-    snmp snmpd libsnmp-base \
-    && rm -rf /var/lib/apt/ /var/cache/apt/
+    snmp snmpd libsnmp-base && rm -rf /var/lib/apt/ /var/cache/apt/
 
 COPY --from=cargo_builder /maremma/target/release/maremma /maremma
 COPY --from=cargo_builder /maremma/target/release/check_splunk /usr/local/bin/
 COPY --from=plugin_builder /maremma/plugins/libexec/* /usr/local/bin/
 COPY ./static /static/
-# USER nonroot
+RUN useradd maremma
+RUN chown -R maremma /static
+RUN chgrp -R maremma /static
+USER maremma
 ENTRYPOINT ["/maremma"]
 CMD [ "run" ]
