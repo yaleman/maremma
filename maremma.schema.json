@@ -93,7 +93,7 @@
     },
     "max_concurrent_checks": {
       "description": "The maximum concurrent checks we'll run at one time",
-      "default": 10,
+      "default": 6,
       "type": "integer",
       "format": "uint",
       "minimum": 0.0

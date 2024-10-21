@@ -14,6 +14,7 @@ use std::process::ExitCode;
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), ExitCode> {
+    use maremma::db::get_connect_string;
     use maremma::services::oneshot::run_oneshot;
     use maremma::shepherd::shepherd;
 
@@ -41,8 +42,10 @@ async fn main() -> Result<(), ExitCode> {
 
     match cli.action {
         Actions::Run(_) => {
+            // in case we need it, get the connect string
+            let connect_string = get_connect_string(config.clone()).await;
             let db = Arc::new(maremma::db::connect(config.clone()).await.map_err(|err| {
-                error!("Failed to start up db: {:?}", err);
+                error!("Failed to start up db from '{}' {:?}", connect_string, err);
                 ExitCode::FAILURE
             })?);
 
