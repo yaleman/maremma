@@ -44,19 +44,19 @@ opentelemetry_sdk = { version = "0.26.0", features = [
 ] }
 prometheus = "0.13.4"
 rand = "0.8.5"
-reqwest = { version = "0.12.7", features = [
+reqwest = { version = "0.12.9", features = [
   "http2",
   "json",
   "rustls-tls",
 ], default-features = false }
-rustls = { version = "0.23.15", features = ["zlib"] }
+rustls = { version = "0.23.16", features = ["zlib"] }
 schemars = { version = "0.8.21", features = [
   "uuid1",
   "url",
   "chrono",
   "preserve_order",
 ] }
-serde = { version = "1.0.213", features = ["derive"] }
+serde = { version = "1.0.214", features = ["derive"] }
 serde_json = "1.0.132"
 sha256 = "1.5.0"
 sea-orm = { version = "1.0.0", features = [
