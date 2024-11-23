@@ -138,8 +138,10 @@ pub async fn run_check_loop(
 ) -> Result<(), Error> {
     // Create a Counter Instrument.
 
-    let checks_run_since_startup =
-        Arc::new(metrics_meter.u64_counter("checks_run_since_startup").init());
+    let checks_run_since_startup = metrics_meter
+        .u64_counter("checks_run_since_startup")
+        .build();
+    let checks_run_since_startup = Arc::new(checks_run_since_startup);
 
     let mut backoff = DEFAULT_BACKOFF;
     // Limit to n concurrent tasks

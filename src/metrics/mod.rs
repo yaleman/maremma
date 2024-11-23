@@ -17,11 +17,11 @@ pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
     let registry = prometheus::Registry::new();
 
     // configure OpenTelemetry to use this registry
-    let exporter = opentelemetry_prometheus::exporter()
-        .with_namespace("maremma")
-        .with_registry(registry.clone())
-        .build()
-        .map_err(|err| Error::Generic(err.to_string()))?;
+    // let exporter = opentelemetry_prometheus::exporter()
+    //     .with_namespace("maremma")
+    //     .with_registry(registry.clone())
+    //     .build()
+    //     .map_err(|err| Error::Generic(err.to_string()))?;
 
     let resource = Resource::from_detectors(
         Duration::from_secs(0),
@@ -39,7 +39,7 @@ pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
 
     // set up a meter to create instruments
     let provider = SdkMeterProvider::builder()
-        .with_reader(exporter)
+        // .with_reader(exporter)
         .with_resource(resource)
         .build();
     Ok((provider, registry))
