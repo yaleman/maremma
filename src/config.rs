@@ -231,6 +231,7 @@ impl Configuration {
     }
 
     #[cfg(test)]
+    /// Loads a bare test config
     pub async fn load_test_config_bare() -> Self {
         let mut res: ConfigurationParser = serde_json::from_str(
             &tokio::fs::read_to_string("maremma.example.json")
@@ -249,6 +250,7 @@ impl Configuration {
     }
 
     #[cfg(test)]
+    /// Loads a test config
     pub async fn load_test_config() -> Arc<RwLock<Self>> {
         Arc::new(RwLock::new(Self::load_test_config_bare().await))
     }
