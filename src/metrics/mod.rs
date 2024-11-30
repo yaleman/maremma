@@ -17,6 +17,7 @@ pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
     let registry = prometheus::Registry::new();
 
     // configure OpenTelemetry to use this registry
+    // TODO: work out how to fix this
     // let exporter = opentelemetry_prometheus::exporter()
     //     .with_namespace("maremma")
     //     .with_registry(registry.clone())
