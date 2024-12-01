@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use super::prelude::*;
 use crate::prelude::*;
+use reqwest::redirect::Policy;
 use reqwest::{Response, StatusCode};
 use schemars::JsonSchema;
 
@@ -119,6 +120,10 @@ pub struct HttpService {
 
     /// CA cert file to use
     pub ca_file: Option<PathBuf>,
+
+    /// Actually use HTTP, not HTTPS...
+    pub use_http: Option<bool>,
+
     /// Add random jitter in 0..n seconds to the check
     pub jitter: Option<u16>,
 }
@@ -195,6 +200,7 @@ async fn test_overlay_host_config() {
         validate_tls: false,
         connect_timeout: None,
         port: None,
+        use_http: None,
         contains_string: None,
         ca_file: None,
         jitter: None,
@@ -251,6 +257,7 @@ impl ConfigOverlay for HttpService {
             port: self.extract_value(value, "port", &self.port)?,
             contains_string: self.extract_value(value, "contains_string", &self.contains_string)?,
             ca_file: self.extract_value(value, "ca_file", &self.ca_file)?,
+            use_http: self.extract_value(value, "use_http", &self.use_http)?,
             jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
     }
@@ -278,8 +285,15 @@ impl ServiceTrait for HttpService {
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
+        let scheme = if config.use_http.unwrap_or(false) {
+            "http"
+        } else {
+            "https"
+        };
+
         let url = format!(
-            "https://{}{}{}",
+            "{}://{}{}{}",
+            scheme,
             host.hostname,
             config
                 .port
@@ -295,7 +309,9 @@ impl ServiceTrait for HttpService {
                 env!("CARGO_PKG_VERSION")
             ))
             .danger_accept_invalid_certs(!config.validate_tls)
-            .danger_accept_invalid_hostnames(!config.validate_tls);
+            .danger_accept_invalid_hostnames(!config.validate_tls)
+            // don't allow us to be redirected!
+            .redirect(Policy::none());
 
         if let Some(ca_file) = config.ca_file.as_ref() {
             debug!("adding CA file");
@@ -368,6 +384,7 @@ mod tests {
             http_status: None,
             ca_file: None,
             jitter: None,
+            use_http: None,
         };
 
         let host = entities::host::Model {
@@ -417,6 +434,7 @@ mod tests {
             contains_string: Some("Welcome to nginx!".to_string()),
             ca_file: Some(PathBuf::from(certs.ca_file.as_ref())),
             jitter: None,
+            use_http: None,
         };
         let mut host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -456,7 +474,7 @@ mod tests {
         let service = super::HttpService {
             name: "test".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
-            http_status: Some(super::default_expected_http_status()),
+            http_status: Some(NonZeroU16::new(301).expect("failed to parse 301 as non-zero u16")),
             http_method: HttpMethod::Get,
             http_uri: None,
             validate_tls: true,
@@ -465,6 +483,7 @@ mod tests {
             contains_string: None,
             ca_file: None,
             jitter: None,
+            use_http: Some(true),
         };
         let mut host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -477,6 +496,7 @@ mod tests {
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
+        println!("{:?}", res);
         assert_eq!(res.unwrap().status, ServiceStatus::Ok);
 
         // if we put this text on the page, we're just kicking ourselves in the shins
@@ -522,6 +542,7 @@ mod tests {
             contains_string: None,
             ca_file: None,
             jitter: None,
+            use_http: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -559,6 +580,7 @@ mod tests {
             contains_string: None,
             ca_file: None,
             jitter: None,
+            use_http: None,
         };
         let host = entities::host::Model {
             id: Uuid::new_v4(),
@@ -588,6 +610,7 @@ mod tests {
             contains_string: None,
             ca_file: None,
             jitter: None,
+            use_http: None,
         };
 
         let host = entities::host::Model {
@@ -689,6 +712,7 @@ mod tests {
             contains_string: None,
             ca_file: None,
             jitter: None,
+            use_http: None,
         };
 
         let client_config = Box::new(service.clone());
