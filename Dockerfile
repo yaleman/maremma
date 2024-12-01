@@ -1,6 +1,6 @@
 FROM debian:12 AS plugin_builder
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
     build-essential \
     pkg-config \
@@ -21,7 +21,7 @@ FROM debian:12 AS cargo_builder
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 # install the dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     protobuf-compiler \
     sccache \
     curl \
@@ -52,7 +52,7 @@ RUN chmod +x /maremma/target/release/maremma
 # https://github.com/GoogleContainerTools/distroless/blob/main/examples/rust/Dockerfile
 FROM debian:12-slim AS maremma
 
-RUN apt-get update && apt-get upgrade && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     ca-certificates \
     snmp snmpd libsnmp-base && rm -rf /var/lib/apt/ /var/cache/apt/
 
