@@ -78,7 +78,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(Iden)]
-pub enum ServiceCheckHistory {
+pub(crate) enum ServiceCheckHistory {
     Table,
     Id,
     ServiceCheckId,
