@@ -273,13 +273,12 @@ pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
 #[cfg(test)]
 mod tests {
 
+    use crate::db::tests::test_setup;
     use std::io::Write;
     use std::path::PathBuf;
-
     use tempfile::NamedTempFile;
 
-    use crate::db::tests::test_setup;
-    // use std::path::PathBuf;
+    use super::*;
 
     #[tokio::test]
     async fn test_tools_noauth() {
@@ -453,10 +452,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tools_db_export() {
+    async fn test_tools_db_export_invalid_token() {
         test_setup().await.expect("Failed to start test harness");
 
-        use super::*;
         let state = WebState::test().await;
         let session = state.get_session();
         assert!(export_db(
@@ -482,7 +480,11 @@ mod tests {
         )
         .await;
         assert!(res.is_err());
+    }
 
+    #[tokio::test]
+    async fn test_tools_db_export_ok_token() {
+        test_setup().await.expect("Failed to start test harness");
         // valid request, session etc
         let state = WebState::test().await;
         let session = state.get_session();
