@@ -420,4 +420,15 @@ mod tests {
         dbg!(&res);
         assert!(res.is_err());
     }
+
+    #[tokio::test]
+    async fn test_service_check_history_cleaner_task() {
+        let (db, config) = test_setup().await.expect("Failed to set up tests");
+
+        let mut task = ServiceCheckHistoryCleanerTask { config };
+
+        task.run(&db)
+            .await
+            .expect("Failed to run ServiceCheckHistoryCleanerTask");
+    }
 }
