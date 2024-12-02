@@ -86,7 +86,6 @@ impl WebState {
     #[cfg(test)]
     pub fn get_session(&self) -> tower_sessions::Session {
         let session_store = get_session_store(&self.db);
-
         tower_sessions::Session::new(None, std::sync::Arc::new(session_store), None)
     }
 
