@@ -75,7 +75,9 @@ impl WebState {
             .expect("Failed to set up test");
         Self::new(db, config, None, None, PathBuf::new())
     }
+
     #[cfg(test)]
+    /// for when you need a real database for a bit, used in the export DB test for example
     pub async fn test_with_real_db() -> (NamedTempFile, Self) {
         let (tempfile, db, config) = crate::db::tests::test_setup_with_real_db()
             .await
