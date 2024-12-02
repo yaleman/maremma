@@ -15,6 +15,7 @@ pub(crate) enum Urls {
     ServiceCheck,
     Static,
     Tools,
+    ToolsExportDb,
 }
 
 impl AsRef<str> for Urls {
@@ -36,6 +37,7 @@ impl AsRef<str> for Urls {
             Self::ServiceCheck => "/service_check",
             Self::Static => "/static",
             Self::Tools => "/tools",
+            Self::ToolsExportDb => "/tools/db_export",
         }
     }
 }

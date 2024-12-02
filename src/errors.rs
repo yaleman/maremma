@@ -10,6 +10,10 @@ use uuid::Uuid;
 #[derive(Debug, PartialEq)]
 /// Various errors that Maremma will throw
 pub enum Error {
+    /// You didn't include the CSRF token in your form
+    CsrfTokenMissing,
+    /// You're not allowed to do this!
+    Unauthorized,
     /// We couldn't find the config file
     ConfigFileNotFound(String),
     /// When the configuration is invalid
@@ -151,11 +155,29 @@ impl From<std::net::AddrParseError> for Error {
     }
 }
 
+impl From<axum::http::header::InvalidHeaderValue> for Error {
+    fn from(value: axum::http::header::InvalidHeaderValue) -> Self {
+        Self::InvalidInput(value.to_string())
+    }
+}
 #[cfg(not(tarpaulin_include))]
 impl IntoResponse for Error {
     fn into_response(self) -> askama_axum::Response {
-        error!("Response error occurred: {:?}", self);
-        (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self)).into_response()
+        match self {
+            Self::CsrfTokenMissing => (
+                StatusCode::FORBIDDEN,
+                "CSRF token not found in session".to_string(),
+            ),
+            Self::CsrfValidationFailed => {
+                (StatusCode::FORBIDDEN, "CSRF token mismatch".to_string())
+            }
+            Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            _ => {
+                error!("Response error occurred: {:?}", self);
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self))
+            }
+        }
+        .into_response()
     }
 }
 

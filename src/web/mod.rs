@@ -237,6 +237,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             Urls::Tools.as_ref(),
             get(views::tools::tools).post(views::tools::tools),
         )
+        .route(Urls::ToolsExportDb.as_ref(), post(views::tools::export_db))
         .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout))
         .layer(oidc_login_service)
         // after here, the routers don't *require* auth
