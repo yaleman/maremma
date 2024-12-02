@@ -2,6 +2,8 @@ use super::prelude::*;
 use crate::constants::SESSION_CSRF_TOKEN;
 use crate::db::update_db_from_config;
 use crate::web::{Configuration, Error};
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::{HeaderMap, HeaderValue};
 use axum::Form;
 use sea_orm::prelude::Expr;
 use tokio::sync::RwLock;
@@ -126,6 +128,29 @@ async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
     )))
 }
 
+async fn check_csrf_token(csrf_token: &str, session: &Session) -> Result<(), Error> {
+    let session_csrf_token = session
+        .get::<String>(SESSION_CSRF_TOKEN)
+        .await
+        .map_err(Error::from)?;
+
+    if session_csrf_token.is_none() {
+        debug!("CSRF token not found in session");
+        return Err(Error::CsrfTokenMissing);
+    }
+    if let Some(token) = &session_csrf_token {
+        if token != csrf_token {
+            debug!(
+                "CSRF token mismatch: session={} form={}",
+                &token, csrf_token
+            );
+            return Err(Error::CsrfValidationFailed);
+        }
+    }
+
+    Ok(())
+}
+
 /// Seen at `/tools`
 pub(crate) async fn tools(
     State(state): State<WebState>,
@@ -136,34 +161,14 @@ pub(crate) async fn tools(
 ) -> Result<ToolsTemplate, impl IntoResponse> {
     if claims.is_none() {
         // TODO: check that the user is an admin
-        return Err(StatusCode::UNAUTHORIZED.into_response());
+        return Err(Error::Unauthorized.into_response());
     }
 
     if let (Some(action), Some(csrf_token)) = (&form.action, &form.csrf_token) {
         // pull the CSRF token from the session store
-        let session_csrf_token = session
-            .get::<String>(SESSION_CSRF_TOKEN)
+        check_csrf_token(csrf_token, &session)
             .await
-            .map_err(|err| Error::from(err).into_response())?;
-        if session_csrf_token.is_none() {
-            debug!("CSRF token not found in session");
-            return Err((
-                StatusCode::FORBIDDEN,
-                "CSRF token not found in session".to_string(),
-            )
-                .into_response());
-        }
-        if let Some(token) = &session_csrf_token {
-            if token != csrf_token {
-                debug!(
-                    "CSRF token mismatch: session={} form={}",
-                    &token, csrf_token
-                );
-                return Err(
-                    (StatusCode::FORBIDDEN, "CSRF token mismatch".to_string()).into_response()
-                );
-            }
-        }
+            .map_err(|e| e.into_response())?;
 
         match action {
             FormAction::SetAllToUrgent => {
@@ -213,6 +218,45 @@ pub(crate) async fn tools(
     })
 }
 
+#[derive(Deserialize)]
+pub(crate) struct CsrfTokenForm {
+    csrf_token: String,
+}
+
+pub(crate) async fn export_db(
+    State(state): State<WebState>,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    session: Session,
+    Form(form): Form<CsrfTokenForm>,
+) -> Result<(StatusCode, HeaderMap, Vec<u8>), Error> {
+    if claims.is_none() {
+        // TODO: check that the user is an admin
+        return Err(Error::Unauthorized);
+    }
+
+    check_csrf_token(&form.csrf_token, &session).await?;
+
+    let db_filename = state.configuration.read().await.database_file.clone();
+
+    let file_contents = tokio::fs::read(&db_filename).await.map_err(Error::from)?;
+
+    let filename = db_filename.split("/").last().unwrap_or("db.sqlite3");
+
+    let mut headers = HeaderMap::new();
+
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    headers.insert(
+        CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+            .map_err(Error::from)?,
+    );
+
+    Ok((StatusCode::OK, headers, file_contents))
+}
+
 #[cfg(test)]
 /// Use this when you want to be "authenticated"
 pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
@@ -229,13 +273,12 @@ pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
 #[cfg(test)]
 mod tests {
 
+    use crate::db::tests::test_setup;
     use std::io::Write;
     use std::path::PathBuf;
-
     use tempfile::NamedTempFile;
 
-    use crate::db::tests::test_setup;
-    // use std::path::PathBuf;
+    use super::*;
 
     #[tokio::test]
     async fn test_tools_noauth() {
@@ -406,5 +449,80 @@ mod tests {
                 "Expected a failed reload"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_tools_db_export_invalid_token() {
+        test_setup().await.expect("Failed to start test harness");
+
+        let state = WebState::test().await;
+        let session = state.get_session();
+        assert!(export_db(
+            State(state.clone()),
+            None,
+            session.clone(),
+            Form(CsrfTokenForm {
+                csrf_token: "lol".to_string(),
+            }),
+        )
+        .await
+        .is_err());
+
+        let state = WebState::test().await;
+        let session = state.get_session();
+        let res = export_db(
+            State(state.clone()),
+            Some(test_user_claims()),
+            session.clone(),
+            Form(CsrfTokenForm {
+                csrf_token: "lol".to_string(),
+            }),
+        )
+        .await;
+        assert!(res.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_tools_db_export_ok_token() {
+        test_setup().await.expect("Failed to start test harness");
+
+        // valid request, session etc
+        let (tempfile, state) = WebState::test_with_real_db().await;
+        let session = state.get_session();
+        let csrf_token = "foo".to_string();
+        session
+            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
+            .await
+            .expect("Failed to insert CSRF token into session");
+
+        let res = export_db(
+            State(state.clone()),
+            Some(test_user_claims()),
+            session.clone(),
+            Form(CsrfTokenForm {
+                csrf_token: csrf_token.clone(),
+            }),
+        )
+        .await;
+        dbg!("result of should-work test", &res);
+        assert!(res.is_ok());
+
+        session
+            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
+            .await
+            .expect("Failed to insert CSRF token into session");
+
+        let res = export_db(
+            State(state.clone()),
+            Some(test_user_claims()),
+            session,
+            Form(CsrfTokenForm {
+                csrf_token: "definitelynotit".to_string(),
+            }),
+        )
+        .await;
+        assert!(res.is_err());
+
+        drop(tempfile);
     }
 }

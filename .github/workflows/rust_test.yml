@@ -7,8 +7,6 @@ name: Rust Testing
       - static/**
       - plugins/**
 env:
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
   MAREMMA_FRONTEND_URL: "http://localhost:8080"
   MAREMMA_OIDC_CLIENT_ID: "http://localhost:8080"
   MAREMMA_OIDC_ISSUER: "http://github.com"
@@ -20,14 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure sccache
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -44,6 +34,9 @@ jobs:
           cargo install cargo-tarpaulin
           cargo tarpaulin --coveralls "${{ secrets.COVERALLS_REPO_TOKEN }}"
   cargo_test:
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +63,9 @@ jobs:
       - name: "Run cargo test"
         run: cargo test
   build_release:
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

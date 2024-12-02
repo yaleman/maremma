@@ -37,6 +37,43 @@ pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, SendableCon
     Ok((db, config))
 }
 
+#[cfg(test)]
+pub(crate) async fn test_setup_with_real_db() -> Result<
+    (
+        tempfile::NamedTempFile,
+        Arc<DatabaseConnection>,
+        SendableConfig,
+    ),
+    Error,
+> {
+    // make sure logging is happening
+    let _ = setup_logging(true, true);
+    // enable the rustls crypto provider
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+    let config = Configuration::load_test_config().await;
+
+    let tempfile = tempfile::NamedTempFile::new().expect("Failed to create tempfile");
+
+    // create a temporary filename for this test
+    config.write().await.database_file = tempfile
+        .path()
+        .to_str()
+        .expect("Failed to get filepath")
+        .to_string();
+
+    let db = Arc::new(
+        crate::db::connect(config.clone())
+            .await
+            .expect("Failed to connect to database"),
+    );
+
+    crate::db::update_db_from_config(&db, config.clone())
+        .await
+        .expect("Failed to update DB from config");
+    Ok((tempfile, db, config))
+}
+
 #[tokio::test]
 async fn test_get_related() {
     let (db, _config) = test_setup().await.expect("Failed to start test harness");

@@ -5,6 +5,8 @@ pub(crate) mod controller;
 pub(crate) mod oidc;
 pub(crate) mod urls;
 pub(crate) mod views;
+#[cfg(test)]
+use tempfile::NamedTempFile;
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -73,6 +75,16 @@ impl WebState {
             .expect("Failed to set up test");
         Self::new(db, config, None, None, PathBuf::new())
     }
+
+    #[cfg(test)]
+    /// for when you need a real database for a bit, used in the export DB test for example
+    pub async fn test_with_real_db() -> (NamedTempFile, Self) {
+        let (tempfile, db, config) = crate::db::tests::test_setup_with_real_db()
+            .await
+            .expect("Failed to set up test");
+        (tempfile, Self::new(db, config, None, None, PathBuf::new()))
+    }
+
     #[cfg(test)]
     pub fn with_registry(self) -> Self {
         let (_provider, registry) =
@@ -86,7 +98,6 @@ impl WebState {
     #[cfg(test)]
     pub fn get_session(&self) -> tower_sessions::Session {
         let session_store = get_session_store(&self.db);
-
         tower_sessions::Session::new(None, std::sync::Arc::new(session_store), None)
     }
 
@@ -237,6 +248,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             Urls::Tools.as_ref(),
             get(views::tools::tools).post(views::tools::tools),
         )
+        .route(Urls::ToolsExportDb.as_ref(), post(views::tools::export_db))
         .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout))
         .layer(oidc_login_service)
         // after here, the routers don't *require* auth
