@@ -14,7 +14,7 @@ pub(crate) fn web_server_default_port() -> NonZeroU16 {
 pub const WEB_SERVER_DEFAULT_STATIC_PATH: &str = "./static";
 
 /// Default number of history entries to show on the service check page
-pub const DEFAULT_SERVICE_CHECK_HISTORY_LIMIT: u64 = 50;
+pub const DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES: u64 = 50;
 
 /// Expiry time + x hours is when we clean up old sessions from the DB
 pub(crate) const SESSION_EXPIRY_WINDOW_HOURS: i64 = 8;
@@ -24,3 +24,6 @@ pub const STUCK_CHECK_MINUTES: i64 = 5;
 
 /// Just so we don't typo things
 pub(crate) const SESSION_CSRF_TOKEN: &str = "csrf_token";
+
+/// Default number of history entries to keep in the database
+pub const DEFAULT_SERVICE_CHECK_HISTORY_STORAGE: u64 = 25000;

@@ -1,7 +1,7 @@
 use axum::Form;
 use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
-use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_LIMIT;
+use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES;
 use crate::web::Error;
 
 use super::prelude::*;
@@ -48,7 +48,7 @@ pub(crate) async fn service_check_get(
     let service_check_history = entities::service_check_history::Entity::find()
         .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
         .order_by_desc(entities::service_check_history::Column::Timestamp)
-        .limit(DEFAULT_SERVICE_CHECK_HISTORY_LIMIT)
+        .limit(DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES)
         .all(state.db.as_ref())
         .await
         .map_err(|err| {

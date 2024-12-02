@@ -1,4 +1,5 @@
 use entities::service_check;
+use sea_orm::QueryOrder;
 
 use crate::prelude::*;
 
@@ -41,7 +42,7 @@ impl Entity {
     pub async fn head(
         db: &DatabaseConnection,
         service_check_id: Option<Uuid>,
-        count: u64,
+        leave_remaining: u64,
     ) -> Result<usize, Error> {
         let mut trimmed = 0;
 
@@ -61,20 +62,21 @@ impl Entity {
         for service_check in &service_checks {
             let to_delete = service_check
                 .find_related(entities::service_check_history::Entity)
+                .order_by_desc(Column::Timestamp)
                 .all(db)
                 .await?;
 
             // let mut num_records: usize = to_delete.len();
             if to_delete.is_empty() {
                 debug!(
-                    "no service check history for service check id {}",
+                    "No service check history for service check id {}",
                     service_check.id
                 );
                 // num_records = 0;
             } else {
                 let offset_list: Vec<Uuid> = to_delete
                     .into_iter()
-                    .skip(count as usize)
+                    .skip(leave_remaining as usize)
                     .map(|x| x.id)
                     .collect();
                 debug!("Deleting {} records", offset_list.len());
