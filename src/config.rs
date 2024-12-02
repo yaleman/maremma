@@ -6,7 +6,9 @@ use std::path::PathBuf;
 
 use schemars::JsonSchema;
 
-use crate::constants::{web_server_default_port, WEB_SERVER_DEFAULT_STATIC_PATH};
+use crate::constants::{
+    web_server_default_port, DEFAULT_SERVICE_CHECK_HISTORY_STORAGE, WEB_SERVER_DEFAULT_STATIC_PATH,
+};
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
@@ -74,6 +76,9 @@ pub struct ConfigurationParser {
     #[serde(default = "default_max_concurrent_checks")]
     /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
+
+    /// How many history entries to keep per check, defaults to 25000 ([crate::constants::DEFAULT_HISTORY_LIMIT]), setting this too high can cause slowdowns.
+    pub max_history_entries_per_check: Option<u64>,
 }
 
 /// A sendable configuration, for use across threads
@@ -126,6 +131,9 @@ pub struct Configuration {
     #[serde(default = "default_max_concurrent_checks")]
     /// The maximum concurrent checks we'll run at one time
     pub max_concurrent_checks: usize,
+
+    /// How many history entries to keep per check, defaults to 25000 ([crate::constants::DEFAULT_HISTORY_LIMIT]), setting this too high can cause slowdowns.
+    pub(crate) max_history_entries_per_check: u64,
 }
 
 impl TryFrom<ConfigurationParser> for Configuration {
@@ -198,6 +206,9 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
             static_path: Some(static_path),
+            max_history_entries_per_check: value
+                .max_history_entries_per_check
+                .unwrap_or(DEFAULT_SERVICE_CHECK_HISTORY_STORAGE),
         })
     }
 

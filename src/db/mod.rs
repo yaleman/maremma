@@ -117,20 +117,20 @@ pub async fn get_next_service_check(
         .into_iter()
         .next();
 
-    // all others we just care about:
-    // - the next_check time
-    let base_query = base_query
-        .order_by_asc(entities::service_check::Column::NextCheck)
-        .filter(
-            entities::service_check::Column::Status
-                .ne(ServiceStatus::Disabled)
-                .and(entities::service_check::Column::Status.ne(ServiceStatus::Checking))
-                .and(entities::service_check::Column::NextCheck.lte(chrono::Utc::now())),
-        )
-        .distinct();
-
     // prioritize pending
     if res.is_none() {
+        // all others we just care about:
+        // - the next_check time
+        let base_query = base_query
+            .order_by_asc(entities::service_check::Column::NextCheck)
+            .filter(
+                entities::service_check::Column::Status
+                    .ne(ServiceStatus::Disabled)
+                    .and(entities::service_check::Column::Status.ne(ServiceStatus::Checking))
+                    .and(entities::service_check::Column::NextCheck.lte(chrono::Utc::now())),
+            )
+            .distinct();
+
         if let Some(row) = base_query
             .clone()
             .filter(entities::service_check::Column::Status.eq(ServiceStatus::Pending))

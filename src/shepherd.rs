@@ -3,16 +3,19 @@
 use std::sync::Arc;
 
 use axum::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use croner::Cron;
 use sea_orm::prelude::Expr;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
-use tracing::{debug, error, info, instrument};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, QueryFilter, QueryOrder,
+    QuerySelect,
+};
+use tracing::{debug, error, info, instrument, warn};
+use uuid::Uuid;
 
 use crate::config::SendableConfig;
 use crate::constants::{SESSION_EXPIRY_WINDOW_HOURS, STUCK_CHECK_MINUTES};
 use crate::db::entities;
-use crate::db::entities::service_check::Column;
 use crate::errors::Error;
 use crate::prelude::ServiceStatus;
 use crate::web::controller::WebServerControl;
@@ -53,10 +56,18 @@ impl CronTaskTrait for ServiceCheckCleanTask {
         debug!("Checking for stuck service checks...");
 
         let res = entities::service_check::Entity::update_many()
-            .col_expr(Column::Status, Expr::value(ServiceStatus::Pending))
-            .filter(Column::Status.eq(ServiceStatus::Checking).and(
-                Column::LastUpdated.lt(Utc::now() - chrono::Duration::minutes(STUCK_CHECK_MINUTES)),
-            ))
+            .col_expr(
+                entities::service_check::Column::Status,
+                Expr::value(ServiceStatus::Pending),
+            )
+            .filter(
+                entities::service_check::Column::Status
+                    .eq(ServiceStatus::Checking)
+                    .and(
+                        entities::service_check::Column::LastUpdated
+                            .lt(Utc::now() - chrono::Duration::minutes(STUCK_CHECK_MINUTES)),
+                    ),
+            )
             .exec(db)
             .await?;
 
@@ -68,7 +79,10 @@ impl CronTaskTrait for ServiceCheckCleanTask {
         Ok(())
     }
 }
+
+/// Keeps track of old sessions
 struct SessionCleanTask {}
+
 #[async_trait]
 impl CronTaskTrait for SessionCleanTask {
     async fn run(&mut self, db: &DatabaseConnection) -> Result<(), Error> {
@@ -80,7 +94,8 @@ impl CronTaskTrait for SessionCleanTask {
                     .lt(Utc::now() - chrono::Duration::hours(SESSION_EXPIRY_WINDOW_HOURS)),
             )
             .exec(db)
-            .await?;
+            .await
+            .inspect_err(|err| error!("Session cleaner failed: {:?}", err))?;
         if res.rows_affected == 0 {
             debug!("No old sessions found.");
         } else {
@@ -96,6 +111,72 @@ struct CertReloaderTask {
     config: SendableConfig,
     cert_time: DateTime<Utc>,
     key_time: DateTime<Utc>,
+}
+
+/// Clean up old service check history entries so we don't end up with a database the size of a smol planet
+struct ServiceCheckHistoryCleanerTask {
+    config: SendableConfig,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct SimpleSchCounts {
+    #[allow(dead_code)]
+    pub service_check_id: Uuid,
+    #[allow(dead_code)]
+    pub count: i64,
+}
+
+#[async_trait]
+impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
+    async fn run(&mut self, db: &DatabaseConnection) -> Result<(), Error> {
+        let sch_counts: Vec<SimpleSchCounts> = entities::service_check_history::Entity::find()
+            .column(entities::service_check_history::Column::ServiceCheckId)
+            .column_as(
+                entities::service_check_history::Column::ServiceCheckId.count(),
+                "count",
+            )
+            .group_by(entities::service_check_history::Column::ServiceCheckId)
+            .order_by(
+                entities::service_check_history::Column::ServiceCheckId.count(),
+                Order::Desc,
+            )
+            .limit(10) // if we only clean up a few at a time it's less likely to cause a huge spike in db contention
+            .into_model::<SimpleSchCounts>()
+            .all(db)
+            .await
+            .inspect_err(|err| error!("Service check history cleaner failed: {:?}", err))?;
+        println!("sch counts: {:?}", sch_counts);
+
+        let target_num = self.config.read().await.max_history_entries_per_check;
+
+        for target_sch in sch_counts {
+            if target_sch.count as u64 <= target_num {
+                debug!(
+                    "Service check {} only has {} entries, less than {}, skipping",
+                    target_sch.service_check_id, target_num, target_sch.count
+                );
+                continue;
+            }
+
+            if let Some(target_service_check) =
+                entities::service_check::Entity::find_by_id(target_sch.service_check_id)
+                    .one(db)
+                    .await?
+            {
+                let res = entities::service_check_history::Entity::head(
+                    db,
+                    Some(target_service_check.id),
+                    target_num,
+                )
+                .await?;
+                info!(
+                    "Deleted {} old service check history entries for {}",
+                    res, target_service_check.id
+                );
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Get the last modified time of a file
@@ -215,14 +296,37 @@ pub async fn shepherd(
         task: Box::new(CertReloaderTask::new(web_tx, config.clone()).await?),
     };
 
+    let mut service_check_history_cleaner: CronTask = CronTask {
+        cron: Cron::new("* * * * *").parse()?,
+        // force it wait five minutes to run the first time
+        last_run: Utc::now() + Duration::minutes(5),
+        task: Box::new(ServiceCheckHistoryCleanerTask {
+            config: config.clone(),
+        }),
+    };
+
     loop {
+        let start_time = std::time::SystemTime::now();
         debug!("The shepherd is checking the herd...");
+        let tasks = vec![
+            service_check_clean.run_task(db.as_ref()),
+            session_cleaner.run_task(db.as_ref()),
+            check_cert_changed.run_task(db.as_ref()),
+            service_check_history_cleaner.run_task(db.as_ref()),
+        ];
 
-        service_check_clean.run_task(db.as_ref()).await?;
-        session_cleaner.run_task(db.as_ref()).await?;
-        check_cert_changed.run_task(db.as_ref()).await?;
+        futures::future::try_join_all(tasks).await?;
 
-        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        // work out how long it took and go through to clean up
+        let elapsed = start_time
+            .elapsed()
+            .unwrap_or(std::time::Duration::from_secs(0));
+
+        if elapsed.as_secs() < 60 {
+            tokio::time::sleep(std::time::Duration::from_secs(60) - elapsed).await;
+        } else {
+            warn!("The shepherd is running late, no sleep for them!");
+        }
     }
 }
 
