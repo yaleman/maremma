@@ -5,6 +5,8 @@ pub(crate) mod controller;
 pub(crate) mod oidc;
 pub(crate) mod urls;
 pub(crate) mod views;
+#[cfg(test)]
+use tempfile::NamedTempFile;
 
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -73,6 +75,14 @@ impl WebState {
             .expect("Failed to set up test");
         Self::new(db, config, None, None, PathBuf::new())
     }
+    #[cfg(test)]
+    pub async fn test_with_real_db() -> (NamedTempFile, Self) {
+        let (tempfile, db, config) = crate::db::tests::test_setup_with_real_db()
+            .await
+            .expect("Failed to set up test");
+        (tempfile, Self::new(db, config, None, None, PathBuf::new()))
+    }
+
     #[cfg(test)]
     pub fn with_registry(self) -> Self {
         let (_provider, registry) =

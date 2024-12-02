@@ -273,7 +273,7 @@ pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
 #[cfg(test)]
 mod tests {
 
-    use crate::db::tests::{test_setup, test_setup_with_real_db};
+    use crate::db::tests::test_setup;
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
@@ -484,11 +484,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_tools_db_export_ok_token() {
-        let (tempfile, _db, _config) = test_setup_with_real_db()
-            .await
-            .expect("Failed to start test harness");
+        test_setup().await.expect("Failed to start test harness");
+
         // valid request, session etc
-        let state = WebState::test().await;
+        let (tempfile, state) = WebState::test_with_real_db().await;
         let session = state.get_session();
         let csrf_token = "foo".to_string();
         session
