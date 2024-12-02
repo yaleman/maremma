@@ -228,7 +228,7 @@ pub(crate) async fn export_db(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     session: Session,
     Form(form): Form<CsrfTokenForm>,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<(StatusCode, HeaderMap, Vec<u8>), Error> {
     if claims.is_none() {
         // TODO: check that the user is an admin
         return Err(Error::Unauthorized);
@@ -503,6 +503,7 @@ mod tests {
             }),
         )
         .await;
+        dbg!("result of should-work test", &res);
         assert!(res.is_ok());
 
         session
