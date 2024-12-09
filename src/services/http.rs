@@ -64,7 +64,7 @@ impl Display for HttpMethod {
             format!("{:?}", self)
                 .split(':')
                 .last()
-                .ok_or_else(|| std::fmt::Error)?
+                .ok_or(std::fmt::Error)?
                 .to_ascii_uppercase()
                 .as_str(),
         )
