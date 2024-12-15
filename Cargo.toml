@@ -23,8 +23,8 @@ axum = { version = "0.7.5", features = [
 ] }
 axum-oidc = "0.5.0"
 axum-server = { version = "0.7.1", features = ["rustls", "tls-rustls"] }
-chrono = "0.4.38"
-clap = { version = "4.5.21", features = ["derive", "env"] }
+chrono = "0.4.39"
+clap = { version = "4.5.23", features = ["derive", "env"] }
 croner = "2.0.5"
 env_logger = { version = "0.11.5", features = ["color", "default"] }
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
@@ -49,17 +49,17 @@ reqwest = { version = "0.12.9", features = [
   "json",
   "rustls-tls",
 ], default-features = false }
-rustls = { version = "0.23.18", features = ["zlib"] }
+rustls = { version = "0.23.20", features = ["zlib"] }
 schemars = { version = "0.8.21", features = [
   "uuid1",
   "url",
   "chrono",
   "preserve_order",
 ] }
-serde = { version = "1.0.215", features = ["derive"] }
+serde = { version = "1.0.216", features = ["derive"] }
 serde_json = "1.0.132"
 sha256 = "1.5.0"
-sea-orm = { version = "1.1.1", features = [
+sea-orm = { version = "1.1.2", features = [
   "runtime-tokio-rustls", # this is why we have multiple rustls
   "sqlx-sqlite",
   "with-chrono",
@@ -68,7 +68,7 @@ sea-orm = { version = "1.1.1", features = [
   "debug-print",
   "mock",
 ] }
-sea-orm-migration = { version = "1.1.1", default-features = false, features = [
+sea-orm-migration = { version = "1.1.2", default-features = false, features = [
   "sqlx-sqlite",
   "with-chrono",
   "with-json",
@@ -77,16 +77,16 @@ sea-orm-migration = { version = "1.1.1", default-features = false, features = [
 sqlx = { version = "0.8.2", default-features = false }
 ssh-rs = "0.5.0"
 surge-ping = "0.8.1"
-time = "0.3.36"
-tokio = { version = "1.41.1", features = [
+time = "0.3.37"
+tokio = { version = "1.42.0", features = [
   "rt-multi-thread",
   "macros",
   "process",
   "tracing",
   "net",
 ] }
-tokio-rustls = "0.26.0"
-tower = { version = "0.5.0", features = ["util"] }
+tokio-rustls = "0.26.1"
+tower = { version = "0.5.2", features = ["util"] }
 tower-http = { version = "0.6.1", features = ["fs", "trace"] }
 tower-sessions = "0.13.0"
 tracing = { version = "0.1.40", features = ["release_max_level_debug"] }
@@ -96,6 +96,7 @@ x509-parser = "0.16.0"
 webpki = "0.22.4"
 rustls-webpki = { version = "0.102.8", features = ["aws_lc_rs"] }
 futures = "0.3.31"
+sea-query = "0.32.1"
 
 [dev-dependencies]
 rand = "0.8.5"
