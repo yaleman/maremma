@@ -8,6 +8,7 @@
     "cert_key",
     "frontend_url",
     "hosts",
+    "max_history_entries_per_check",
     "oidc_client_id",
     "oidc_issuer"
   ],
@@ -96,6 +97,12 @@
       "default": 10,
       "type": "integer",
       "format": "uint",
+      "minimum": 0.0
+    },
+    "max_history_entries_per_check": {
+      "description": "How many history entries to keep per check, defaults to 25000 ([crate::constants::DEFAULT_HISTORY_LIMIT]), setting this too high can cause slowdowns.",
+      "type": "integer",
+      "format": "uint64",
       "minimum": 0.0
     }
   },
