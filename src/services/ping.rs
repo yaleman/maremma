@@ -158,6 +158,29 @@ mod tests {
             cron_schedule: Cron::new("* * * * *").parse().unwrap(),
             jitter: None,
             count: Some(5),
+            address: None,
+            required_successful: None,
+        };
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: "localhost".to_string(),
+            check: crate::host::HostCheck::None,
+            config: json!({}),
+        };
+        let res = test_service.run(&host).await;
+        dbg!(&res);
+        assert!(res.is_ok());
+    }
+    #[tokio::test]
+    async fn test_ping_service_127_0_0_1() {
+        let _ = setup_logging(true, true);
+        let test_service = super::PingService {
+            name: "test".to_string(),
+            cron_schedule: Cron::new("* * * * *").parse().unwrap(),
+            jitter: None,
+            count: Some(5),
+            address: Some("127.0.0.1".to_string()),
             required_successful: None,
         };
         let host = entities::host::Model {
