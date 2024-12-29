@@ -24,6 +24,10 @@ pub struct PingService {
     /// Number of pings to check, defaults to 3
     pub count: Option<u8>,
 
+    /// Optionally configure the address to ping
+    #[serde(default)]
+    pub address: Option<String>,
+
     /// Minimum successes required for the check to be considered successful, defaults to the same as count
     pub required_successful: Option<u8>,
 }
@@ -49,6 +53,7 @@ impl ConfigOverlay for PingService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
         Ok(Box::new(Self {
             name: self.extract_string(value, "name", &self.name),
+            address: self.extract_value(value, "address", &self.address)?,
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
             jitter: self.extract_value(value, "jitter", &self.jitter)?,
             count: self.extract_value(value, "count", &self.count)?,
@@ -66,9 +71,14 @@ impl ServiceTrait for PingService {
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
         let start_time = chrono::Utc::now();
 
-        let _config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
-        let hostname = lookup_host(format!("{}:80", host.hostname.clone()))
+        let target = match config.address {
+            Some(ref addr) => addr.clone(),
+            None => host.hostname.clone(),
+        };
+
+        let hostname = lookup_host(format!("{}:80", target))
             .await?
             .next()
             .ok_or(Error::DnsFailed)?;
