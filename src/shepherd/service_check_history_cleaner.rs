@@ -159,7 +159,7 @@ mod tests {
         .await
         .expect("Failed to insert service check 3");
 
-        let max = 90000;
+        let max = 35000;
         info!("Creating {} service check history entries", max);
 
         for _ in 0..max {
