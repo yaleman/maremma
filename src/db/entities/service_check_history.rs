@@ -51,7 +51,10 @@ impl Entity {
         if let Some(sc) = service_check_id {
             service_checks = service_checks.filter(entities::service_check::Column::Id.eq(sc));
         }
-        let service_checks = service_checks.all(db).await?;
+        let service_checks = service_checks
+            .all(db)
+            .await
+            .inspect_err(|err| error!("failed to get all service checks: {err}"))?;
 
         if service_checks.len() > 1 && service_check_id.is_some() {
             Err(Error::Generic(
@@ -85,7 +88,8 @@ impl Entity {
                 Entity::delete_many()
                     .filter(Column::ServiceCheckId.is_in(offset_list))
                     .exec(db)
-                    .await?;
+                    .await
+                    .inspect_err(|err| error!("Failed to delete entities: {err}"))?;
             }
         }
         info!(
