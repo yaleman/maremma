@@ -18,8 +18,16 @@ async fn test_next_service_check() {
 
 #[cfg(test)]
 pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
+    test_setup_harness(true, false).await
+}
+
+#[cfg(test)]
+pub(crate) async fn test_setup_harness(
+    debug: bool,
+    db_debug: bool,
+) -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
     // make sure logging is happening
-    let _ = setup_logging(true, true);
+    let _ = setup_logging(debug, db_debug);
     // enable the rustls crypto provider
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
@@ -35,6 +43,12 @@ pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, SendableCon
         .await
         .expect("Failed to update DB from config");
     Ok((db, config))
+}
+
+#[cfg(test)]
+pub(crate) async fn test_setup_quieter() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error>
+{
+    test_setup_harness(false, false).await
 }
 
 #[cfg(test)]

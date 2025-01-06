@@ -28,8 +28,8 @@ pub fn setup_logging(debug: bool, db_debug: bool) -> Result<(), log::SetLoggerEr
     }
 
     if !db_debug {
-        // We don't always want to see the SQL queries in the logs
-        builder.filter(Some("sea_orm::driver::sqlx_sqlite"), LevelFilter::Warn);
+        // We don't want to see the SQL queries in the logs
+        builder.filter(Some("sea_orm::driver::sqlx_sqlite"), LevelFilter::Error);
         builder.filter(Some("sqlx::query"), LevelFilter::Warn);
     }
 

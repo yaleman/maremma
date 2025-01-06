@@ -2,7 +2,9 @@
 
 use crate::prelude::*;
 use migrator::Migrator;
-use sea_orm::{Database, DatabaseConnection, QueryOrder, QuerySelect, TransactionTrait};
+use sea_orm::{
+    ConnectOptions, Database, DatabaseConnection, QueryOrder, QuerySelect, TransactionTrait,
+};
 use sea_orm_migration::prelude::*;
 use tracing::{info, instrument};
 
@@ -35,12 +37,14 @@ pub async fn get_connect_string(config: SendableConfig) -> String {
 
 #[instrument(level = "info", skip_all)]
 pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
-    let db = Database::connect(get_connect_string(config).await).await?;
+    let mut connect_options = ConnectOptions::new(get_connect_string(config).await);
+    connect_options.sqlx_logging(false);
+
+    let db = Database::connect(connect_options).await?;
     // start a transaction so if it doesn't work, we can roll back.
     let db_transaction = db.begin().await?;
     Migrator::up(&db_transaction, None).await?;
     db_transaction.commit().await?;
-
     Ok(db)
 }
 
