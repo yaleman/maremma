@@ -82,14 +82,21 @@ impl Entity {
                     .skip(leave_remaining as usize)
                     .map(|x| x.id)
                     .collect();
-                debug!("Deleting {} records", offset_list.len());
 
-                trimmed += offset_list.len();
-                Entity::delete_many()
-                    .filter(Column::ServiceCheckId.is_in(offset_list))
-                    .exec(db)
-                    .await
-                    .inspect_err(|err| error!("Failed to delete entities: {err}"))?;
+                if offset_list.len() > 5000 {
+                    debug!("Deleting {} records, 5000 at a time", offset_list.len());
+                } else {
+                    debug!("Deleting {} records", offset_list.len());
+                }
+                let offset_list = offset_list.chunks(5000);
+                for offsets in offset_list {
+                    trimmed += offsets.len();
+                    Entity::delete_many()
+                        .filter(Column::ServiceCheckId.is_in(offsets.to_vec()))
+                        .exec(db)
+                        .await
+                        .inspect_err(|err| error!("Failed to delete entities: {err}"))?;
+                }
             }
         }
         info!(
