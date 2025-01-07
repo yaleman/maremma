@@ -1,5 +1,5 @@
 use entities::{service_check, service_check_history};
-use sea_orm::{Order, QueryOrder, QuerySelect};
+use sea_orm::{FromQueryResult, Order, QueryOrder, QuerySelect};
 
 use crate::prelude::*;
 
@@ -51,13 +51,18 @@ impl Entity {
         if let Some(sc) = service_check_id {
             service_checks = service_checks.filter(entities::service_check::Column::Id.eq(sc));
         }
-        let service_checks: Vec<Uuid> = service_checks
+
+        #[derive(Debug, FromQueryResult)]
+        struct ServiceCheckAsId {
+            pub id: Uuid,
+        }
+
+        let service_checks: Vec<ServiceCheckAsId> = service_checks
+            .column(entities::service_check::Column::Id)
+            .into_model::<ServiceCheckAsId>()
             .all(db)
             .await
-            .inspect_err(|err| error!("failed to get all service checks: {err}"))?
-            .into_iter()
-            .map(|sc| sc.id)
-            .collect();
+            .inspect_err(|err| error!("failed to get all service checks: {err}"))?;
 
         let mut num_service_checks = 0;
         for service_check_id in service_checks {
@@ -65,7 +70,7 @@ impl Entity {
 
             // find the highest id for a service_check_history entity that's related to this service check, but offset by leave_remaining
             let first_to_delete = service_check_history::Entity::find()
-                .filter(Column::ServiceCheckId.eq(service_check_id))
+                .filter(Column::ServiceCheckId.eq(service_check_id.id))
                 .order_by(Column::Timestamp, Order::Desc)
                 .offset(leave_remaining)
                 .one(db)
@@ -74,7 +79,7 @@ impl Entity {
 
             if let Some(first_to_delete) = first_to_delete {
                 let delete_result = service_check_history::Entity::delete_many()
-                    .filter(Column::ServiceCheckId.eq(service_check_id))
+                    .filter(Column::ServiceCheckId.eq(service_check_id.id))
                     .filter(Column::Timestamp.lte(first_to_delete.timestamp))
                     .exec(db)
                     .await
@@ -82,7 +87,7 @@ impl Entity {
                 trimmed += delete_result.rows_affected;
                 info!(
                     "deleted={} for service_check_id={}",
-                    delete_result.rows_affected, service_check_id
+                    delete_result.rows_affected, service_check_id.id
                 );
             }
         }
