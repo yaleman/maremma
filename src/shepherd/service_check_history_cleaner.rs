@@ -56,7 +56,6 @@ impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
                 );
                 continue;
             }
-
             if let Some(target_service_check) = entities::service_check::Entity::find_by_id(id)
                 .one(db)
                 .await?
@@ -80,9 +79,7 @@ impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
 #[cfg(test)]
 mod tests {
     use crate::db::tests::test_setup_quieter;
-    use crate::host::HostCheck;
-    use crate::prelude::ServiceType;
-    use entities::{service, service_check, service_check_history};
+    use entities::service_check_history;
     use sea_orm::{ActiveModelTrait, Set};
     use uuid::Uuid;
 
@@ -93,71 +90,11 @@ mod tests {
         let (db, config) = test_setup_quieter().await.expect("Failed to do test setup");
         config.write().await.max_history_entries_per_check = 1;
 
-        let host = entities::host::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            name: Set("test_host".to_string()),
-            hostname: Set("localhost".to_string()),
-            check: Set(HostCheck::None),
-            config: Set(serde_json::Value::Null),
-            ..Default::default()
-        }
-        .insert(&*db)
-        .await
-        .expect("Failed to insert host");
-
-        let service = service::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            name: Set("test_service".to_string()),
-            cron_schedule: Set("* * * * *".to_string()),
-            service_type: Set(ServiceType::Ping),
-            extra_config: Set(serde_json::Value::Null),
-            ..Default::default()
-        }
-        .insert(&*db)
-        .await
-        .expect("Failed to insert service");
-
-        let service_check1 = service_check::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            service_id: Set(service.id),
-            host_id: Set(host.id),
-            status: Set(ServiceStatus::Ok),
-            last_updated: Set(chrono::Utc::now()),
-            next_check: Set(chrono::Utc::now()),
-            last_check: Set(chrono::Utc::now()),
-            ..Default::default()
-        }
-        .insert(&*db)
-        .await
-        .expect("Failed to insert service check 1");
-
-        let _service_check2 = service_check::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            service_id: Set(service.id),
-            host_id: Set(host.id),
-            status: Set(ServiceStatus::Critical),
-            last_updated: Set(chrono::Utc::now()),
-            next_check: Set(chrono::Utc::now()),
-            last_check: Set(chrono::Utc::now()),
-            ..Default::default()
-        }
-        .insert(&*db)
-        .await
-        .expect("Failed to insert service check 2");
-
-        let _service_check3 = service_check::ActiveModel {
-            id: Set(Uuid::new_v4()),
-            service_id: Set(service.id),
-            host_id: Set(host.id),
-            status: Set(ServiceStatus::Warning),
-            last_updated: Set(chrono::Utc::now()),
-            next_check: Set(chrono::Utc::now()),
-            last_check: Set(chrono::Utc::now()),
-            ..Default::default()
-        }
-        .insert(&*db)
-        .await
-        .expect("Failed to insert service check 3");
+        let valid_service_check = entities::service_check::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to find service check")
+            .expect("Failed to find service check");
 
         let max = 35000;
         info!("Creating {} service check history entries", max);
@@ -165,10 +102,10 @@ mod tests {
         for _ in 0..max {
             service_check_history::ActiveModel {
                 id: Set(Uuid::new_v4()),
-                service_check_id: Set(service_check1.id),
+                service_check_id: Set(valid_service_check.id),
                 timestamp: Set(chrono::Utc::now()),
                 status: Set(ServiceStatus::Ok),
-                result_text: Set(service_check1.id.to_string()),
+                result_text: Set(valid_service_check.id.to_string()),
                 time_elapsed: Set(0 as i64),
                 ..Default::default()
             }
@@ -178,6 +115,6 @@ mod tests {
         }
 
         let mut task = ServiceCheckHistoryCleanerTask::new(config);
-        task.run(&*db).await.unwrap();
+        task.run(&*db).await.expect("Failed to run task");
     }
 }
