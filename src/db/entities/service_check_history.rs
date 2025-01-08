@@ -1,5 +1,5 @@
-use entities::service_check;
-use sea_orm::QueryOrder;
+use entities::{service_check, service_check_history};
+use sea_orm::{FromQueryResult, Order, QueryOrder, QuerySelect};
 
 use crate::prelude::*;
 
@@ -43,7 +43,7 @@ impl Entity {
         db: &DatabaseConnection,
         service_check_id: Option<Uuid>,
         leave_remaining: u64,
-    ) -> Result<usize, Error> {
+    ) -> Result<u64, Error> {
         let mut trimmed = 0;
 
         // find all the service checks
@@ -51,58 +51,49 @@ impl Entity {
         if let Some(sc) = service_check_id {
             service_checks = service_checks.filter(entities::service_check::Column::Id.eq(sc));
         }
-        let service_checks = service_checks
+
+        #[derive(Debug, FromQueryResult)]
+        struct ServiceCheckAsId {
+            pub id: Uuid,
+        }
+
+        let service_checks: Vec<ServiceCheckAsId> = service_checks
+            .column(entities::service_check::Column::Id)
+            .into_model::<ServiceCheckAsId>()
             .all(db)
             .await
             .inspect_err(|err| error!("failed to get all service checks: {err}"))?;
 
-        if service_checks.len() > 1 && service_check_id.is_some() {
-            Err(Error::Generic(
-                "More than one service check found when asking for a single!".to_string(),
-            ))?;
-        }
+        let mut num_service_checks = 0;
+        for service_check_id in service_checks {
+            num_service_checks += 1;
 
-        for service_check in &service_checks {
-            let to_delete = service_check
-                .find_related(entities::service_check_history::Entity)
-                .order_by_desc(Column::Timestamp)
-                .all(db)
-                .await?;
+            // find the highest id for a service_check_history entity that's related to this service check, but offset by leave_remaining
+            let first_to_delete = service_check_history::Entity::find()
+                .filter(Column::ServiceCheckId.eq(service_check_id.id))
+                .order_by(Column::Timestamp, Order::Desc)
+                .offset(leave_remaining)
+                .one(db)
+                .await
+                .inspect_err(|err| error!("Failed to get service check history: {err}"))?;
 
-            // let mut num_records: usize = to_delete.len();
-            if to_delete.is_empty() {
-                debug!(
-                    "No service check history for service check id {}",
-                    service_check.id
+            if let Some(first_to_delete) = first_to_delete {
+                let delete_result = service_check_history::Entity::delete_many()
+                    .filter(Column::ServiceCheckId.eq(service_check_id.id))
+                    .filter(Column::Timestamp.lte(first_to_delete.timestamp))
+                    .exec(db)
+                    .await
+                    .inspect_err(|err| error!("Failed to delete entities: {err}"))?;
+                trimmed += delete_result.rows_affected;
+                info!(
+                    "deleted={} for service_check_id={}",
+                    delete_result.rows_affected, service_check_id.id
                 );
-                // num_records = 0;
-            } else {
-                let offset_list: Vec<Uuid> = to_delete
-                    .into_iter()
-                    .skip(leave_remaining as usize)
-                    .map(|x| x.id)
-                    .collect();
-
-                if offset_list.len() > 5000 {
-                    debug!("Deleting {} records, 5000 at a time", offset_list.len());
-                } else {
-                    debug!("Deleting {} records", offset_list.len());
-                }
-                let offset_list = offset_list.chunks(5000);
-                for offsets in offset_list {
-                    trimmed += offsets.len();
-                    Entity::delete_many()
-                        .filter(Column::ServiceCheckId.is_in(offsets.to_vec()))
-                        .exec(db)
-                        .await
-                        .inspect_err(|err| error!("Failed to delete entities: {err}"))?;
-                }
             }
         }
         info!(
             "Removed {} records across {} service checks",
-            trimmed,
-            service_checks.len()
+            trimmed, num_service_checks
         );
         Ok(trimmed)
     }
@@ -305,7 +296,7 @@ mod tests {
             .all(db.as_ref())
             .await
             .expect("Failed to find service check history");
-        assert_eq!(res.len(), things_to_create as usize);
+        assert_eq!(res.len() as u64, things_to_create);
         info!(
             "Have {} records for Service check id {}",
             res.len(),
@@ -316,6 +307,6 @@ mod tests {
             .await
             .expect("Failed to prune nothing");
 
-        assert_eq!(res, (things_to_create - num_to_delete) as usize);
+        assert_eq!(res, (things_to_create - num_to_delete));
     }
 }
