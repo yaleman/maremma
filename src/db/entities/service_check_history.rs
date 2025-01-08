@@ -58,6 +58,7 @@ impl Entity {
         }
 
         let service_checks: Vec<ServiceCheckAsId> = service_checks
+            .select_only()
             .column(entities::service_check::Column::Id)
             .into_model::<ServiceCheckAsId>()
             .all(db)

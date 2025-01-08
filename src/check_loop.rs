@@ -157,8 +157,9 @@ pub async fn run_check_loop(
                 let db_clone2 = db.clone();
                 if let Some((service_check, service)) = get_next_service_check(&db_clone2).await? {
                     let service_check = service_check
-                        .set_status(ServiceStatus::Checking, db.as_ref())
+                        .set_status(ServiceStatus::Checking, db_clone2.as_ref())
                         .await?;
+
                     let checks_run_since_startup_clone = checks_run_since_startup.clone();
                     let db_clone = db.clone();
                     tokio::spawn(async move {
