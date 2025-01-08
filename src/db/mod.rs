@@ -38,7 +38,12 @@ pub async fn get_connect_string(config: SendableConfig) -> String {
 #[instrument(level = "info", skip_all)]
 pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_orm::error::DbErr> {
     let mut connect_options = ConnectOptions::new(get_connect_string(config).await);
-    connect_options.sqlx_logging(false);
+    connect_options
+        .sqlx_slow_statements_logging_settings(
+            log::LevelFilter::Warn,
+            std::time::Duration::from_secs(2),
+        )
+        .acquire_timeout(std::time::Duration::from_secs(10));
 
     let db = Database::connect(connect_options).await?;
     // start a transaction so if it doesn't work, we can roll back.

@@ -20,21 +20,27 @@ struct SimpleSchCounts {
     pub count: i64,
 }
 
+// so we can test what query comes out of the planner
+fn sch_counts_query() -> sea_orm::Select<entities::service_check_history::Entity> {
+    entities::service_check_history::Entity::find()
+        .select_only()
+        .column(entities::service_check_history::Column::ServiceCheckId)
+        .column_as(
+            entities::service_check_history::Column::ServiceCheckId.count(),
+            "count",
+        )
+        .group_by(entities::service_check_history::Column::ServiceCheckId)
+        .order_by(
+            entities::service_check_history::Column::ServiceCheckId.count(),
+            Order::Desc,
+        )
+        .limit(10) // if we only clean up a few at a time it's less likely to cause a huge spike in db contention
+}
+
 #[async_trait]
 impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
     async fn run(&mut self, db: &DatabaseConnection) -> Result<(), Error> {
-        let sch_counts: Vec<SimpleSchCounts> = entities::service_check_history::Entity::find()
-            .column(entities::service_check_history::Column::ServiceCheckId)
-            .column_as(
-                entities::service_check_history::Column::ServiceCheckId.count(),
-                "count",
-            )
-            .group_by(entities::service_check_history::Column::ServiceCheckId)
-            .order_by(
-                entities::service_check_history::Column::ServiceCheckId.count(),
-                Order::Desc,
-            )
-            .limit(10) // if we only clean up a few at a time it's less likely to cause a huge spike in db contention
+        let sch_counts: Vec<SimpleSchCounts> = sch_counts_query()
             .into_model::<SimpleSchCounts>()
             .all(db)
             .await
@@ -79,8 +85,9 @@ impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
 #[cfg(test)]
 mod tests {
     use crate::db::tests::test_setup_quieter;
+    use crate::prelude::test_setup;
     use entities::service_check_history;
-    use sea_orm::{ActiveModelTrait, Set};
+    use sea_orm::{ActiveModelTrait, ConnectionTrait, QueryTrait, Set};
     use uuid::Uuid;
 
     use super::*;
@@ -116,5 +123,16 @@ mod tests {
 
         let mut task = ServiceCheckHistoryCleanerTask::new(config);
         task.run(&*db).await.expect("Failed to run task");
+    }
+
+    #[tokio::test]
+    async fn test_sch_counts_query() {
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+        let query_as_string = sch_counts_query()
+            .build(db.get_database_backend())
+            .to_string();
+        println!("{}", query_as_string);
+
+        assert!(!query_as_string.contains("timestamp"));
     }
 }

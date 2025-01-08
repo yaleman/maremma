@@ -65,7 +65,11 @@ async fn main() -> Result<(), ExitCode> {
             let (web_tx, web_rx) = tokio::sync::mpsc::channel(1);
 
             tokio::select! {
-                check_loop_result = run_check_loop(db.clone(), config.read().await.max_concurrent_checks, metrics_meter.clone()) => {
+                check_loop_result = run_check_loop(
+                    db.clone(),
+                    config.read().await.max_concurrent_checks,
+                    metrics_meter.clone()
+                ) => {
                     error!("Check loop bailed: {:?}", check_loop_result);
                 },
                 web_server_result = run_web_server(
