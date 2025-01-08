@@ -97,36 +97,65 @@ pub(crate) async fn run_service_check(
         service_check, result.status
     );
     let service_check_id = service_check.id;
-
-    set_check_result(
-        service_check.clone(),
-        &service,
-        chrono::Utc::now(),
-        result.status,
-        db,
-        jitter,
-    )
-    .await
-    .inspect_err(|err| {
-        error!(
-            "Failed to set status for service check: {:?} - {:?}",
-            service_check_id, err
-        );
-    })?;
-
-    if let Err(err) =
-        entities::service_check_history::Model::from_service_check_result(service_check_id, &result)
-            .into_active_model()
-            .insert(db)
-            .await
-    {
-        error!(
-            "Failed to store service_check_history for service_check_id={} error={}",
-            service_check_id,
-            err.to_string()
+    loop {
+        // we keep trying this until it works...
+        match set_check_result(
+            service_check.clone(),
+            &service,
+            chrono::Utc::now(),
+            result.status,
+            db,
+            jitter,
         )
+        .await
+        .inspect_err(|err| {
+            error!(
+                "Failed to set status for service check: {:?} - {:?}",
+                service_check_id, err
+            );
+        }) {
+            Ok(_) => break,
+            Err(Error::SqlError(DbErr::ConnectionAcquire(ConnAcquireErr::Timeout))) => {
+                warn!("Failed to get a DB connection while doing set_check_result due to a timeout, waiting {}ms", DEFAULT_BACKOFF.as_millis()*5);
+                tokio::time::sleep(DEFAULT_BACKOFF * 5).await;
+                continue;
+            }
+            Err(err) => {
+                error!(
+                    "Failed to store service_check_history for service_check_id={} error={:?}",
+                    service_check_id, err
+                );
+                return Err(err);
+            }
+        };
     }
-    Ok(())
+
+    loop {
+        // we keep trying this until it works...
+        match entities::service_check_history::Model::from_service_check_result(
+            service_check_id,
+            &result,
+        )
+        .into_active_model()
+        .insert(db)
+        .await
+        {
+            Ok(_) => return Ok(()),
+            Err(DbErr::ConnectionAcquire(ConnAcquireErr::Timeout)) => {
+                warn!("Failed to get a DB connection while saving service_check_result due to a timeout, waiting {}ms", DEFAULT_BACKOFF.as_millis()*5);
+                tokio::time::sleep(DEFAULT_BACKOFF * 5).await;
+                continue;
+            }
+            Err(err) => {
+                error!(
+                    "Failed to store service_check_history for service_check_id={} error={}",
+                    service_check_id,
+                    err.to_string()
+                );
+                return Err(err.into());
+            }
+        }
+    }
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -155,57 +184,68 @@ pub async fn run_check_loop(
         match semaphore.clone().acquire_owned().await {
             Ok(permit) => {
                 let db_clone2 = db.clone();
-                if let Some((service_check, service)) = get_next_service_check(&db_clone2).await? {
-                    let service_check = service_check
-                        .set_status(ServiceStatus::Checking, db_clone2.as_ref())
-                        .await?;
 
-                    let checks_run_since_startup_clone = checks_run_since_startup.clone();
-                    let db_clone = db.clone();
-                    tokio::spawn(async move {
-                        let sc_id = service_check.id.hyphenated().to_string();
-                        if let Err(err) =
-                            run_service_check(&db_clone, &service_check, service).await
-                        {
-                            error!("Failed to run service check: {:?}", err);
-                            let mut service_check = service_check.into_active_model();
-                            service_check.status.set_if_not_equals(ServiceStatus::Error);
-                            service_check
-                                .last_updated
-                                .set_if_not_equals(chrono::Utc::now());
+                let (service_check, service) = match get_next_service_check(&db_clone2).await {
+                    Ok(val) => match val {
+                        Some(val) => val,
+                        None => {
+                            backoff += DEFAULT_BACKOFF;
+                            if backoff > MAX_BACKOFF_TIME {
+                                backoff = MAX_BACKOFF_TIME;
+                            }
+                            trace!("Nothing to do, waiting {}ms", backoff.as_millis());
+                            tokio::time::sleep(backoff).await;
+                            continue;
+                        }
+                    },
+                    Err(err) => match err {
+                        Error::SqlError(DbErr::ConnectionAcquire(ConnAcquireErr::Timeout)) => {
+                            warn!("Failed to get a DB connection due to a timeout, waiting 1s");
+                            backoff = DEFAULT_BACKOFF;
+                            tokio::time::sleep(backoff).await;
+                            continue;
+                        }
+                        _ => return Err(err),
+                    },
+                };
 
-                            if let Err(err) = service_check.update(db_clone.as_ref()).await {
-                                error!(
+                let service_check = service_check
+                    .set_status(ServiceStatus::Checking, db_clone2.as_ref())
+                    .await?;
+
+                let checks_run_since_startup_clone = checks_run_since_startup.clone();
+                let db_clone = db.clone();
+                tokio::spawn(async move {
+                    let sc_id = service_check.id.hyphenated().to_string();
+                    if let Err(err) = run_service_check(&db_clone, &service_check, service).await {
+                        error!("Failed to run service check: {:?}", err);
+                        let mut service_check = service_check.into_active_model();
+                        service_check.status.set_if_not_equals(ServiceStatus::Error);
+                        service_check
+                            .last_updated
+                            .set_if_not_equals(chrono::Utc::now());
+
+                        if let Err(err) = service_check.update(db_clone.as_ref()).await {
+                            error!(
                                     "Failed to update service service_check {} check status to error: {:?}",
                                     sc_id, err
                                 );
-                            };
+                        };
 
-                            checks_run_since_startup_clone.add(
-                                1,
-                                &[KeyValue::new("type", "error"), KeyValue::new("id", sc_id)],
-                            );
-                        } else {
-                            checks_run_since_startup_clone.add(
-                                1,
-                                &[
-                                    KeyValue::new(
-                                        "result",
-                                        ToString::to_string(&ServiceStatus::Ok),
-                                    ),
-                                    KeyValue::new("id", sc_id),
-                                ],
-                            );
-                        }
-                    });
-                } else {
-                    backoff += DEFAULT_BACKOFF;
-                    if backoff > MAX_BACKOFF_TIME {
-                        backoff = MAX_BACKOFF_TIME;
+                        checks_run_since_startup_clone.add(
+                            1,
+                            &[KeyValue::new("type", "error"), KeyValue::new("id", sc_id)],
+                        );
+                    } else {
+                        checks_run_since_startup_clone.add(
+                            1,
+                            &[
+                                KeyValue::new("result", ToString::to_string(&ServiceStatus::Ok)),
+                                KeyValue::new("id", sc_id),
+                            ],
+                        );
                     }
-                    trace!("Nothing to do, waiting {}ms", backoff.as_millis());
-                    tokio::time::sleep(backoff).await;
-                }
+                });
                 drop(permit); // Release the permit when the task is done
             }
             Err(err) => {
