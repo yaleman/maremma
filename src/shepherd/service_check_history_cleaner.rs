@@ -39,13 +39,13 @@ fn sch_counts_query() -> sea_orm::Select<entities::service_check_history::Entity
 
 #[async_trait]
 impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
-    async fn run(&mut self, db: &DatabaseConnection) -> Result<(), Error> {
+    async fn run(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
+        let db_writer = db.write().await;
         let sch_counts: Vec<SimpleSchCounts> = sch_counts_query()
             .into_model::<SimpleSchCounts>()
-            .all(db)
+            .all(&*db_writer)
             .await
             .inspect_err(|err| error!("Service check history cleaner failed: {:?}", err))?;
-        debug!("sch counts: {:?}", sch_counts);
 
         let sch_counts = sch_counts
             .into_iter()
@@ -63,11 +63,11 @@ impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
                 continue;
             }
             if let Some(target_service_check) = entities::service_check::Entity::find_by_id(id)
-                .one(db)
+                .one(&*db_writer)
                 .await?
             {
                 let res = entities::service_check_history::Entity::head(
-                    db,
+                    &db_writer,
                     Some(target_service_check.id),
                     target_num,
                 )
@@ -94,13 +94,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_check_history_cleaner() {
-        let (db, config) = test_setup_quieter().await.expect("Failed to do test setup");
+        let (db, config, mut dbactor, _tx) =
+            test_setup_quieter().await.expect("Failed to do test setup");
         config.write().await.max_history_entries_per_check = 1;
-
+        let db_writer = db.write().await;
         let valid_service_check = entities::service_check::Entity::find()
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
-            .expect("Failed to find service check")
+            .expect("Failed to query DB for service check")
             .expect("Failed to find service check");
 
         let max = 35000;
@@ -116,20 +117,26 @@ mod tests {
                 time_elapsed: Set(0 as i64),
                 ..Default::default()
             }
-            .insert(&*db)
+            .insert(&*db_writer)
             .await
             .expect("Failed to insert service check history for check 1");
         }
+        drop(db_writer);
 
         let mut task = ServiceCheckHistoryCleanerTask::new(config);
-        task.run(&*db).await.expect("Failed to run task");
+        tokio::select! {
+            _ = dbactor.run_actor() => {},
+            res = task.run(db) => {
+                res.expect("Failed to run task");
+            }
+        }
     }
 
     #[tokio::test]
     async fn test_sch_counts_query() {
-        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
         let query_as_string = sch_counts_query()
-            .build(db.get_database_backend())
+            .build(db.read().await.get_database_backend())
             .to_string();
         println!("{}", query_as_string);
 

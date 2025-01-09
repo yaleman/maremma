@@ -28,7 +28,7 @@ pub(crate) async fn service_check_get(
     let user = check_login(claims)?;
 
     let res = entities::service_check::Entity::find_by_id(service_check_id)
-        .one(state.db.as_ref())
+        .one(&*state.db.read().await)
         .await
         .map_err(|err| {
             error!(
@@ -49,7 +49,7 @@ pub(crate) async fn service_check_get(
         .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
         .order_by_desc(entities::service_check_history::Column::Timestamp)
         .limit(DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES)
-        .all(state.db.as_ref())
+        .all(&*state.db.read().await)
         .await
         .map_err(|err| {
             error!(
@@ -61,7 +61,7 @@ pub(crate) async fn service_check_get(
 
     let host = service_check
         .find_related(entities::host::Entity)
-        .one(state.db.as_ref())
+        .one(&*state.db.read().await)
         .await
         .map_err(|err| {
             error!(
@@ -79,7 +79,7 @@ pub(crate) async fn service_check_get(
 
     let service = service_check
         .find_related(entities::service::Entity)
-        .one(state.db.as_ref())
+        .one(&*state.db.read().await)
         .await
         .map_err(|err| {
             error!(
@@ -99,7 +99,7 @@ pub(crate) async fn service_check_get(
         })?;
 
     let mut parsed_service =
-        crate::services::Service::try_from_service_model(&service, state.db.as_ref())
+        crate::services::Service::try_from_service_model(&service, &*state.db.read().await)
             .await
             .map_err(|err| {
                 error!(
@@ -175,7 +175,7 @@ pub(crate) async fn set_service_check_status(
     form: RedirectTo,
 ) -> Result<Redirect, (StatusCode, String)> {
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
-        .one(state.db.as_ref())
+        .one(&*state.db.read().await)
         .await
         .map_err(|err| {
             error!(
@@ -204,13 +204,16 @@ pub(crate) async fn set_service_check_status(
     let host_id = service_check.host_id.clone().unwrap();
 
     if service_check.is_changed() {
-        service_check.save(state.db.as_ref()).await.map_err(|err| {
-            error!(
-                "Failed to set service_check_id={} to status={}: {:?}",
-                service_check_id, status, err
-            );
-            Error::from(err)
-        })?;
+        service_check
+            .save(&*state.db.write().await)
+            .await
+            .map_err(|err| {
+                error!(
+                    "Failed to set service_check_id={} to status={}: {:?}",
+                    service_check_id, status, err
+                );
+                Error::from(err)
+            })?;
     };
     // TODO: make it so we can redirect to... elsewhere based on a query string?
     if let Some(redirect_to) = &form.redirect_to {
@@ -251,7 +254,7 @@ pub(crate) async fn service_check_delete(
     })?;
 
     entities::service_check::Entity::delete_by_id(service_check_id)
-        .exec(state.db.as_ref())
+        .exec(&*state.db.write().await)
         .await
         .map_err(|err| {
             error!(
@@ -282,7 +285,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -296,7 +299,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -318,12 +321,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_service_check_urgent() {
-        let (db, config) = test_setup().await.expect("Failed to set up!");
+        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
 
         let service_check = entities::service_check::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -361,7 +364,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -383,12 +386,12 @@ mod tests {
     }
     #[tokio::test]
     async fn test_set_service_check_enabled() {
-        let (db, config) = test_setup().await.expect("Failed to set up!");
+        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
 
         let service_check = entities::service_check::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -416,7 +419,7 @@ mod tests {
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to search for service_check")
             .is_some()
@@ -438,13 +441,13 @@ mod tests {
     #[tokio::test]
     async fn test_view_service_check_delete_unauth() {
         use super::*;
-        let (_db, _config) = test_setup().await.expect("Failed to set up!");
+        let (_db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to search for service_check")
             .is_some()
@@ -464,13 +467,13 @@ mod tests {
     #[tokio::test]
     async fn test_view_service_check_delete_auth() {
         use super::*;
-        let (db, _config) = test_setup().await.expect("Failed to set up!");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to search for service_check")
             .is_some()
@@ -491,7 +494,7 @@ mod tests {
 
         // find a valid service check
         let service_check = entities::service_check::Entity::find()
-            .one(db.as_ref())
+            .one(&*db.write().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");

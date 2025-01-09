@@ -15,7 +15,7 @@ async fn test_working_tls_service() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
 
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let certs = TestCertificateBuilder::new()
         .with_name("localhost")
@@ -61,7 +61,7 @@ async fn test_expired_tls_service() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
 
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let certs = TestCertificateBuilder::new()
         .with_name("localhost")
@@ -99,7 +99,7 @@ async fn test_wrong_cert_host_name() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
 
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let certs = TestCertificateBuilder::new()
         .with_name("this.should.fail")
@@ -132,7 +132,7 @@ async fn test_wrong_cert_host_name() {
 async fn test_nxdomain() {
     use crate::prelude::*;
 
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
         "name": "test",
@@ -159,7 +159,7 @@ async fn test_nxdomain() {
 async fn test_invalid_hostname() {
     use crate::prelude::*;
 
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
         "name": "test",
@@ -187,7 +187,7 @@ async fn test_tls_sha1_intermediate() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
 
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let certs = TestCertificateBuilder::new()
         .with_name("localhost")
@@ -258,7 +258,7 @@ async fn test_tls_no_subject() {
 
 #[tokio::test]
 async fn test_zero_port() {
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
         "name": "test",
@@ -274,7 +274,7 @@ async fn test_zero_port() {
 async fn test_timeout() {
     use crate::prelude::*;
 
-    let (_, _) = test_setup().await.expect("Failed to set up test");
+    let _ = test_setup().await.expect("Failed to set up test");
 
     let service_def = serde_json::json! {{
         "name": "test",
@@ -299,7 +299,7 @@ async fn test_timeout() {
 
 #[tokio::test]
 async fn test_service_parser() {
-    let (db, _config) = test_setup().await.expect("Failed to set up test");
+    let (db, ..) = test_setup().await.expect("Failed to set up test");
     let mut extra_config = std::collections::HashMap::new();
 
     extra_config.insert("port".to_string(), json! {1234});
@@ -324,7 +324,7 @@ async fn test_service_parser() {
     let _ = service.parse_config().expect("Failed to parse config!");
 
     let host = entities::host::Entity::find()
-        .one(db.as_ref())
+        .one(&*db.write().await)
         .await
         .expect("Failed to search for host")
         .expect("Failed to find host");

@@ -4,6 +4,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use croner::errors::CronError;
 use kube::config::KubeconfigError;
+use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
 
@@ -66,6 +67,11 @@ pub enum Error {
     TlsError(String),
     /// When the timeout is reached
     Timeout,
+
+    /// When we fail to receive a message from the channel
+    IPCRecvError(String),
+    /// When we fail to send a message into the channel
+    IPCSendError(String),
 }
 
 impl From<serde_json::Error> for Error {
@@ -178,6 +184,21 @@ impl IntoResponse for Error {
             }
         }
         .into_response()
+    }
+}
+
+impl From<oneshot::error::RecvError> for Error {
+    fn from(value: oneshot::error::RecvError) -> Self {
+        Self::IPCRecvError(value.to_string())
+    }
+}
+
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for Error
+where
+    T: std::fmt::Debug,
+{
+    fn from(value: tokio::sync::mpsc::error::SendError<T>) -> Self {
+        Self::IPCSendError(value.to_string())
     }
 }
 

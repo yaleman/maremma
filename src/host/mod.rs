@@ -141,10 +141,10 @@ mod tests {
     async fn test_host_from_host() {
         use super::*;
 
-        let (db, _config) = test_setup().await.expect("Failed to setup test");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test");
 
         let host: Host = entities::host::Entity::find()
-            .one(db.as_ref())
+            .one(&*db.write().await)
             .await
             .expect("Failed to query host")
             .expect("Failed to find test host")

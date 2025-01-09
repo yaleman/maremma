@@ -10,6 +10,7 @@ use tracing::{info, instrument};
 
 use crate::config::Configuration;
 
+pub mod actor;
 pub mod entities;
 pub(crate) mod migrations;
 pub(crate) mod migrator;
@@ -53,27 +54,28 @@ pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_o
     Ok(db)
 }
 
+#[instrument(level = "debug", skip_all)]
 pub async fn update_db_from_config(
-    db: &DatabaseConnection,
+    db: Arc<RwLock<DatabaseConnection>>,
     config: SendableConfig,
 ) -> Result<(), Error> {
     // let's go through and update the DB
-
-    entities::host::Model::update_db_from_config(db, config.clone())
+    let db = db.write().await;
+    entities::host::Model::update_db_from_config(&db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update hosts DB from config: {:?}", err);
         })?;
     info!("Updated hosts");
 
-    entities::host_group::Model::update_db_from_config(db, config.clone())
+    entities::host_group::Model::update_db_from_config(&db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update host_groups DB from config: {:?}", err);
         })?;
     info!("Updated host_groups");
 
-    entities::host_group_members::Model::update_db_from_config(db, config.clone())
+    entities::host_group_members::Model::update_db_from_config(&db, config.clone())
         .await
         .inspect_err(|err| {
             error!(
@@ -83,14 +85,14 @@ pub async fn update_db_from_config(
         })?;
     info!("Updated host_group_members");
 
-    entities::service::Model::update_db_from_config(db, config.clone())
+    entities::service::Model::update_db_from_config(&db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update services DB from config: {:?}", err);
         })?;
     info!("Updated services");
 
-    entities::service_group_link::Model::update_db_from_config(db, config.clone())
+    entities::service_group_link::Model::update_db_from_config(&db, config.clone())
         .await
         .inspect_err(|err| {
             error!(
@@ -99,7 +101,7 @@ pub async fn update_db_from_config(
             );
         })?;
 
-    entities::service_check::Model::update_db_from_config(db, config.clone())
+    entities::service_check::Model::update_db_from_config(&db, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update service_checks DB from config: {:?}", err);

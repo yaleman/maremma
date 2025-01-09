@@ -42,6 +42,19 @@ docker_publish:
         --push \
         .
 
+# Publish a dev build
+docker_publish_dev:
+    docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --tag ghcr.io/yaleman/maremma:dev \
+        --tag ghcr.io/yaleman/maremma:$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "maremma")  | .version')-dev \
+        --tag ghcr.io/yaleman/maremma:$(git rev-parse HEAD) \
+        --label org.opencontainers.image.source=https://github.com/yaleman/maremma \
+        --label org.opencontainers.image.revision=$(git rev-parse HEAD) \
+        --label org.opencontainers.image.created=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+        --push \
+        .
+
 
 # Serve the book
 book:

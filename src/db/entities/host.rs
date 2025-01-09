@@ -140,29 +140,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_host_entity() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
+
+        let db_writer = db.write().await;
 
         let host = super::test_host();
         info!("saving host...");
         let am = host.clone().into_active_model();
-        super::Entity::insert(am).exec(db.as_ref()).await.unwrap();
+        super::Entity::insert(am).exec(&*db_writer).await.unwrap();
 
         let new_host = super::Entity::find()
             .filter(super::Column::Id.eq(host.id))
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .unwrap();
         info!("found it: {:?}", new_host);
 
         super::Entity::delete_by_id(new_host.id)
-            .exec(db.as_ref())
+            .exec(&*db_writer)
             .await
             .unwrap();
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq(new_host.id))
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .is_none());
@@ -170,21 +173,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_db_from_config() {
-        let (db, config) = test_setup().await.expect("Failed to start test harness");
-        super::Model::update_db_from_config(&db, config)
+        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+        super::Model::update_db_from_config(&*db.write().await, config)
             .await
             .expect("Failed to load config");
     }
     #[tokio::test]
     async fn test_create_then_search() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
-
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
+        let db_writer = db.write().await;
         let inserted_host = super::Entity::insert(super::test_host().into_active_model())
-            .exec_with_returning(db.as_ref())
+            .exec_with_returning(&*db_writer)
             .await
             .expect("Failed to insert host");
 
-        let found_host = super::Model::find_by_name(&super::test_host().name, db.as_ref())
+        let found_host = super::Model::find_by_name(&super::test_host().name, &*db_writer)
             .await
             .expect("Failed to query host");
 

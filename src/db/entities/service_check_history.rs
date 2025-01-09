@@ -143,10 +143,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_check_history() {
-        let (db, _config) = test_setup().await.expect("Failed to do test setup");
-
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let db_writer: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
         let service_check = entities::service_check::Entity::find()
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .expect("Failed to query service check")
             .expect("Failed to find service check");
@@ -162,7 +162,7 @@ mod tests {
         let res = service_check_history
             .clone()
             .into_active_model()
-            .insert(db.as_ref())
+            .insert(&*db_writer)
             .await
             .expect("Failed to save service check history");
 
@@ -170,7 +170,7 @@ mod tests {
 
         let res = Entity::find_by_id(service_check_history.id)
             .find_with_related(entities::service_check::Entity)
-            .all(db.as_ref())
+            .all(&*db_writer)
             .await
             .expect("Failed to find service check history");
 
@@ -179,7 +179,7 @@ mod tests {
         assert!(!related_model.is_empty());
 
         let res = Entity::prune(
-            db.as_ref(),
+            &*db_writer,
             chrono::Utc::now() - TimeDelta::days(1),
             Some(service_check.id),
         )
@@ -191,18 +191,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_future_date_prune() {
-        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
 
-        let res = Entity::prune(db.as_ref(), chrono::Utc::now() + TimeDelta::days(1), None).await;
+        let res = Entity::prune(
+            &*db.write().await,
+            chrono::Utc::now() + TimeDelta::days(1),
+            None,
+        )
+        .await;
 
         assert!(matches!(res, Err(Error::DateIsInTheFuture)));
     }
     #[tokio::test]
     async fn test_prune_service_check_id() {
-        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
 
         let res = Entity::prune(
-            db.as_ref(),
+            &*db.write().await,
             chrono::Utc::now() - TimeDelta::days(1),
             Some(Uuid::new_v4()),
         )
@@ -213,9 +218,9 @@ mod tests {
     }
     #[tokio::test]
     async fn test_head_service_check_history() {
-        let (db, _config) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
 
-        let res = Entity::head(db.as_ref(), Some(Uuid::new_v4()), 0)
+        let res = Entity::head(&*db.write().await, Some(Uuid::new_v4()), 0)
             .await
             .expect("Failed to prune nothing");
 
@@ -223,10 +228,10 @@ mod tests {
     }
     #[tokio::test]
     async fn test_head_service_check_history_sc_id() {
-        let (db, _config) = test_setup().await.expect("Failed to do test setup");
-
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let db_writer = db.write().await;
         let valid_service_check = entities::service_check::Entity::find()
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .expect("Failed to find service check")
             .expect("Failed to find service check");
@@ -243,17 +248,17 @@ mod tests {
         service_check_history
             .clone()
             .into_active_model()
-            .insert(db.as_ref())
+            .insert(&*db_writer)
             .await
             .expect("Failed to save service check history");
 
-        let res = Entity::head(db.as_ref(), Some(valid_service_check.id), 0)
+        let res = Entity::head(&*db_writer, Some(valid_service_check.id), 0)
             .await
             .expect("Failed to prune a valid SCID");
 
         assert_eq!(res, 1);
 
-        let res = Entity::head(db.as_ref(), Some(Uuid::new_v4()), 0)
+        let res = Entity::head(&*db_writer, Some(Uuid::new_v4()), 0)
             .await
             .expect("Failed to prune nothing");
 
@@ -262,10 +267,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_head_1k() {
-        let (db, _config) = test_setup().await.expect("Failed to do test setup");
-
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let db_writer = db.write().await;
         let valid_service_check = entities::service_check::Entity::find()
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .expect("Failed to find service check")
             .expect("Failed to find service check");
@@ -287,14 +292,14 @@ mod tests {
                 Model::from_service_check_result(valid_sc_id, &result).into_active_model();
 
             sch.id.set_if_not_equals(Uuid::new_v4());
-            sch.insert(db.as_ref())
+            sch.insert(&*db_writer)
                 .await
                 .expect("Failed to save service check history");
         }
 
         let res = Entity::find()
             .filter(Column::ServiceCheckId.eq(valid_sc_id))
-            .all(db.as_ref())
+            .all(&*db_writer)
             .await
             .expect("Failed to find service check history");
         assert_eq!(res.len() as u64, things_to_create);
@@ -304,7 +309,7 @@ mod tests {
             valid_sc_id
         );
 
-        let res = Entity::head(db.as_ref(), Some(valid_service_check.id), num_to_delete)
+        let res = Entity::head(&*db_writer, Some(valid_service_check.id), num_to_delete)
             .await
             .expect("Failed to prune nothing");
 

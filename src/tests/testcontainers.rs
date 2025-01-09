@@ -107,7 +107,7 @@ impl TestContainer {
 async fn test_basic_testcontainer() {
     use crate::prelude::*;
 
-    let (_db, _config) = test_setup().await.expect("Failed to set up test");
+    let (_db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
 
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)

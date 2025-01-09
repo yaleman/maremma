@@ -100,7 +100,7 @@ mod tests {
     #[tokio::test]
 
     async fn test_run_oneshot() {
-        let (_, config) = test_setup().await.expect("Failed to set up test");
+        let (_, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
 
         let cmd = OneShotCmd {
             sharedopts: SharedOpts::default(),
@@ -129,7 +129,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_show_config_oneshot() {
-        let (_, config) = test_setup().await.expect("Failed to set up test");
+        let (_, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
         // this sample config should fill everything, yeeet
         let service_config = json! {{
             "cron_schedule" : "@hourly",
@@ -165,7 +165,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_oneshot() {
-        let (_, config) = test_setup().await.expect("Failed to set up test");
+        let (_, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
         let service_config = json!("{}").to_string();
         let cmd = OneShotCmd {
             sharedopts: SharedOpts::default(),
