@@ -41,7 +41,7 @@ pub(crate) async fn service(
         }
     };
 
-    let service_checks = FullServiceCheck::get_by_service_id(service_id, &*reader)
+    let service_checks = FullServiceCheck::get_by_service_id(service_id, &reader)
         .await
         .map_err(Error::from)?;
 

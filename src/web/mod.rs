@@ -433,10 +433,8 @@ mod tests {
             .await
             .expect("Failed to run app");
 
-        let db_writer = db.write().await;
-
         let host = host::Entity::find()
-            .one(&*db_writer)
+            .one(&*db.write().await)
             .await
             .expect("Failed to query db for host")
             .expect("Failed to find host");
@@ -448,7 +446,7 @@ mod tests {
             .unwrap_or_else(|err| panic!("Failed to GET {} {:?}", url, err));
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(&*db.write().await)
             .await
             .expect("Failed to query db for service_check")
             .expect("Failed to find service_check");
