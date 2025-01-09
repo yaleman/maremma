@@ -11,6 +11,7 @@ use prelude::*;
 use service_check_cleaner::ServiceCheckCleanTask;
 use service_check_history_cleaner::ServiceCheckHistoryCleanerTask;
 use session_cleaner::SessionCleanTask;
+use tokio::sync::RwLock;
 
 pub(crate) struct CronTask {
     name: String,
@@ -33,7 +34,8 @@ impl CronTask {
         Self { last_run, ..self }
     }
 
-    async fn run_task(&mut self, db: &DatabaseConnection) -> Result<bool, Error> {
+    #[instrument(level = "INFO", skip_all)]
+    async fn run_task(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<bool, Error> {
         if self.should_run()? {
             self.task
                 .run(db)
@@ -54,15 +56,17 @@ impl CronTask {
 
 #[async_trait]
 pub(crate) trait CronTaskTrait {
-    async fn run(&mut self, db: &DatabaseConnection) -> Result<(), Error>;
+    async fn run(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error>;
 }
 
 /// The shepherd wanders around making sure things are in order.
 pub async fn shepherd(
-    db: Arc<DatabaseConnection>,
+    db: Arc<RwLock<DatabaseConnection>>,
     config: SendableConfig,
     web_tx: tokio::sync::mpsc::Sender<WebServerControl>,
 ) -> Result<(), Error> {
+    // TODO: remove db references from shepherd
+
     // run the clean_up_checking loop every x minutes
     let mut service_check_clean = CronTask::new(
         "ServiceCheckClean".to_string(),
@@ -94,11 +98,12 @@ pub async fn shepherd(
     loop {
         let start_time = std::time::SystemTime::now();
         debug!("The shepherd is checking the herd...");
+
         let tasks = vec![
-            service_check_clean.run_task(db.as_ref()),
-            session_cleaner.run_task(db.as_ref()),
-            check_cert_changed.run_task(db.as_ref()),
-            service_check_history_cleaner.run_task(db.as_ref()),
+            service_check_clean.run_task(db.clone()),
+            session_cleaner.run_task(db.clone()),
+            check_cert_changed.run_task(db.clone()),
+            service_check_history_cleaner.run_task(db.clone()),
         ];
 
         futures::future::try_join_all(tasks).await?;
@@ -125,16 +130,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_servicecheckcleantask() {
-        let (db, _config) = test_setup().await.expect("Failed to set up tests");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
 
         let mut scct = ServiceCheckCleanTask {};
-        scct.run(&db)
+        scct.run(db)
             .await
             .expect("Failed to run ServiceCheckCleanTask");
     }
     #[tokio::test]
     async fn test_sessioncleantask() {
-        let (db, _config) = test_setup().await.expect("Failed to set up tests");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
 
         let mut crontask = CronTask::new(
             "test_task".to_string(),
@@ -146,7 +151,7 @@ mod tests {
 
         crontask
             .task
-            .run(&db)
+            .run(db)
             .await
             .expect("Failed to run SessionCleanTask");
 
@@ -158,7 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shepherd() {
-        let (db, config) = test_setup().await.expect("Failed to set up tests");
+        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
 
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
 

@@ -108,7 +108,7 @@ async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
                 ActionStatus::Error,
             ))
         })?;
-    update_db_from_config(state.db.as_ref(), Arc::new(RwLock::new(new_config)))
+    update_db_from_config(state.db.clone(), Arc::new(RwLock::new(new_config)))
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
@@ -178,7 +178,7 @@ pub(crate) async fn tools(
                         entities::service_check::Column::Status,
                         Expr::value(ServiceStatus::Urgent),
                     )
-                    .exec(state.db.as_ref())
+                    .exec(&*state.db.write().await)
                     .await
                     .map_err(|e| {
                         error!("Failed to set all to urgent: {:?}", e);

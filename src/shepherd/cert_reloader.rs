@@ -26,7 +26,7 @@ fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
     Ok(DateTime::<Utc>::from(modified))
 }
 
-#[instrument(level = "debug")]
+#[instrument(level = "debug", skip(config))]
 async fn get_file_times(config: SendableConfig) -> Result<(DateTime<Utc>, DateTime<Utc>), Error> {
     let config_reader = config.read().await;
 
@@ -81,7 +81,7 @@ impl CertReloaderTask {
 
 #[async_trait]
 impl CronTaskTrait for CertReloaderTask {
-    async fn run(&mut self, _db: &DatabaseConnection) -> Result<(), Error> {
+    async fn run(&mut self, _db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
         let (cert_time, key_time) = get_file_times(self.config.clone()).await?;
 
         if cert_time != self.cert_time || key_time != self.key_time {
@@ -111,7 +111,7 @@ mod tests {
     use super::*;
     #[tokio::test]
     async fn test_get_file_time() {
-        let (_db, config) = test_setup().await.expect("Failed to set up tests");
+        let (_db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
 
         assert!(get_file_times(config).await.is_err());
 
@@ -121,7 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cert_reloader_task() {
-        let (db, _config) = test_setup().await.expect("Failed to set up tests");
+        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
         let bad_config = Configuration {
             cert_file: std::path::PathBuf::from("bad_cert_file"),
             cert_key: std::path::PathBuf::from("bad_cert_key"),
@@ -137,7 +137,7 @@ mod tests {
             key_time: chrono::Utc::now(),
         };
 
-        let res = task.run(&db).await;
+        let res = task.run(db).await;
 
         dbg!(&res);
         assert!(res.is_err());

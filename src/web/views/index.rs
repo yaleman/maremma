@@ -63,12 +63,16 @@ pub(crate) async fn index(
             sort_order.clone(),
         ),
     };
-
+    debug!("Getting reader...");
+    let db_handle = state.db.read().await;
+    debug!("got reader");
     let mut checks = checks
         .into_model()
-        .all(state.db.as_ref())
+        .all(&*db_handle)
         .await
         .map_err(Error::from)?;
+    drop(db_handle);
+    debug!("query done");
 
     if order_field == OrderFields::Status {
         checks.sort_by(|a: &FullServiceCheck, b: &FullServiceCheck| a.status.cmp(&b.status));

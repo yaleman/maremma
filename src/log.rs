@@ -33,6 +33,8 @@ pub fn setup_logging(debug: bool, db_debug: bool) -> Result<(), log::SetLoggerEr
         builder.filter(Some("sqlx::query"), LevelFilter::Warn);
     }
 
+    builder.filter(Some("ssh::channel::local::channel"), LevelFilter::Warn);
+    builder.filter(Some("h2"), LevelFilter::Warn);
     builder.filter(Some("tracing::span"), LevelFilter::Warn);
     builder.target(Target::Stdout);
 

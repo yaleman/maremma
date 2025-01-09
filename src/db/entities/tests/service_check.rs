@@ -8,20 +8,20 @@ use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait
 
 #[tokio::test]
 async fn test_service_check_entity() {
-    let (db, _config) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
 
     let service = service::test_service();
     let host = host::test_host();
     info!("saving service...");
-
+    let db_writer = db.write().await;
     let service_am = service.into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.to_owned())
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
 
@@ -37,7 +37,7 @@ async fn test_service_check_entity() {
     let am = service_check.into_active_model();
 
     if let Err(err) = entities::service_check::Entity::insert(am)
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
     {
         panic!("Failed to insert service check: {:?}", err);
@@ -45,7 +45,7 @@ async fn test_service_check_entity() {
 
     let service_check = entities::service_check::Entity::find()
         .filter(entities::service_check::Column::Id.eq(service_check_id))
-        .one(db.as_ref())
+        .one(&*db_writer)
         .await
         .unwrap()
         .unwrap();
@@ -53,17 +53,17 @@ async fn test_service_check_entity() {
     info!("found it: {:?}", service_check);
 
     entities::service_check::Entity::delete_by_id(service_check_id)
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
     // Check we didn't delete the host when deleting the service check
     assert!(host::Entity::find_by_id(host_am.id.unwrap())
-        .one(db.as_ref())
+        .one(&*db_writer)
         .await
         .unwrap()
         .is_some());
     assert!(service::Entity::find_by_id(service_am.id.unwrap())
-        .one(db.as_ref())
+        .one(&*db_writer)
         .await
         .unwrap()
         .is_some());
@@ -72,7 +72,9 @@ async fn test_service_check_entity() {
 #[tokio::test]
 /// test creating a service + host + service check, then deleting a host - which should delete the service_check
 async fn test_service_check_fk_host() {
-    let (db, _config) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+
+    let db_writer = db.write().await;
 
     let service = service::test_service();
     let host = host::test_host();
@@ -80,13 +82,13 @@ async fn test_service_check_fk_host() {
 
     let service_am = service.into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
     let host_am_id = host.id;
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.to_owned())
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
 
@@ -98,7 +100,7 @@ async fn test_service_check_fk_host() {
     };
     let service_check_am = service_check
         .into_active_model()
-        .insert(db.as_ref())
+        .insert(&*db_writer)
         .await
         .expect("Failed to save service check")
         .try_into_model()
@@ -106,19 +108,19 @@ async fn test_service_check_fk_host() {
 
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id)
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .is_some()
     );
     host::Entity::delete_by_id(host_am_id)
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
     // Check we delete the service check when deleting the host
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id)
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .is_none()
@@ -127,20 +129,21 @@ async fn test_service_check_fk_host() {
 #[tokio::test]
 /// test creating a service + host + service check, then deleting a host - which should delete the service_check
 async fn test_service_check_fk_service() {
-    let (db, _config) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
 
     let service = service::test_service();
     let host = host::test_host();
     info!("saving service...");
+    let db_writer = db.write().await;
 
     let service_am = service.clone().into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.clone())
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
 
@@ -153,7 +156,7 @@ async fn test_service_check_fk_service() {
     let service_check_am = service_check.into_active_model();
     dbg!(&service_check_am);
     if let Err(err) = entities::service_check::Entity::insert(service_check_am.to_owned())
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
     {
         panic!("Failed to insert service check: {:?}", err);
@@ -161,19 +164,19 @@ async fn test_service_check_fk_service() {
 
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id.clone().unwrap())
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .is_some()
     );
     service::Entity::delete_by_id(service.id)
-        .exec(db.as_ref())
+        .exec(&*db_writer)
         .await
         .unwrap();
     // Check we delete the service check when deleting the service
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id.unwrap())
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .is_none()
@@ -182,14 +185,14 @@ async fn test_service_check_fk_service() {
 
 #[tokio::test]
 async fn test_full_service_check() {
-    let (db, config) = test_setup().await.expect("Failed to set up test config");
+    let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test config");
 
-    crate::db::update_db_from_config(db.as_ref(), config.clone())
+    crate::db::update_db_from_config(db.clone(), config.clone())
         .await
         .unwrap();
 
     let known_service_check_service_id = entities::service_check::Entity::find()
-        .all(db.as_ref())
+        .all(&*db.write().await)
         .await
         .unwrap()
         .into_iter()
@@ -205,12 +208,12 @@ async fn test_full_service_check() {
     let query = entities::service_check::FullServiceCheck::get_by_service_id_query(
         known_service_check_service_id,
     )
-    .build((*db).get_database_backend());
+    .build((*db.read().await).get_database_backend());
     info!("Query: {}", query);
 
     let service_check = entities::service_check::FullServiceCheck::get_by_service_id(
         known_service_check_service_id,
-        db.as_ref(),
+        &*db.write().await,
     )
     .await
     .expect("Failed to get service_check");
@@ -222,19 +225,19 @@ async fn test_full_service_check() {
 
 #[tokio::test]
 async fn test_get_urgent_service_check() {
-    let (db, _config) = test_setup().await.expect("Failed to setup test db");
+    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test db");
 
     let sc = entities::service_check::Entity::find()
-        .one(db.as_ref())
+        .one(&*db.read().await)
         .await
         .unwrap()
         .unwrap();
 
-    sc.set_status(ServiceStatus::Urgent, db.as_ref())
+    sc.set_status(ServiceStatus::Urgent, db.clone())
         .await
         .expect("Failed to set status to urgent");
 
-    let urgent = get_next_service_check(db.as_ref())
+    let urgent = get_next_service_check(&*db.read().await)
         .await
         .expect("Failed to query DB");
     assert!(urgent.is_some());
@@ -245,19 +248,19 @@ async fn test_get_urgent_service_check() {
 
 #[tokio::test]
 async fn test_get_next_pending_service_check() {
-    let (db, _config) = test_setup().await.expect("Failed to setup test db");
+    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test db");
 
     let sc = entities::service_check::Entity::find()
-        .one(db.as_ref())
+        .one(&*db.write().await)
         .await
         .unwrap()
         .unwrap();
 
-    sc.set_status(ServiceStatus::Pending, db.as_ref())
+    sc.set_status(ServiceStatus::Pending, db.clone())
         .await
         .expect("Failed to set status to pending");
 
-    let urgent = get_next_service_check(db.as_ref())
+    let urgent = get_next_service_check(&*db.read().await)
         .await
         .expect("Failed to query DB");
     assert!(urgent.is_some());

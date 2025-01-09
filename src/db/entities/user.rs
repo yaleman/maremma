@@ -41,7 +41,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_user() {
-        let (db, _config) = test_setup()
+        let (db, _config, _dbactor, _tx) = test_setup()
             .await
             .expect("Failed to set up maremma test db");
 
@@ -54,7 +54,7 @@ mod tests {
         user.claim_json.set_if_not_equals(json!({}));
 
         let user = user
-            .insert(db.as_ref())
+            .insert(&*db.write().await)
             .await
             .expect("Failed to insert test user!");
 

@@ -40,7 +40,7 @@ pub(crate) async fn host_groups(
     let res = host_group::Entity::find()
         .order_by_asc(host_group::Column::Name)
         .find_with_linked(host_group_members::GroupToHosts)
-        .all(state.db.as_ref())
+        .all(&*state.db.read().await)
         .await
         .map_err(|e| {
             error!("Failed to fetch host groups: {}", e);
@@ -93,7 +93,7 @@ pub(crate) async fn host_group(
     let host_group = host_group::Entity::find()
         .filter(host_group::Column::Id.eq(id))
         .find_with_linked(host_group_members::GroupToHosts)
-        .all(state.db.as_ref())
+        .all(&*state.db.read().await)
         .await
         .map_err(|e| {
             error!("Failed to fetch host groups: {}", e);
@@ -140,7 +140,7 @@ pub(crate) async fn host_group_member_delete(
                 .eq(group_id)
                 .and(host_group_members::Column::HostId.eq(host_id)),
         )
-        .one(state.db.as_ref())
+        .one(&*state.db.read().await)
         .await
         .map_err(|e| {
             error!("Failed to fetch host group membership: {}", e);
@@ -156,7 +156,7 @@ pub(crate) async fn host_group_member_delete(
         }
     };
 
-    let res = hgm.delete(state.db.as_ref()).await.map_err(|e| {
+    let res = hgm.delete(&*state.db.write().await).await.map_err(|e| {
         error!("Failed to delete host group membership: {}", e);
         Error::from(e)
     })?;
@@ -185,7 +185,7 @@ pub(crate) async fn host_group_delete(
     };
 
     let res = host_group::Entity::delete_by_id(group_id)
-        .exec(state.db.as_ref())
+        .exec(&*state.db.write().await)
         .await
         .map_err(|e| {
             error!("Failed to delete host group: {}", e);
@@ -211,7 +211,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_unauthed_endpoints() {
-        let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let (_db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to setup test harness");
         let state = WebState::test().await;
 
         let res = super::host_groups(State(state.clone()), None).await;
@@ -254,7 +255,7 @@ mod tests {
         test_setup().await.expect("Failed to setup test harness");
 
         let host_group = host_group::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to search for host group")
             .expect("No host group found");
@@ -282,7 +283,8 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let (_db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to setup test harness");
         let res = super::host_groups(State(state.clone()), Some(test_user_claims())).await;
 
         assert!(res.is_ok());
@@ -297,7 +299,8 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let (_db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to setup test harness");
         let res = super::host_group_delete(
             Path(Uuid::new_v4()),
             State(state.clone()),
@@ -310,7 +313,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
         let host_group = host_group::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to search for host group")
             .expect("No host group found");
@@ -331,7 +334,8 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let (_db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to setup test harness");
         let res = super::host_group_delete(Path(Uuid::new_v4()), State(state.clone()), None).await;
         dbg!(&res);
         assert!(res.is_err());
@@ -339,7 +343,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
         let host_group = host_group::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to search for host group")
             .expect("No host group found");
@@ -360,7 +364,8 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to setup test harness");
 
         let state = WebState {
             db: db.clone(),
@@ -368,7 +373,7 @@ mod tests {
         };
 
         let hgm = host_group_members::Entity::find()
-            .one(db.as_ref())
+            .one(&*db.write().await)
             .await
             .expect("Failed to find host group members")
             .expect("No host group members found");
@@ -380,7 +385,7 @@ mod tests {
                     .eq(hgm.group_id)
                     .and(host_group_members::Column::HostId.eq(hgm.host_id))
             )
-            .one(db.as_ref())
+            .one(&*db.write().await)
             .await
             .expect("failed to look up hgm")
             .is_some());

@@ -25,20 +25,10 @@ pub(crate) async fn service(
 ) -> Result<ServiceTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
-    // let order_field = queries
-    //     .field
-    //     .unwrap_or(crate::web::views::prelude::OrderFields::LastUpdated);
-    // let _order_column = match order_field {
-    //     OrderFields::LastUpdated => entities::service_check::Column::LastUpdated,
-    //     OrderFields::Host => entities::service_check::Column::HostId,
-    //     OrderFields::Service => entities::service::Column::Name,
-    //     OrderFields::Status => entities::service_check::Column::Status,
-    //     OrderFields::Check => entities::service_check::Column::LastCheck,
-    //     OrderFields::NextCheck => entities::service_check::Column::NextCheck,
-    // };
+    let reader = state.db.read().await;
 
     let service = match entities::service::Entity::find_by_id(service_id)
-        .one(state.db.as_ref())
+        .one(&*reader)
         .await
         .map_err(Error::from)?
     {
@@ -51,7 +41,7 @@ pub(crate) async fn service(
         }
     };
 
-    let service_checks = FullServiceCheck::get_by_service_id(service_id, state.db.as_ref())
+    let service_checks = FullServiceCheck::get_by_service_id(service_id, &reader)
         .await
         .map_err(Error::from)?;
 
@@ -93,7 +83,7 @@ pub(crate) async fn services(
 
     let services = services
         .order_by(entities::service::Column::Name, order.into())
-        .all(state.db.as_ref())
+        .all(&*state.db.read().await)
         .await
         .map_err(Error::from)?;
 
@@ -114,7 +104,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service = entities::service::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -139,7 +129,7 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
         let service = entities::service::Entity::find()
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -163,7 +153,7 @@ mod tests {
 
         let mut service_id = Uuid::new_v4();
         while entities::service::Entity::find_by_id(service_id)
-            .one(state.db.as_ref())
+            .one(&*state.db.read().await)
             .await
             .expect("Failed to search for service")
             .is_some()

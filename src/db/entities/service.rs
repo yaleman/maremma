@@ -57,6 +57,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
+    #[instrument(level = "debug", skip(_db))]
     async fn find_by_name(name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
         Entity::find()
             .filter(Column::Name.eq(name))
@@ -64,6 +65,8 @@ impl MaremmaEntity for Model {
             .await
             .map_err(Into::into)
     }
+
+    #[instrument(level = "debug", skip_all)]
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: SendableConfig,
@@ -198,9 +201,10 @@ mod tests {
     use crate::db::tests::test_setup;
     use crate::db::{MaremmaEntity, Service, ServiceType};
 
+    use super::*;
     use croner::Cron;
+    use sea_orm::ModelTrait;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-    use sea_orm::{IntoActiveModel, ModelTrait};
     use serde_json::{json, Value};
     use tokio::sync::RwLock;
     use tracing::info;
@@ -208,29 +212,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_entity() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
 
-        let service = super::test_service();
+        let db_writer = db.write().await;
+
+        let service = test_service();
         info!("saving service... {:?}", &service);
         let am = service.clone().into_active_model();
-        super::Entity::insert(am).exec(db.as_ref()).await.unwrap();
+        super::Entity::insert(am).exec(&*db_writer).await.unwrap();
 
         let service = super::Entity::find()
             .filter(super::Column::Id.eq(service.id))
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .unwrap();
         info!("found it: {:?}", service);
 
         super::Entity::delete_by_id(service.id)
-            .exec(db.as_ref())
+            .exec(&*db_writer)
             .await
             .unwrap();
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq("test_service".to_string()))
-            .one(db.as_ref())
+            .one(&*db_writer)
             .await
             .unwrap()
             .is_none());
@@ -238,11 +245,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_update_db_from_config() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(db.as_ref())
+            .one(&*db.read().await)
             .await
             .unwrap()
             .unwrap();
@@ -252,11 +260,12 @@ mod tests {
     #[tokio::test]
     /// Test running config update twice with a service that changes, to ensure it changes.
     async fn test_config_updates() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(db.as_ref())
+            .one(&*db.read().await)
             .await
             .unwrap()
             .expect("Couldn't find local_lslah");
@@ -284,13 +293,13 @@ mod tests {
             ),
         );
 
-        super::Model::update_db_from_config(db.as_ref(), Arc::new(RwLock::new(config)))
+        super::Model::update_db_from_config(&*db.write().await, Arc::new(RwLock::new(config)))
             .await
             .expect("Failed to update db from config");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(db.as_ref())
+            .one(&*db.read().await)
             .await
             .unwrap()
             .unwrap();
@@ -301,11 +310,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_with_linked() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
 
         let (service, groups) = super::Entity::find()
             .find_with_linked(crate::db::entities::service_group_link::ServiceToGroups)
-            .all(db.as_ref())
+            .all(&*db.read().await)
             .await
             .expect("Failed to run query looking for a service with host groups")
             .into_iter()
@@ -317,17 +327,20 @@ mod tests {
     }
     #[tokio::test]
     async fn test_find_related_service_to_service_check() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
+
+        let db_reader = db.read().await;
 
         let service = super::Entity::find()
-            .one(db.as_ref())
+            .one(&*db_reader)
             .await
             .expect("Failed to select service")
             .expect("Failed to find service");
 
         let service_checks = service
             .find_related(service_check::Entity)
-            .all(db.as_ref())
+            .all(&*db_reader)
             .await
             .expect("Failed to search for service_checks");
 

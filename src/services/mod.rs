@@ -512,18 +512,18 @@ mod tests {
     #[tokio::test]
     /// iterate through a bunch of different conversions
     async fn test_service_from_model() {
-        let (db, _config) = test_setup()
+        let (db, _config, _dbactor, _tx) = test_setup()
             .await
             .expect("Failed to set up test environment");
 
         let service_model = entities::service::Entity::find()
             .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
-            .one(db.as_ref())
+            .one(&*db.read().await)
             .await
             .unwrap()
             .unwrap();
 
-        let service_from_model = Service::try_from_service_model(&service_model, &db)
+        let service_from_model = Service::try_from_service_model(&service_model, &*db.read().await)
             .await
             .expect("Failed to convert model to service");
 
@@ -536,7 +536,7 @@ mod tests {
         };
 
         let service_without_host_groups_model =
-            Service::try_from_service_model(&model_without_host_groups, &db)
+            Service::try_from_service_model(&model_without_host_groups, &*db.read().await)
                 .await
                 .expect("Failed to take service without groups from model");
         dbg!(&service_without_host_groups_model.host_groups);

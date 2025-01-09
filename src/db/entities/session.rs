@@ -21,7 +21,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[derive(Debug, Clone)]
 pub struct ModelStore {
-    db: Arc<DatabaseConnection>,
+    db: Arc<RwLock<DatabaseConnection>>,
 }
 
 fn id_to_uuid(input: &Id) -> Result<Uuid, Error> {
@@ -71,7 +71,7 @@ impl SessionStore for ModelStore {
 
         dbrecord.expiry.set_if_not_equals(expiry);
         dbrecord
-            .insert(self.db.as_ref())
+            .insert(&*self.db.write().await)
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
         debug!("Created session with id={} uuid={}", record.id.0, id_uuid);
@@ -90,7 +90,7 @@ impl SessionStore for ModelStore {
             .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
 
         let mut session = match Entity::find_by_id(id)
-            .one(self.db.as_ref())
+            .one(&*self.db.read().await)
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?
         {
@@ -116,7 +116,7 @@ impl SessionStore for ModelStore {
 
         if session.is_changed() {
             session
-                .update(self.db.as_ref())
+                .update(&*self.db.write().await)
                 .await
                 .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
             debug!("Saved session with id={}", session_record.id.0);
@@ -134,7 +134,7 @@ impl SessionStore for ModelStore {
         let id = id_to_uuid(session_id)
             .map_err(|err| tower_sessions::session_store::Error::Decode(format!("{:?}", err)))?;
         let session = match Entity::find_by_id(id)
-            .one(self.db.as_ref())
+            .one(&*self.db.read().await)
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?
         {
@@ -169,7 +169,7 @@ impl SessionStore for ModelStore {
                 tower_sessions::session_store::Error::Encode(format!("{:?}", err))
             })?,
         )
-        .exec(self.db.as_ref())
+        .exec(&*self.db.write().await)
         .await
         .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
         Ok(())
@@ -177,19 +177,18 @@ impl SessionStore for ModelStore {
 }
 
 impl ModelStore {
-    #[must_use]
-    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+    pub fn new(db: Arc<RwLock<DatabaseConnection>>) -> Self {
         Self { db }
     }
 
     /// Cleans up old/expired sessions
-    pub async fn cleanup(&self, db: Arc<DatabaseConnection>) -> Result<u64, Error> {
+    pub async fn cleanup(&self, db: Arc<RwLock<DatabaseConnection>>) -> Result<u64, Error> {
         let res = Entity::delete_many()
             .filter(
                 Column::Expiry
                     .lt(chrono::Utc::now() - chrono::Duration::hours(SESSION_EXPIRY_WINDOW_HOURS)),
             )
-            .exec(db.as_ref())
+            .exec(&*db.write().await)
             .await?;
         Ok(res.rows_affected)
     }
@@ -205,7 +204,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup() {
-        let (db, _config) = crate::db::tests::test_setup()
+        let (db, _config, _dbactor, _tx) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up maremma test db");
 
@@ -219,7 +218,7 @@ mod tests {
 
         session
             .into_active_model()
-            .insert(db.as_ref())
+            .insert(&*db.write().await)
             .await
             .expect("Failed to insert test session!");
 
@@ -238,7 +237,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lifecycle() {
-        let (db, _config) = crate::db::tests::test_setup()
+        let (db, _config, _dbactor, _tx) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up maremma test db");
 

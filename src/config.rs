@@ -293,11 +293,13 @@ impl Configuration {
     }
 
     /// Prune the configuration based on the database, so we can serialize it back
-    pub async fn prune(&mut self, db: &DatabaseConnection) -> Result<(), Error> {
+    pub async fn prune(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
         // TODO: prune config
 
+        let db_writer = db.write().await;
+
         // check the hosts against the config file
-        let db_hosts = entities::host::Entity::find().all(db).await?;
+        let db_hosts = entities::host::Entity::find().all(&*db_writer).await?;
         let config_hosts = self.hosts.keys().cloned().collect::<HashSet<String>>();
 
         // keep a record of the ones we find in the db
@@ -312,7 +314,9 @@ impl Configuration {
         }
 
         // check the groups against the config file
-        let db_host_groups = entities::host_group::Entity::find().all(db).await?;
+        let db_host_groups = entities::host_group::Entity::find()
+            .all(&*db_writer)
+            .await?;
         let config_groups = self.groups();
         for host_group in db_host_groups {
             debug!("HostGroup: {:?}", host_group);
@@ -322,7 +326,7 @@ impl Configuration {
         }
 
         // check the services against the config file
-        let db_services = entities::service::Entity::find().all(db).await?;
+        let db_services = entities::service::Entity::find().all(&*db_writer).await?;
         let config_services = self.services.keys().cloned().collect::<HashSet<String>>();
         for service in db_services {
             debug!("Service: {:?}", service);
@@ -374,7 +378,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_groups() {
-        let (_db, config) = test_setup().await.expect("Failed to setup test");
+        let (_db, config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test");
 
         for group in config.read().await.groups() {
             assert!(!group.is_empty());
@@ -404,12 +408,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_prune() {
-        let (db, config) = test_setup().await.expect("Failed to setup test");
+        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test");
 
         config
             .write()
             .await
-            .prune(&db)
+            .prune(db)
             .await
             .expect("Failed to prune config");
     }

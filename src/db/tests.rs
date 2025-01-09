@@ -1,3 +1,4 @@
+use super::actor::{DbActor, DbActorMessage};
 use crate::db::{get_next_service_check, update_db_from_config};
 use crate::prelude::*;
 
@@ -5,57 +6,83 @@ use crate::log::setup_logging;
 
 #[tokio::test]
 async fn test_next_service_check() {
-    let (db, config) = test_setup().await.expect("Failed to start test harness");
+    let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
 
-    crate::db::update_db_from_config(db.as_ref(), config.clone())
+    crate::db::update_db_from_config(db.clone(), config.clone())
         .await
         .unwrap();
 
-    let next_check = get_next_service_check(&db).await.unwrap();
+    let next_check = get_next_service_check(&*db.read().await).await.unwrap();
     dbg!(&next_check);
     assert!(next_check.is_some());
 }
 
-#[cfg(test)]
-pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
+pub(crate) async fn test_setup() -> Result<
+    (
+        Arc<RwLock<DatabaseConnection>>,
+        SendableConfig,
+        DbActor,
+        Sender<DbActorMessage>,
+    ),
+    Error,
+> {
     test_setup_harness(true, false).await
 }
 
-#[cfg(test)]
 pub(crate) async fn test_setup_harness(
     debug: bool,
     db_debug: bool,
-) -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
+) -> Result<
+    (
+        Arc<RwLock<DatabaseConnection>>,
+        SendableConfig,
+        DbActor,
+        Sender<DbActorMessage>,
+    ),
+    Error,
+> {
     // make sure logging is happening
+
+    use super::actor::DbActor;
+
     let _ = setup_logging(debug, db_debug);
     // enable the rustls crypto provider
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
-    let db = Arc::new(
+    let db = Arc::new(RwLock::new(
         crate::db::test_connect()
             .await
             .expect("Failed to connect to database"),
-    );
+    ));
+
+    let (tx, rx) = mpsc::channel(16);
+
+    let dbactor = DbActor::new(db.clone(), rx);
 
     let config = Configuration::load_test_config().await;
 
-    crate::db::update_db_from_config(&db, config.clone())
+    crate::db::update_db_from_config(db.clone(), config.clone())
         .await
         .expect("Failed to update DB from config");
-    Ok((db, config))
+    Ok((db, config, dbactor, tx))
 }
 
-#[cfg(test)]
-pub(crate) async fn test_setup_quieter() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error>
-{
+pub(crate) async fn test_setup_quieter() -> Result<
+    (
+        Arc<RwLock<DatabaseConnection>>,
+        SendableConfig,
+        DbActor,
+        Sender<DbActorMessage>,
+    ),
+    Error,
+> {
     test_setup_harness(false, false).await
 }
 
-#[cfg(test)]
 pub(crate) async fn test_setup_with_real_db() -> Result<
     (
         tempfile::NamedTempFile,
-        Arc<DatabaseConnection>,
+        Arc<RwLock<DatabaseConnection>>,
         SendableConfig,
     ),
     Error,
@@ -76,13 +103,13 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
         .expect("Failed to get filepath")
         .to_string();
 
-    let db = Arc::new(
+    let db = Arc::new(RwLock::new(
         crate::db::connect(config.clone())
             .await
             .expect("Failed to connect to database"),
-    );
+    ));
 
-    crate::db::update_db_from_config(&db, config.clone())
+    crate::db::update_db_from_config(db.clone(), config.clone())
         .await
         .expect("Failed to update DB from config");
     Ok((tempfile, db, config))
@@ -90,10 +117,10 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
 
 #[tokio::test]
 async fn test_get_related() {
-    let (db, _config) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
 
     for host in entities::host::Entity::find()
-        .all(db.as_ref())
+        .all(&*db.read().await)
         .await
         .unwrap()
         .into_iter()
@@ -101,7 +128,7 @@ async fn test_get_related() {
         info!("Found host: {:?}", host);
 
         let host_group_members = entities::host_group_members::Entity::find()
-            .all(db.as_ref())
+            .all(&*db.read().await)
             .await
             .unwrap();
 
@@ -109,7 +136,7 @@ async fn test_get_related() {
 
         let linked = host
             .find_linked(entities::host_group_members::HostToGroups)
-            .all(db.as_ref())
+            .all(&*db.read().await)
             .await
             .expect("Failed to find linked");
         println!("linked {:?}", linked);
@@ -130,7 +157,11 @@ async fn test_failing_update_db_from_config() {
         }]])
         .into_connection();
 
-    let res = update_db_from_config(&db, Configuration::load_test_config().await).await;
+    let res = update_db_from_config(
+        Arc::new(RwLock::new(db)),
+        Configuration::load_test_config().await,
+    )
+    .await;
 
     dbg!(&res);
     assert!(res.is_err());

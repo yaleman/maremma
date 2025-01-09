@@ -70,12 +70,12 @@ impl Model {
     pub async fn set_status(
         &self,
         status: ServiceStatus,
-        db: &DatabaseConnection,
+        db: Arc<RwLock<DatabaseConnection>>,
     ) -> Result<Self, Error> {
         let mut model = self.clone().into_active_model();
         model.status.set_if_not_equals(status);
         model
-            .save(db)
+            .save(&*db.write().await)
             .await
             .map_err(|err| {
                 error!(
@@ -367,9 +367,10 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_name() {
         // this should error
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
 
-        let res = super::Model::find_by_name("test", &db).await;
+        let res = super::Model::find_by_name("test", &*db.read().await).await;
 
         assert!(res.is_err());
         assert_eq!(res.err().unwrap(), Error::NotImplemented);
@@ -378,11 +379,12 @@ mod tests {
     #[tokio::test]
     // test that service_checks auto-delete because they're linked to services/hosts via foreign keys
     async fn test_delete_service_checks_when_service_deleted() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
 
         let (service_check, services) = entities::service_check::Entity::find()
             .find_with_related(entities::service::Entity)
-            .all(db.as_ref())
+            .all(&*db.read().await)
             .await
             .expect("Failed to find service")
             .into_iter()
@@ -395,12 +397,12 @@ mod tests {
 
         let service_check_id = service_check.id;
         service
-            .delete(db.as_ref())
+            .delete(&*db.write().await)
             .await
             .expect("Failed to delete service");
 
         let res = entities::service_check::Entity::find_by_id(service_check_id)
-            .one(db.as_ref())
+            .one(&*db.read().await)
             .await
             .expect("Failed to find service_check");
 
@@ -432,17 +434,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_host_to_service_checks() {
-        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let (db, _config, _dbactor, _tx) =
+            test_setup().await.expect("Failed to start test harness");
 
         let host = entities::host::Entity::find()
-            .one(db.as_ref())
+            .one(&*db.read().await)
             .await
             .unwrap()
             .unwrap();
 
         let service_checks = host
             .find_related(super::Entity)
-            .all(db.as_ref())
+            .all(&*db.read().await)
             .await
             .unwrap();
 

@@ -44,7 +44,7 @@ use views::service_check::{service_check_delete, service_check_get};
 
 #[derive(Clone)]
 pub(crate) struct WebState {
-    pub db: Arc<DatabaseConnection>,
+    pub db: Arc<RwLock<DatabaseConnection>>,
     pub configuration: SendableConfig,
     pub registry: Option<Arc<Registry>>,
     pub web_tx: Option<Sender<WebServerControl>>,
@@ -53,7 +53,7 @@ pub(crate) struct WebState {
 
 impl WebState {
     pub fn new(
-        db: Arc<DatabaseConnection>,
+        db: Arc<RwLock<DatabaseConnection>>,
         configuration: SendableConfig,
         registry: Option<Arc<Registry>>,
         web_tx: Option<Sender<WebServerControl>>,
@@ -70,7 +70,7 @@ impl WebState {
 
     #[cfg(test)]
     pub async fn test() -> Self {
-        let (db, config) = crate::db::tests::test_setup()
+        let (db, config, _dbactor, _tx) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up test");
         Self::new(db, config, None, None, PathBuf::new())
@@ -115,7 +115,7 @@ async fn up(State(_state): State<WebState>) -> impl IntoResponse {
 }
 
 /// Create the database-backed session store
-pub fn get_session_store(db: &Arc<DatabaseConnection>) -> entities::session::ModelStore {
+pub fn get_session_store(db: &Arc<RwLock<DatabaseConnection>>) -> entities::session::ModelStore {
     crate::db::entities::session::ModelStore::new(db.clone())
 }
 
@@ -330,7 +330,7 @@ pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Res
 pub async fn run_web_server(
     config_filepath: PathBuf,
     configuration: SendableConfig,
-    db: Arc<DatabaseConnection>,
+    db: Arc<RwLock<DatabaseConnection>>,
     registry: Arc<Registry>,
     web_tx: Sender<WebServerControl>,
     mut web_server_controller: Receiver<WebServerControl>,
@@ -413,7 +413,7 @@ mod tests {
             eprintln!("Skipping test because it fails in CI");
             return;
         }
-        let (db, config) = test_setup().await.expect("Failed to set up test");
+        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
         let app = build_app(WebState::new(
             db.clone(),
             config.clone(),
@@ -434,7 +434,7 @@ mod tests {
             .expect("Failed to run app");
 
         let host = host::Entity::find()
-            .one(db.as_ref())
+            .one(&*db.write().await)
             .await
             .expect("Failed to query db for host")
             .expect("Failed to find host");
@@ -446,7 +446,7 @@ mod tests {
             .unwrap_or_else(|err| panic!("Failed to GET {} {:?}", url, err));
 
         let service_check = entities::service_check::Entity::find()
-            .one(db.as_ref())
+            .one(&*db.write().await)
             .await
             .expect("Failed to query db for service_check")
             .expect("Failed to find service_check");
@@ -459,7 +459,7 @@ mod tests {
 
     // #[tokio::test]
     // async fn test_not_implemented() {
-    //     let (db, config) = test_setup().await.expect("Failed to set up test");
+    //     let (db, config,_dbactor,_tx) = test_setup().await.expect("Failed to set up test");
 
     //     let res = notimplemented(axum::extract::State(WebState::new(
     //         db,
@@ -474,7 +474,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_up_endpoint() {
-        let (db, config) = test_setup().await.expect("Failed to set up test");
+        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
 
         let res = up(axum::extract::State(WebState::new(
             db,
@@ -505,7 +505,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_certs_exist() {
-        let (_db, config) = test_setup().await.expect("Failed to set up test");
+        let (_db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
 
         let certs = TestCertificateBuilder::new()
             .with_name("localhost")
