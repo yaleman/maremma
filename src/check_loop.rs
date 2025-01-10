@@ -7,6 +7,7 @@ use opentelemetry::KeyValue;
 use tokio::sync::Semaphore;
 
 const DEFAULT_BACKOFF: std::time::Duration = tokio::time::Duration::from_millis(50);
+const MAX_BACKOFF: std::time::Duration = tokio::time::Duration::from_secs(1);
 
 #[derive(Clone, Debug)]
 /// The end result of a service check
@@ -137,7 +138,7 @@ pub async fn run_check_loop(
         .build();
     let checks_run_since_startup = Arc::new(checks_run_since_startup);
 
-    let mut backoff = DEFAULT_BACKOFF;
+    let mut backoff: std::time::Duration = DEFAULT_BACKOFF;
     // Limit to n concurrent tasks
     let semaphore = Arc::new(Semaphore::new(max_permits));
     info!("Max concurrent tasks set to {}", max_permits);
@@ -158,15 +159,24 @@ pub async fn run_check_loop(
                         service,
                         checks_run_since_startup.clone(),
                     ));
-                    drop(permit); // Release the permit when the task is done
+
+                    // we did a thing, so we can reset the back-off time, because there might be another
+                    backoff = DEFAULT_BACKOFF;
+                } else {
+                    // didn't get a task, increase backoff a little, but don't overflow the max
+                    backoff += DEFAULT_BACKOFF;
+                    if backoff > MAX_BACKOFF {
+                        backoff = MAX_BACKOFF;
+                    }
                 }
+                drop(permit); // Release the semaphore when the task is done
             }
             Err(err) => {
                 error!("Failed to acquire semaphore permit: {:?}", err);
+                // something went wrong so we want to chill a bit
+                backoff = std::cmp::max(MAX_BACKOFF / 2, DEFAULT_BACKOFF);
             }
         };
-        // we did a thing, so we can reset the back-off time
-        backoff = DEFAULT_BACKOFF;
     }
 }
 
