@@ -105,7 +105,7 @@ async fn main() -> Result<(), ExitCode> {
             }
         }
         Actions::CheckConfig(_show_config) => {
-            todo!()
+            todo!("Check config CLI hasn't been implemented")
         }
         Actions::ShowConfig(_show_config) => {
             println!(
