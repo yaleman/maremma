@@ -40,9 +40,11 @@ async fn main() -> Result<(), ExitCode> {
         ExitCode::from(1)
     })?;
 
-    let config = Arc::new(RwLock::new(config));
+    // we double the channel size to allow for everything else, that wants to send to the dbactor, it's only tiny either way.
+    // if you have enough CPUs to cause this to be a problem, you have enough CPUs to fix it.
+    let (dbactor_tx, dbactor_rx) = mpsc::channel(config.max_concurrent_checks * 2);
 
-    let (tx, rx) = mpsc::channel(16);
+    let config = Arc::new(RwLock::new(config));
 
     // in case we need it, get the connect string
     let connect_string = get_connect_string(config.clone()).await;
@@ -53,7 +55,7 @@ async fn main() -> Result<(), ExitCode> {
         })?,
     ));
 
-    let mut dbactor = DbActor::new(db.clone(), rx);
+    let mut dbactor = DbActor::new(db.clone(), dbactor_rx);
 
     match cli.action {
         Actions::Run(_) => {
@@ -80,7 +82,7 @@ async fn main() -> Result<(), ExitCode> {
                     error!("DB Actor bailed: {:?}", dbactor);
                 },
                 check_loop_result = run_check_loop(
-                    tx.clone(),
+                    dbactor_tx.clone(),
                     config.read().await.max_concurrent_checks,
                     metrics_meter.clone()
                 ) => {
