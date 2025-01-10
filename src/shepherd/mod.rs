@@ -65,8 +65,6 @@ pub async fn shepherd(
     config: SendableConfig,
     web_tx: tokio::sync::mpsc::Sender<WebServerControl>,
 ) -> Result<(), Error> {
-    // TODO: remove db references from shepherd
-
     // run the clean_up_checking loop every x minutes
     let mut service_check_clean = CronTask::new(
         "ServiceCheckClean".to_string(),
@@ -77,7 +75,7 @@ pub async fn shepherd(
     // run the session clean up check every hour
     let mut session_cleaner = CronTask::new(
         "SessionCleaner".to_string(),
-        Cron::new("*/3 * * * *").parse()?,
+        Cron::new("49 * * * *").parse()?,
         Box::new(SessionCleanTask {}),
     );
 
@@ -89,8 +87,7 @@ pub async fn shepherd(
 
     let mut service_check_history_cleaner: CronTask = CronTask::new(
         "ServiceCheckHistoryCleaner".to_string(),
-        Cron::new("* * * * *").parse()?,
-        // force it wait five minutes to run the first time
+        Cron::new("27 * * * *").parse()?,
         Box::new(ServiceCheckHistoryCleanerTask::new(config.clone())),
     )
     .with_last_run(Utc::now() + Duration::minutes(5));
