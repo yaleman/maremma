@@ -53,6 +53,7 @@ impl Entity {
         }
 
         #[derive(Debug, FromQueryResult)]
+        /// Only used to pull the single column out of the table
         struct ServiceCheckAsId {
             pub id: Uuid,
         }
@@ -63,7 +64,7 @@ impl Entity {
             .into_model::<ServiceCheckAsId>()
             .all(db)
             .await
-            .inspect_err(|err| error!("failed to get all service checks: {err}"))?;
+            .inspect_err(|err| error!("Failed to pull all service checks: {err}"))?;
 
         let mut num_service_checks = 0;
         for service_check_id in service_checks {
@@ -76,7 +77,12 @@ impl Entity {
                 .offset(leave_remaining)
                 .one(db)
                 .await
-                .inspect_err(|err| error!("Failed to get service check history: {err}"))?;
+                .inspect_err(|err| {
+                    error!(
+                        "Failed to get service check history for {}: {  }",
+                        service_check_id.id, err
+                    )
+                })?;
 
             if let Some(first_to_delete) = first_to_delete {
                 let delete_result = service_check_history::Entity::delete_many()
@@ -86,14 +92,14 @@ impl Entity {
                     .await
                     .inspect_err(|err| error!("Failed to delete entities: {err}"))?;
                 trimmed += delete_result.rows_affected;
-                info!(
-                    "deleted={} for service_check_id={}",
+                debug!(
+                    "deleted_count={} service check history for service_check_id={}",
                     delete_result.rows_affected, service_check_id.id
                 );
             }
         }
         info!(
-            "Removed {} records across {} service checks",
+            "deleted_count={} records across service_checks_affected={}",
             trimmed, num_service_checks
         );
         Ok(trimmed)

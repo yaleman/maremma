@@ -3,7 +3,8 @@
 //! Guarding your herd 🐐🐐 🐕
 //!
 
-#![warn(missing_docs)]
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
 #![deny(warnings)]
 #![deny(clippy::all)]
 #![deny(clippy::await_holding_lock)]
@@ -15,7 +16,6 @@
 #![deny(clippy::trivially_copy_pass_by_ref)]
 #![deny(clippy::unreachable)]
 #![deny(clippy::unwrap_used)]
-#![forbid(unsafe_code)]
 
 pub mod actions;
 pub mod check_loop;
