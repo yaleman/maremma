@@ -22,7 +22,7 @@ pub struct CheckResult {
     pub result_text: String,
 }
 
-#[instrument(level = "INFO", skip(tx))]
+#[instrument(level = "INFO", skip_all, fields(service_check_id=%service_check.id, service_id=%service.id))]
 /// Does what it says on the tin
 pub(crate) async fn run_service_check(
     tx: mpsc::Sender<DbActorMessage>,
@@ -35,8 +35,10 @@ pub(crate) async fn run_service_check(
         service: service.clone(),
         sender,
     };
-    debug!("Sending message");
-    tx.send(msg).await.map_err(Error::from)?;
+
+    tx.send(msg).await.inspect_err(|err| {
+        error!("Failed to send GetRunnableCheck message: {:?}", err);
+    })?;
     let (host, check) = run_rx.await?;
 
     #[cfg(not(tarpaulin_include))]
@@ -45,7 +47,7 @@ pub(crate) async fn run_service_check(
         Error::ServiceConfigNotFound(check.id.hyphenated().to_string())
     })?;
 
-    debug!("starting service_check={:?}", service_check);
+    debug!("Starting service_check={:?}", service_check);
     let result = match service_to_run.run(&host).await {
         Ok(val) => val,
         Err(err) => CheckResult {
@@ -57,7 +59,7 @@ pub(crate) async fn run_service_check(
     };
     let jitter = service_to_run.jitter_value();
     debug!(
-        "done service_check={:?} result={:?}",
+        "Completed service_check={:?} result={:?}",
         service_check, result.status
     );
 
@@ -70,8 +72,10 @@ pub(crate) async fn run_service_check(
     };
 
     if let Err(err) = tx.send(msg).await {
-        // TODO: better error
-        error!("Failed to send service check result error={}", err);
+        error!(
+            "Failed to internally send service check result service_check_id={} error={}",
+            service_check.id, err
+        );
     }
     Ok(())
 }
