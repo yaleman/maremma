@@ -71,7 +71,7 @@ impl Action for PushOver {
             .await?;
 
         if response.status().is_client_error() {
-            todo!()
+            todo!("Handle pushover client error")
             // panic!("Pushover returned a 4xx error, this is a bug");
         } else if response.status().is_server_error() {
             error!(
