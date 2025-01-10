@@ -573,7 +573,6 @@ impl TestCertificates {
         let mut ca_file = NamedTempFile::new().expect("Failed to create CA temp file");
 
         let ca_config = crate::tests::tls_utils::CAConfig::default();
-        // TODO: signing function here
 
         let signing_function = if use_sha1_intermediate {
             hash::MessageDigest::sha1()

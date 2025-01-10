@@ -23,7 +23,7 @@ pub(crate) use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 pub(crate) use tower_sessions::Session;
 pub(crate) use tracing::{debug, error, info, instrument};
 
-#[derive(Default, Deserialize, Debug, Copy, Clone, EnumIter)]
+#[derive(Default, Serialize, Deserialize, Debug, Copy, Clone, EnumIter)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Order {
     Asc,
@@ -62,7 +62,7 @@ impl From<Order> for sea_orm::Order {
 
 #[derive(Default, Deserialize, Serialize, Debug, Copy, Clone, EnumIter, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub(crate) enum OrderFields {
+pub enum OrderFields {
     #[default]
     LastUpdated,
     Host,
@@ -89,7 +89,6 @@ impl OrderFields {
     #[cfg(test)]
     pub(crate) fn iter_all_and_none() -> Vec<Option<Self>> {
         use sea_orm::Iterable;
-
         let mut v = Self::iter().map(Some).collect::<Vec<Option<Self>>>();
         v.push(None);
         v
