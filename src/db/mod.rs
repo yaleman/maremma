@@ -10,7 +10,6 @@ use tracing::{info, instrument};
 
 use crate::config::Configuration;
 
-pub mod actor;
 pub mod entities;
 pub(crate) mod migrations;
 pub(crate) mod migrator;

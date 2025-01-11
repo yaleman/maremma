@@ -111,7 +111,7 @@ mod tests {
     use super::*;
     #[tokio::test]
     async fn test_get_file_time() {
-        let (_db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
+        let (_db, config) = test_setup().await.expect("Failed to set up tests");
 
         assert!(get_file_times(config).await.is_err());
 
@@ -121,7 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cert_reloader_task() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
+        let (db, _config) = test_setup().await.expect("Failed to set up tests");
         let bad_config = Configuration {
             cert_file: std::path::PathBuf::from("bad_cert_file"),
             cert_key: std::path::PathBuf::from("bad_cert_key"),

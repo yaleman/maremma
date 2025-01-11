@@ -512,7 +512,7 @@ mod tests {
     #[tokio::test]
     /// iterate through a bunch of different conversions
     async fn test_service_from_model() {
-        let (db, _config, _dbactor, _tx) = test_setup()
+        let (db, _config) = test_setup()
             .await
             .expect("Failed to set up test environment");
 

@@ -211,7 +211,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_unauthed_endpoints() {
-        let (_db, _config, _dbactor, _tx) =
+        let (_db, _config) =
             test_setup().await.expect("Failed to setup test harness");
         let state = WebState::test().await;
 
@@ -283,7 +283,7 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (_db, _config, _dbactor, _tx) =
+        let (_db, _config) =
             test_setup().await.expect("Failed to setup test harness");
         let res = super::host_groups(State(state.clone()), Some(test_user_claims())).await;
 
@@ -299,7 +299,7 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (_db, _config, _dbactor, _tx) =
+        let (_db, _config) =
             test_setup().await.expect("Failed to setup test harness");
         let res = super::host_group_delete(
             Path(Uuid::new_v4()),
@@ -334,7 +334,7 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (_db, _config, _dbactor, _tx) =
+        let (_db, _config) =
             test_setup().await.expect("Failed to setup test harness");
         let res = super::host_group_delete(Path(Uuid::new_v4()), State(state.clone()), None).await;
         dbg!(&res);
@@ -364,7 +364,7 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let (db, _config, _dbactor, _tx) =
+        let (db, _config) =
             test_setup().await.expect("Failed to setup test harness");
 
         let state = WebState {

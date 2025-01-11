@@ -148,7 +148,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_db_from_config() {
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+        let (db, config) = test_setup().await.expect("Failed to start test harness");
 
         super::Model::update_db_from_config(&*db.write().await, config)
             .await

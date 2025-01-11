@@ -1,4 +1,3 @@
-use super::actor::{DbActor, DbActorMessage};
 use crate::db::{get_next_service_check, update_db_from_config};
 use crate::prelude::*;
 
@@ -6,7 +5,7 @@ use crate::log::setup_logging;
 
 #[tokio::test]
 async fn test_next_service_check() {
-    let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+    let (db, config) = test_setup().await.expect("Failed to start test harness");
 
     crate::db::update_db_from_config(db.clone(), config.clone())
         .await
@@ -17,33 +16,16 @@ async fn test_next_service_check() {
     assert!(next_check.is_some());
 }
 
-pub(crate) async fn test_setup() -> Result<
-    (
-        Arc<RwLock<DatabaseConnection>>,
-        SendableConfig,
-        DbActor,
-        Sender<DbActorMessage>,
-    ),
-    Error,
-> {
+pub(crate) async fn test_setup() -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error>
+{
     test_setup_harness(true, false).await
 }
 
 pub(crate) async fn test_setup_harness(
     debug: bool,
     db_debug: bool,
-) -> Result<
-    (
-        Arc<RwLock<DatabaseConnection>>,
-        SendableConfig,
-        DbActor,
-        Sender<DbActorMessage>,
-    ),
-    Error,
-> {
+) -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error> {
     // make sure logging is happening
-
-    use super::actor::DbActor;
 
     let _ = setup_logging(debug, db_debug);
     // enable the rustls crypto provider
@@ -55,27 +37,16 @@ pub(crate) async fn test_setup_harness(
             .expect("Failed to connect to database"),
     ));
 
-    let (tx, rx) = mpsc::channel(16);
-
-    let dbactor = DbActor::new(db.clone(), rx);
-
     let config = Configuration::load_test_config().await;
 
     crate::db::update_db_from_config(db.clone(), config.clone())
         .await
         .expect("Failed to update DB from config");
-    Ok((db, config, dbactor, tx))
+    Ok((db, config))
 }
 
-pub(crate) async fn test_setup_quieter() -> Result<
-    (
-        Arc<RwLock<DatabaseConnection>>,
-        SendableConfig,
-        DbActor,
-        Sender<DbActorMessage>,
-    ),
-    Error,
-> {
+pub(crate) async fn test_setup_quieter(
+) -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error> {
     test_setup_harness(false, false).await
 }
 
@@ -117,7 +88,7 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
 
 #[tokio::test]
 async fn test_get_related() {
-    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
     for host in entities::host::Entity::find()
         .all(&*db.read().await)

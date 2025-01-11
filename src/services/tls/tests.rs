@@ -215,7 +215,8 @@ async fn test_tls_sha1_intermediate() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_ok());
-    assert!(result.unwrap().status == ServiceStatus::Ok); // TODO: one day work out how to check for a sha1 intermediate
+    // TODO: one day work out how to check for a sha1 intermediate
+    assert!(result.unwrap().status == ServiceStatus::Ok);
 }
 
 #[tokio::test]

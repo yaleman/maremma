@@ -1,7 +1,6 @@
 use clap::Parser;
 use maremma::cli::{Actions, CliOpts};
 use maremma::config::Configuration;
-use maremma::db::actor::DbActor;
 use maremma::prelude::*;
 use maremma::web::run_web_server;
 
@@ -11,7 +10,6 @@ use maremma::check_loop::run_check_loop;
 use maremma::db::update_db_from_config;
 use opentelemetry::metrics::MeterProvider;
 use std::process::ExitCode;
-use tokio::sync::mpsc;
 
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
@@ -42,8 +40,6 @@ async fn main() -> Result<(), ExitCode> {
 
     let config = Arc::new(RwLock::new(config));
 
-    let (tx, rx) = mpsc::channel(16);
-
     // in case we need it, get the connect string
     let connect_string = get_connect_string(config.clone()).await;
     let db = Arc::new(RwLock::new(
@@ -52,8 +48,6 @@ async fn main() -> Result<(), ExitCode> {
             ExitCode::FAILURE
         })?,
     ));
-
-    let mut dbactor = DbActor::new(db.clone(), rx);
 
     match cli.action {
         Actions::Run(_) => {
@@ -76,11 +70,9 @@ async fn main() -> Result<(), ExitCode> {
             let (web_tx, web_rx) = tokio::sync::mpsc::channel(1);
 
             tokio::select! {
-                dbactor = dbactor.run_actor() => {
-                    error!("DB Actor bailed: {:?}", dbactor);
-                },
+
                 check_loop_result = run_check_loop(
-                    tx.clone(),
+                    db.clone(),
                     config.read().await.max_concurrent_checks,
                     metrics_meter.clone()
                 ) => {
@@ -103,7 +95,7 @@ async fn main() -> Result<(), ExitCode> {
             }
         }
         Actions::CheckConfig(_show_config) => {
-            todo!()
+            todo!("Check config CLI hasn't been implemented")
         }
         Actions::ShowConfig(_show_config) => {
             println!(
