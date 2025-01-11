@@ -321,7 +321,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_service_check_urgent() {
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
+        let (db, config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
 
@@ -386,7 +386,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_set_service_check_enabled() {
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
+        let (db, config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
 
@@ -441,7 +441,7 @@ mod tests {
     #[tokio::test]
     async fn test_view_service_check_delete_unauth() {
         use super::*;
-        let (_db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
+        let (_db, _config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
 
@@ -467,7 +467,7 @@ mod tests {
     #[tokio::test]
     async fn test_view_service_check_delete_auth() {
         use super::*;
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up!");
+        let (db, _config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
 

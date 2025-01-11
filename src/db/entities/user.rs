@@ -41,7 +41,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_user() {
-        let (db, _config, _dbactor, _tx) = test_setup()
+        let (db, _config) = test_setup()
             .await
             .expect("Failed to set up maremma test db");
 

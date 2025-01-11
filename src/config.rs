@@ -378,7 +378,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_groups() {
-        let (_db, config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test");
+        let (_db, config) = test_setup().await.expect("Failed to setup test");
 
         for group in config.read().await.groups() {
             assert!(!group.is_empty());
@@ -408,7 +408,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_prune() {
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test");
+        let (db, config) = test_setup().await.expect("Failed to setup test");
 
         config
             .write()

@@ -70,7 +70,7 @@ impl WebState {
 
     #[cfg(test)]
     pub async fn test() -> Self {
-        let (db, config, _dbactor, _tx) = crate::db::tests::test_setup()
+        let (db, config) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up test");
         Self::new(db, config, None, None, PathBuf::new())
@@ -413,7 +413,7 @@ mod tests {
             eprintln!("Skipping test because it fails in CI");
             return;
         }
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
+        let (db, config) = test_setup().await.expect("Failed to set up test");
         let app = build_app(WebState::new(
             db.clone(),
             config.clone(),
@@ -474,7 +474,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_up_endpoint() {
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
+        let (db, config) = test_setup().await.expect("Failed to set up test");
 
         let res = up(axum::extract::State(WebState::new(
             db,
@@ -505,7 +505,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_certs_exist() {
-        let (_db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test");
+        let (_db, config) = test_setup().await.expect("Failed to set up test");
 
         let certs = TestCertificateBuilder::new()
             .with_name("localhost")

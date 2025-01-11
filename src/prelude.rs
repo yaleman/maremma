@@ -35,9 +35,3 @@ pub(crate) use schemars::{schema_for, JsonSchema};
 
 #[cfg(test)]
 pub(crate) use crate::db::tests::test_setup;
-#[cfg(test)]
-pub(crate) use tokio::sync::mpsc::Sender;
-
-pub(crate) use crate::db::actor::DbActorMessage;
-pub(crate) use tokio::sync::mpsc;
-pub(crate) use tokio::sync::oneshot;

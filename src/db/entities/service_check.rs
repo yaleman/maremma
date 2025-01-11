@@ -367,7 +367,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_name() {
         // this should error
-        let (db, _config, _dbactor, _tx) =
+        let (db, _config) =
             test_setup().await.expect("Failed to start test harness");
 
         let res = super::Model::find_by_name("test", &*db.read().await).await;
@@ -379,7 +379,7 @@ mod tests {
     #[tokio::test]
     // test that service_checks auto-delete because they're linked to services/hosts via foreign keys
     async fn test_delete_service_checks_when_service_deleted() {
-        let (db, _config, _dbactor, _tx) =
+        let (db, _config) =
             test_setup().await.expect("Failed to start test harness");
 
         let (service_check, services) = entities::service_check::Entity::find()
@@ -434,7 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_host_to_service_checks() {
-        let (db, _config, _dbactor, _tx) =
+        let (db, _config) =
             test_setup().await.expect("Failed to start test harness");
 
         let host = entities::host::Entity::find()

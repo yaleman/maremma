@@ -127,7 +127,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_servicecheckcleantask() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
+        let (db, _config) = test_setup().await.expect("Failed to set up tests");
 
         let mut scct = ServiceCheckCleanTask {};
         scct.run(db)
@@ -136,7 +136,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_sessioncleantask() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
+        let (db, _config) = test_setup().await.expect("Failed to set up tests");
 
         let mut crontask = CronTask::new(
             "test_task".to_string(),
@@ -160,7 +160,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shepherd() {
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up tests");
+        let (db, config) = test_setup().await.expect("Failed to set up tests");
 
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
 

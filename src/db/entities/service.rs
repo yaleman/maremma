@@ -212,8 +212,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_entity() {
-        let (db, _config, _dbactor, _tx) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let db_writer = db.write().await;
 
@@ -245,8 +244,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_update_db_from_config() {
-        let (db, _config, _dbactor, _tx) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
@@ -260,8 +258,7 @@ mod tests {
     #[tokio::test]
     /// Test running config update twice with a service that changes, to ensure it changes.
     async fn test_config_updates() {
-        let (db, _config, _dbactor, _tx) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
@@ -310,8 +307,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_with_linked() {
-        let (db, _config, _dbactor, _tx) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let (service, groups) = super::Entity::find()
             .find_with_linked(crate::db::entities::service_group_link::ServiceToGroups)
@@ -327,8 +323,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_find_related_service_to_service_check() {
-        let (db, _config, _dbactor, _tx) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let db_reader = db.read().await;
 

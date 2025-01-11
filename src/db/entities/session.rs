@@ -204,7 +204,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup() {
-        let (db, _config, _dbactor, _tx) = crate::db::tests::test_setup()
+        let (db, _config) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up maremma test db");
 
@@ -237,7 +237,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lifecycle() {
-        let (db, _config, _dbactor, _tx) = crate::db::tests::test_setup()
+        let (db, _config) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up maremma test db");
 

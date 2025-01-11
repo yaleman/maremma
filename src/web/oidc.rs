@@ -110,7 +110,7 @@ mod tests {
             return;
         }
 
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test");
+        let (db, config) = test_setup().await.expect("Failed to setup test");
 
         let app = build_app(crate::web::WebState::new(
             db.clone(),

@@ -8,7 +8,7 @@ use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait
 
 #[tokio::test]
 async fn test_service_check_entity() {
-    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
     let service = service::test_service();
     let host = host::test_host();
@@ -72,7 +72,7 @@ async fn test_service_check_entity() {
 #[tokio::test]
 /// test creating a service + host + service check, then deleting a host - which should delete the service_check
 async fn test_service_check_fk_host() {
-    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
     let db_writer = db.write().await;
 
@@ -129,7 +129,7 @@ async fn test_service_check_fk_host() {
 #[tokio::test]
 /// test creating a service + host + service check, then deleting a host - which should delete the service_check
 async fn test_service_check_fk_service() {
-    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+    let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
     let service = service::test_service();
     let host = host::test_host();
@@ -185,7 +185,7 @@ async fn test_service_check_fk_service() {
 
 #[tokio::test]
 async fn test_full_service_check() {
-    let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to set up test config");
+    let (db, config) = test_setup().await.expect("Failed to set up test config");
 
     crate::db::update_db_from_config(db.clone(), config.clone())
         .await
@@ -225,7 +225,7 @@ async fn test_full_service_check() {
 
 #[tokio::test]
 async fn test_get_urgent_service_check() {
-    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test db");
+    let (db, _config) = test_setup().await.expect("Failed to setup test db");
 
     let sc = entities::service_check::Entity::find()
         .one(&*db.read().await)
@@ -248,7 +248,7 @@ async fn test_get_urgent_service_check() {
 
 #[tokio::test]
 async fn test_get_next_pending_service_check() {
-    let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to setup test db");
+    let (db, _config) = test_setup().await.expect("Failed to setup test db");
 
     let sc = entities::service_check::Entity::find()
         .one(&*db.write().await)

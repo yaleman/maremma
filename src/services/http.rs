@@ -281,7 +281,7 @@ impl ServiceTrait for HttpService {
         let start_time = chrono::Utc::now();
 
         // get the client config
-        debug!("Getting host config for {:?}", host);
+        debug!("Getting host config for host_id={}", host.id);
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 

@@ -149,7 +149,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_check_history() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
         let service_check = entities::service_check::Entity::find()
             .one(&*db_writer)
@@ -197,7 +197,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_future_date_prune() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
 
         let res = Entity::prune(
             &*db.write().await,
@@ -210,7 +210,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_prune_service_check_id() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
 
         let res = Entity::prune(
             &*db.write().await,
@@ -224,7 +224,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_head_service_check_history() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
 
         let res = Entity::head(&*db.write().await, Some(Uuid::new_v4()), 0)
             .await
@@ -234,7 +234,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_head_service_check_history_sc_id() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.write().await;
         let valid_service_check = entities::service_check::Entity::find()
             .one(&*db_writer)
@@ -273,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_head_1k() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.write().await;
         let valid_service_check = entities::service_check::Entity::find()
             .one(&*db_writer)

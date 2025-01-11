@@ -1,7 +1,6 @@
 use clap::Parser;
 use maremma::cli::{Actions, CliOpts};
 use maremma::config::Configuration;
-use maremma::db::actor::DbActor;
 use maremma::prelude::*;
 use maremma::web::run_web_server;
 
@@ -11,7 +10,6 @@ use maremma::check_loop::run_check_loop;
 use maremma::db::update_db_from_config;
 use opentelemetry::metrics::MeterProvider;
 use std::process::ExitCode;
-use tokio::sync::mpsc;
 
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
@@ -40,10 +38,6 @@ async fn main() -> Result<(), ExitCode> {
         ExitCode::from(1)
     })?;
 
-    // we double the channel size to allow for everything else, that wants to send to the dbactor, it's only tiny either way.
-    // if you have enough CPUs to cause this to be a problem, you have enough CPUs to fix it.
-    let (dbactor_tx, dbactor_rx) = mpsc::channel(config.max_concurrent_checks * 2);
-
     let config = Arc::new(RwLock::new(config));
 
     // in case we need it, get the connect string
@@ -54,8 +48,6 @@ async fn main() -> Result<(), ExitCode> {
             ExitCode::FAILURE
         })?,
     ));
-
-    let mut dbactor = DbActor::new(db.clone(), dbactor_rx);
 
     match cli.action {
         Actions::Run(_) => {
@@ -78,11 +70,9 @@ async fn main() -> Result<(), ExitCode> {
             let (web_tx, web_rx) = tokio::sync::mpsc::channel(1);
 
             tokio::select! {
-                dbactor = dbactor.run_actor() => {
-                    error!("DB Actor bailed: {:?}", dbactor);
-                },
+
                 check_loop_result = run_check_loop(
-                    dbactor_tx.clone(),
+                    db.clone(),
                     config.read().await.max_concurrent_checks,
                     metrics_meter.clone()
                 ) => {

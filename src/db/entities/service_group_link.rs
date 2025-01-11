@@ -131,7 +131,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_db_from_config() {
-        let (db, config, _dbactor, _tx) = test_setup().await.expect("Failed to start test harness");
+        let (db, config) = test_setup().await.expect("Failed to start test harness");
 
         super::super::host_group::Model::update_db_from_config(&*db.write().await, config.clone())
             .await
@@ -148,7 +148,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_name() {
         // this should error
-        let (db, _config, _dbactor, _tx) =
+        let (db, _config) =
             test_setup().await.expect("Failed to start test harness");
 
         let res = super::Model::find_by_name("test", &*db.read().await).await;
@@ -177,7 +177,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_linked_service_to_groups() {
-        let (db, _config, _dbactor, _tx) =
+        let (db, _config) =
             test_setup().await.expect("Failed to start test harness");
 
         let services = super::super::service::Entity::find()
@@ -201,7 +201,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_linked_group_to_services() {
-        let (db, _config, _dbactor, _tx) =
+        let (db, _config) =
             test_setup().await.expect("Failed to start test harness");
 
         let groups = super::super::host_group::Entity::find()

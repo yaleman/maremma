@@ -94,8 +94,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_check_history_cleaner() {
-        let (db, config, mut dbactor, _tx) =
-            test_setup_quieter().await.expect("Failed to do test setup");
+        let (db, config) = test_setup_quieter().await.expect("Failed to do test setup");
         config.write().await.max_history_entries_per_check = 1;
         let db_writer = db.write().await;
         let valid_service_check = entities::service_check::Entity::find()
@@ -124,17 +123,13 @@ mod tests {
         drop(db_writer);
 
         let mut task = ServiceCheckHistoryCleanerTask::new(config);
-        tokio::select! {
-            _ = dbactor.run_actor() => {},
-            res = task.run(db) => {
-                res.expect("Failed to run task");
-            }
-        }
+
+        task.run(db).await.expect("Failed to run task");
     }
 
     #[tokio::test]
     async fn test_sch_counts_query() {
-        let (db, _config, _dbactor, _tx) = test_setup().await.expect("Failed to do test setup");
+        let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let query_as_string = sch_counts_query()
             .build(db.read().await.get_database_backend())
             .to_string();
