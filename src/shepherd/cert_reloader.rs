@@ -115,7 +115,7 @@ mod tests {
 
         assert!(get_file_times(config).await.is_err());
 
-        get_file_time(&std::path::Path::new("Cargo.toml"))
+        get_file_time(std::path::Path::new("Cargo.toml"))
             .expect("Failed to get file time for Cargo.toml");
     }
 

@@ -37,7 +37,7 @@ fn id_to_uuid(input: &Id) -> Result<Uuid, Error> {
 #[test]
 fn test_to_uuid() {
     let id = Id(1);
-    let uuid = id_to_uuid(&id).unwrap();
+    let uuid = id_to_uuid(&id).expect("Failed to convert id to uuid");
     assert_eq!(uuid, Uuid::from_u128(1));
 
     let big_id = Id(u128::MAX as i128 + 1);

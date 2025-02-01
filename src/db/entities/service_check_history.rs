@@ -185,7 +185,7 @@ mod tests {
         assert!(!related_model.is_empty());
 
         let res = Entity::prune(
-            &*db_writer,
+            &db_writer,
             chrono::Utc::now() - TimeDelta::days(1),
             Some(service_check.id),
         )
@@ -258,13 +258,13 @@ mod tests {
             .await
             .expect("Failed to save service check history");
 
-        let res = Entity::head(&*db_writer, Some(valid_service_check.id), 0)
+        let res = Entity::head(&db_writer, Some(valid_service_check.id), 0)
             .await
             .expect("Failed to prune a valid SCID");
 
         assert_eq!(res, 1);
 
-        let res = Entity::head(&*db_writer, Some(Uuid::new_v4()), 0)
+        let res = Entity::head(&db_writer, Some(Uuid::new_v4()), 0)
             .await
             .expect("Failed to prune nothing");
 
@@ -315,7 +315,7 @@ mod tests {
             valid_sc_id
         );
 
-        let res = Entity::head(&*db_writer, Some(valid_service_check.id), num_to_delete)
+        let res = Entity::head(&db_writer, Some(valid_service_check.id), num_to_delete)
             .await
             .expect("Failed to prune nothing");
 

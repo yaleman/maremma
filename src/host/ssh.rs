@@ -145,7 +145,7 @@ mod test {
         let res = example_com.check_up().await;
 
         assert!(res.is_ok());
-        assert!(!res.unwrap());
+        assert!(!res.expect("Failed to check example.com"));
     }
 
     #[test]
@@ -156,7 +156,7 @@ mod test {
                 "timeout_seconds": 1234
             }
         "#;
-        let host: SshHost = serde_json::from_str(config).unwrap();
+        let host: SshHost = serde_json::from_str(config).expect("Failed to parse config");
         assert_eq!(host.hostname, "example.com");
         assert_eq!(host.port, None);
         assert_eq!(host.timeout_seconds, 1234);
@@ -169,7 +169,7 @@ mod test {
                     "port" : 123
                 }
         };
-        let host = SshHost::try_from(&config).unwrap();
+        let host = SshHost::try_from(&config).expect("Failed to parse from value");
         assert_eq!(host.hostname, "example.com");
         assert_eq!(
             host.port,
@@ -177,7 +177,9 @@ mod test {
         );
         assert_eq!(host.timeout_seconds, default_ssh_timeout_seconds());
         assert_eq!(
-            SshHost::try_from_config(config).unwrap().hostname,
+            SshHost::try_from_config(config)
+                .expect("Failed to parse from config")
+                .hostname,
             host.hostname
         );
     }

@@ -113,8 +113,7 @@ mod tests {
                 timestamp: Set(chrono::Utc::now()),
                 status: Set(ServiceStatus::Ok),
                 result_text: Set(valid_service_check.id.to_string()),
-                time_elapsed: Set(0 as i64),
-                ..Default::default()
+                time_elapsed: Set(0_i64),
             }
             .insert(&*db_writer)
             .await

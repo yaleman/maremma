@@ -115,7 +115,10 @@ mod tests {
         .await;
         assert!(res.is_ok());
 
-        assert!(res.unwrap().to_string().contains("Maremma"));
+        assert!(res
+            .expect("Failed to get response")
+            .to_string()
+            .contains("Maremma"));
     }
 
     #[tokio::test]
@@ -133,7 +136,10 @@ mod tests {
         .await;
         assert!(res.is_ok());
 
-        assert!(res.unwrap().to_string().contains("Maremma"));
+        assert!(res
+            .expect("failed to get response")
+            .to_string()
+            .contains("Maremma"));
     }
 
     #[tokio::test]
@@ -151,7 +157,7 @@ mod tests {
         .await;
         assert!(res.is_ok());
 
-        let page_content = res.unwrap().to_string();
+        let page_content = res.expect("Failed to get response body").to_string();
 
         assert!(page_content.contains("example.com"));
         assert!(!page_content.contains("local_lslah"));

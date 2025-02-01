@@ -367,20 +367,18 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_name() {
         // this should error
-        let (db, _config) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let res = super::Model::find_by_name("test", &*db.read().await).await;
 
         assert!(res.is_err());
-        assert_eq!(res.err().unwrap(), Error::NotImplemented);
+        assert_eq!(res.expect_err("Failed to run"), Error::NotImplemented);
     }
 
     #[tokio::test]
     // test that service_checks auto-delete because they're linked to services/hosts via foreign keys
     async fn test_delete_service_checks_when_service_deleted() {
-        let (db, _config) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let (service_check, services) = entities::service_check::Entity::find()
             .find_with_related(entities::service::Entity)
@@ -434,20 +432,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_host_to_service_checks() {
-        let (db, _config) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+
+        let db_lock = db.write().await;
 
         let host = entities::host::Entity::find()
-            .one(&*db.read().await)
+            .one(&*db_lock)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to query db")
+            .expect("Failed to find host");
 
         let service_checks = host
             .find_related(super::Entity)
-            .all(&*db.read().await)
+            .all(&*db_lock)
             .await
-            .unwrap();
+            .expect("Failed to query host to service checks relation");
 
         assert!(!service_checks.is_empty());
     }

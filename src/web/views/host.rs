@@ -463,13 +463,13 @@ mod tests {
 
         assert!(res.is_err());
 
-        assert_eq!(
-            res.clone().unwrap_err(),
-            (
-                StatusCode::FORBIDDEN,
-                "CSRF Token wasn't found!".to_string(),
-            )
-        );
+        match res.clone() {
+            Err(err) => {
+                assert_eq!(err.0, StatusCode::FORBIDDEN);
+                assert_eq!(err.1, "CSRF token wasn't found".to_string());
+            }
+            Ok(_) => panic!("Should have gotten an error!"),
+        }
 
         let response = res.into_response();
         dbg!(&response);
@@ -496,10 +496,13 @@ mod tests {
 
         assert!(res.is_err());
 
-        assert_eq!(
-            res.clone().unwrap_err(),
-            (StatusCode::FORBIDDEN, "CSRF Token mismatch".to_string(),)
-        );
+        match res.clone() {
+            Err(err) => {
+                assert_eq!(err.0, StatusCode::FORBIDDEN);
+                assert_eq!(err.1, "CSRF Token mismatch".to_string());
+            }
+            Ok(_) => panic!("Should have gotten an error!"),
+        }
 
         let response = res.into_response();
         dbg!(&response);

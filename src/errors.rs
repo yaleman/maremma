@@ -211,6 +211,7 @@ mod tests {
 
     #[test]
     fn test_error_from_serde_json_error() {
+        #[allow(clippy::unwrap_used)]
         let err = serde_json::from_str::<String>("{").unwrap_err();
         assert_eq!(
             crate::errors::Error::Deserialization(err.to_string()),
@@ -275,6 +276,7 @@ mod tests {
 
     #[test]
     fn error_from_addrparseerror() {
+        #[allow(clippy::unwrap_used)]
         let err = std::net::IpAddr::from_str("Invalid IP address").unwrap_err();
         assert_eq!(
             crate::errors::Error::InvalidInput(

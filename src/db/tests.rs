@@ -9,9 +9,11 @@ async fn test_next_service_check() {
 
     crate::db::update_db_from_config(db.clone(), config.clone())
         .await
-        .unwrap();
+        .expect("Failed to update DB from config");
 
-    let next_check = get_next_service_check(&*db.read().await).await.unwrap();
+    let next_check = get_next_service_check(&*db.write().await)
+        .await
+        .expect("Failed to get next check");
     dbg!(&next_check);
     assert!(next_check.is_some());
 }
@@ -93,7 +95,7 @@ async fn test_get_related() {
     for host in entities::host::Entity::find()
         .all(&*db.read().await)
         .await
-        .unwrap()
+        .expect("Failed to query hosts")
         .into_iter()
     {
         info!("Found host: {:?}", host);
@@ -101,7 +103,7 @@ async fn test_get_related() {
         let host_group_members = entities::host_group_members::Entity::find()
             .all(&*db.read().await)
             .await
-            .unwrap();
+            .expect("Failed to query host_group_members");
 
         info!("Found host_group_members: {:?}", host_group_members);
 

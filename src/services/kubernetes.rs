@@ -111,7 +111,9 @@ mod tests {
         let service = KubernetesService {
             name: "kubernetes".to_string(),
             host,
-            cron_schedule: Cron::new("0 0 * * *").parse().unwrap(),
+            cron_schedule: Cron::new("0 0 * * *")
+                .parse()
+                .expect("Failed to parse cron"),
             jitter: None,
         };
 
@@ -124,7 +126,7 @@ mod tests {
                 config: json!({}),
             })
             .await
-            .unwrap();
+            .expect("Failed to run");
         assert!(result.status == ServiceStatus::Ok || result.status == ServiceStatus::Critical);
     }
 }

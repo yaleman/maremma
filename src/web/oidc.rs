@@ -100,7 +100,12 @@ mod tests {
         let res = res.expect("Errored out").into_response();
 
         assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
-        assert_eq!(res.headers().get("location").unwrap(), Urls::Index.as_ref());
+        assert_eq!(
+            res.headers()
+                .get("location")
+                .expect("Failed to get location header"),
+            Urls::Index.as_ref()
+        );
     }
 
     #[tokio::test]
@@ -126,7 +131,7 @@ mod tests {
             .oneshot(
                 axum::http::Request::get(Urls::Logout.as_ref())
                     .body(axum::body::Body::empty())
-                    .unwrap(),
+                    .expect("Failed to build request"),
             )
             .await;
 

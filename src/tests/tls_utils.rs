@@ -447,13 +447,14 @@ fn test_enforced_minimums() {
 
 #[test]
 fn test_ca_loader() {
-    let ca_key_tempfile = tempfile::NamedTempFile::new().unwrap();
-    let ca_cert_tempfile = tempfile::NamedTempFile::new().unwrap();
+    let ca_key_tempfile = tempfile::NamedTempFile::new().expect("Failed to generate tempfile");
+    let ca_cert_tempfile = tempfile::NamedTempFile::new().expect("Failed to generate tempfile");
     // let's test the defaults first
 
     let ca_config = CAConfig::default();
     if let Ok(ca) = build_ca(Some(ca_config), None) {
-        write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).unwrap();
+        write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca)
+            .expect("Failed to write the CA");
         assert!(load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path()).is_ok());
     };
 
@@ -467,9 +468,9 @@ fn test_ca_loader() {
     ];
     good_ca_configs.into_iter().for_each(|config| {
         println!("testing good config {:?}", config);
-        let ca_config = CAConfig::new(config.0, config.1, config.2).unwrap();
-        let ca = build_ca(Some(ca_config), None).unwrap();
-        write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).unwrap();
+        let ca_config = CAConfig::new(config.0, config.1, config.2).expect("Failed bo build CA");
+        let ca = build_ca(Some(ca_config), None).expect("Failed bo build CA");
+        write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).expect("Failed to write CA");
         let ca_result = load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path());
         println!("result: {:?}", ca_result);
         assert!(ca_result.is_ok());
@@ -483,9 +484,10 @@ fn test_ca_loader() {
             "\ntesting bad config keytype: {:?} key size: {}, skip_enforce_minimums: {}",
             config.0, config.1, config.2
         );
-        let ca_config = CAConfig::new(config.0, config.1, config.2).unwrap();
-        let ca = build_ca(Some(ca_config), None).unwrap();
-        write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).unwrap();
+        let ca_config =
+            CAConfig::new(config.0, config.1, config.2).expect("Failed to build CA config");
+        let ca = build_ca(Some(ca_config), None).expect("Failed to build CA");
+        write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).expect("Failed to write CA");
         let ca_result = load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path());
         println!("result: {:?}", ca_result);
         assert!(ca_result.is_err());

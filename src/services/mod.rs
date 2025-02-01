@@ -520,8 +520,8 @@ mod tests {
             .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
             .one(&*db.read().await)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to do query")
+            .expect("Failed to find service_model");
 
         let service_from_model = Service::try_from_service_model(&service_model, &*db.read().await)
             .await
@@ -572,7 +572,11 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+            Cron::new("@hourly")
+                .parse()
+                .expect("Failed to parse cron expression")
+                .pattern
+                .to_string()
         );
     }
 
@@ -592,7 +596,11 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+            Cron::new("@hourly")
+                .parse()
+                .expect("Failed to parse cron expression")
+                .pattern
+                .to_string()
         );
     }
 
@@ -614,7 +622,11 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+            Cron::new("@hourly")
+                .parse()
+                .expect("Failed to parse cron expression")
+                .pattern
+                .to_string()
         );
     }
 
@@ -633,7 +645,11 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+            Cron::new("@hourly")
+                .parse()
+                .expect("Failed to parse cron expression")
+                .pattern
+                .to_string()
         );
     }
 
@@ -652,7 +668,11 @@ mod tests {
         // assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly").parse().unwrap().pattern.to_string()
+            Cron::new("@hourly")
+                .parse()
+                .expect("Failed to parse cron expression")
+                .pattern
+                .to_string()
         );
     }
 

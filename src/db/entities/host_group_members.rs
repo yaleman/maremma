@@ -173,7 +173,7 @@ mod tests {
         let res = super::Model::find_by_name("test", &*db.read().await).await;
 
         assert!(res.is_err());
-        assert_eq!(res.err().unwrap(), Error::NotImplemented);
+        assert_eq!(res.expect_err("failed to run"), Error::NotImplemented);
     }
 
     #[tokio::test]

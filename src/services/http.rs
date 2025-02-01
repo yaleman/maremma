@@ -399,7 +399,7 @@ mod tests {
         assert_eq!(service.name, "test".to_string());
         dbg!(&res);
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Ok);
         assert!(Service::try_from(&json! {
             {
                 "name": "test",
@@ -448,7 +448,7 @@ mod tests {
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Ok);
 
         // if we put this text on the page, we're just kicking ourselves in the shins
         host.config = json!({
@@ -464,7 +464,7 @@ mod tests {
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().status, ServiceStatus::Critical);
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Critical);
     }
 
     #[tokio::test]
@@ -497,7 +497,7 @@ mod tests {
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
         println!("{:?}", res);
-        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Ok);
 
         // if we put this text on the page, we're just kicking ourselves in the shins
         host.config = json!({
@@ -515,7 +515,7 @@ mod tests {
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().status, ServiceStatus::Critical);
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Critical);
     }
 
     #[tokio::test]
@@ -555,8 +555,8 @@ mod tests {
         let res = service.run(&host).await;
         assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
-        assert_eq!(res.is_ok(), true);
-        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+        assert!(res.is_ok());
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Ok);
 
         drop(test_container);
 
@@ -593,8 +593,8 @@ mod tests {
         let res = service.run(&host).await;
         assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
-        assert_eq!(res.is_ok(), true);
-        assert_eq!(res.unwrap().status, ServiceStatus::Ok);
+        assert!(res.is_ok());
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Ok);
         drop(test_container);
         // now we make sure it fails when we do validate
 
@@ -625,7 +625,7 @@ mod tests {
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().status, ServiceStatus::Critical);
+        assert_eq!(res.expect("failed to run").status, ServiceStatus::Critical);
     }
 
     #[test]

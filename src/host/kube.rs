@@ -189,7 +189,8 @@ mod tests {
             "host_groups": ["group1", "group2"]
         });
 
-        let host = crate::host::kube::KubeHost::try_from_config(config).unwrap();
+        let host =
+            crate::host::kube::KubeHost::try_from_config(config).expect("Failed to parse config");
         assert_eq!(host.hostname, "localhost");
         assert_eq!(
             host.api_port,

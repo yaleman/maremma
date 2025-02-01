@@ -186,7 +186,7 @@ pub(crate) fn test_service() -> Model {
         description: Some("Test Service Description".to_string()),
         service_type: crate::prelude::ServiceType::Cli,
         cron_schedule: "* * * * *".to_string(),
-        extra_config: serde_json::json!({ "url": "http://localhost:8080" }).into(),
+        extra_config: serde_json::json!({ "url": "http://localhost:8080" }),
     }
 }
 
@@ -219,26 +219,29 @@ mod tests {
         let service = test_service();
         info!("saving service... {:?}", &service);
         let am = service.clone().into_active_model();
-        super::Entity::insert(am).exec(&*db_writer).await.unwrap();
+        super::Entity::insert(am)
+            .exec(&*db_writer)
+            .await
+            .expect("Failed to insert service");
 
         let service = super::Entity::find()
             .filter(super::Column::Id.eq(service.id))
             .one(&*db_writer)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to query db")
+            .expect("Couldn't find service");
         info!("found it: {:?}", service);
 
         super::Entity::delete_by_id(service.id)
             .exec(&*db_writer)
             .await
-            .unwrap();
+            .expect("Failed to delete service");
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq("test_service".to_string()))
             .one(&*db_writer)
             .await
-            .unwrap()
+            .expect("Failed to query db")
             .is_none());
     }
 
@@ -250,8 +253,8 @@ mod tests {
             .filter(super::Column::Name.eq("local_lslah".to_string()))
             .one(&*db.read().await)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to query db")
+            .expect("Couldn't find local_lslah");
         info!("found it: {:?}", service);
     }
 
@@ -264,7 +267,7 @@ mod tests {
             .filter(super::Column::Name.eq("local_lslah".to_string()))
             .one(&*db.read().await)
             .await
-            .unwrap()
+            .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
         info!("found it: {:?}", service);
 
@@ -298,8 +301,8 @@ mod tests {
             .filter(super::Column::Name.eq("local_lslah".to_string()))
             .one(&*db.read().await)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to query db")
+            .expect("Couldn't find local_lslah");
         info!("found it: {:?}", service);
         assert_eq!(service.description, Some("New Description".to_string()));
         assert_eq!(service.extra_config, json!(extra_config_json))

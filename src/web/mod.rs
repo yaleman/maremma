@@ -428,7 +428,7 @@ mod tests {
             .oneshot(
                 axum::http::Request::get(Urls::Index.as_ref())
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("failed to build empty body for request"),
             )
             .await
             .expect("Failed to run app");
@@ -441,7 +441,11 @@ mod tests {
 
         let url = format!("{}/{}", Urls::Host, host.id);
         app.clone()
-            .oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
+            .oneshot(
+                axum::http::Request::get(&url)
+                    .body(Body::empty())
+                    .expect("Failed to get the host ID"),
+            )
             .await
             .unwrap_or_else(|err| panic!("Failed to GET {} {:?}", url, err));
 
@@ -452,9 +456,13 @@ mod tests {
             .expect("Failed to find service_check");
 
         let url = format!("{}/{}", Urls::ServiceCheck, service_check.id);
-        app.oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
-            .await
-            .unwrap_or_else(|err| panic!("Failed to get {} {:?}", url, err));
+        app.oneshot(
+            axum::http::Request::get(&url)
+                .body(Body::empty())
+                .expect("failed to build empty body for request"),
+        )
+        .await
+        .unwrap_or_else(|err| panic!("Failed to get {} {:?}", url, err));
     }
 
     // #[tokio::test]

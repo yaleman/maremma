@@ -50,7 +50,7 @@ pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
 mod tests {
     #[tokio::test]
     async fn test_metrics() {
-        let (provider, _registry) = super::new().unwrap();
+        let (provider, _registry) = super::new().expect("Failed to create metrics provider");
         provider.shutdown().expect("Failed to shut down");
     }
 }

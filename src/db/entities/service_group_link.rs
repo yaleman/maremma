@@ -148,13 +148,12 @@ mod tests {
     #[tokio::test]
     async fn test_find_by_name() {
         // this should error
-        let (db, _config) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let res = super::Model::find_by_name("test", &*db.read().await).await;
 
         assert!(res.is_err());
-        assert_eq!(res.err().unwrap(), Error::NotImplemented);
+        assert_eq!(res.expect_err("failed to run"), Error::NotImplemented);
     }
     #[tokio::test]
     async fn test_failing_update_db_from_config_service_group_link() {
@@ -177,8 +176,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_linked_service_to_groups() {
-        let (db, _config) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let services = super::super::service::Entity::find()
             .find_with_linked(super::ServiceToGroups)
@@ -201,8 +199,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_linked_group_to_services() {
-        let (db, _config) =
-            test_setup().await.expect("Failed to start test harness");
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
         let groups = super::super::host_group::Entity::find()
             .find_with_linked(super::GroupToServices)

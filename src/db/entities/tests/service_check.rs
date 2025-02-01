@@ -18,12 +18,12 @@ async fn test_service_check_entity() {
     let _service = service::Entity::insert(service_am.to_owned())
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to save service");
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.to_owned())
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to save host");
 
     let service_check = entities::service_check::Model {
         id: Uuid::new_v4(),
@@ -47,25 +47,29 @@ async fn test_service_check_entity() {
         .filter(entities::service_check::Column::Id.eq(service_check_id))
         .one(&*db_writer)
         .await
-        .unwrap()
-        .unwrap();
+        .expect("Failed to query DB")
+        .expect("Failed to find service check");
 
     info!("found it: {:?}", service_check);
 
     entities::service_check::Entity::delete_by_id(service_check_id)
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to delete service check");
     // Check we didn't delete the host when deleting the service check
-    assert!(host::Entity::find_by_id(host_am.id.unwrap())
+    #[allow(clippy::unwrap_used)]
+    let hamid = host_am.id.unwrap();
+    assert!(host::Entity::find_by_id(hamid)
         .one(&*db_writer)
         .await
-        .unwrap()
+        .expect("Failed to query DB")
         .is_some());
-    assert!(service::Entity::find_by_id(service_am.id.unwrap())
+    #[allow(clippy::unwrap_used)]
+    let scamid = service_am.id.unwrap();
+    assert!(service::Entity::find_by_id(scamid)
         .one(&*db_writer)
         .await
-        .unwrap()
+        .expect("Failed to query DB")
         .is_some());
 }
 
@@ -84,13 +88,13 @@ async fn test_service_check_fk_host() {
     let _service = service::Entity::insert(service_am.to_owned())
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to save service");
     let host_am_id = host.id;
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.to_owned())
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to save host");
 
     let service_check = entities::service_check::Model {
         id: Uuid::new_v4(),
@@ -110,19 +114,19 @@ async fn test_service_check_fk_host() {
         entities::service_check::Entity::find_by_id(service_check_am.id)
             .one(&*db_writer)
             .await
-            .unwrap()
+            .expect("Failed to query DB")
             .is_some()
     );
     host::Entity::delete_by_id(host_am_id)
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to delete host");
     // Check we delete the service check when deleting the host
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id)
             .one(&*db_writer)
             .await
-            .unwrap()
+            .expect("Failed to query DB")
             .is_none()
     );
 }
@@ -140,13 +144,14 @@ async fn test_service_check_fk_service() {
     let _service = service::Entity::insert(service_am.to_owned())
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to save service");
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.clone())
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to save host");
 
+    #[allow(clippy::unwrap_used)]
     let service_check = entities::service_check::Model {
         id: Uuid::new_v4(),
         service_id: service_am.id.unwrap(),
@@ -162,42 +167,38 @@ async fn test_service_check_fk_service() {
         panic!("Failed to insert service check: {:?}", err);
     };
 
-    assert!(
-        entities::service_check::Entity::find_by_id(service_check_am.id.clone().unwrap())
-            .one(&*db_writer)
-            .await
-            .unwrap()
-            .is_some()
-    );
+    #[allow(clippy::unwrap_used)]
+    let scamid = service_check_am.id.clone().unwrap();
+    assert!(entities::service_check::Entity::find_by_id(scamid)
+        .one(&*db_writer)
+        .await
+        .expect("Failed to query DB")
+        .is_some());
     service::Entity::delete_by_id(service.id)
         .exec(&*db_writer)
         .await
-        .unwrap();
+        .expect("Failed to delete service");
     // Check we delete the service check when deleting the service
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id.unwrap())
             .one(&*db_writer)
             .await
-            .unwrap()
+            .expect("Failed to query DB")
             .is_none()
     );
 }
 
 #[tokio::test]
 async fn test_full_service_check() {
-    let (db, config) = test_setup().await.expect("Failed to set up test config");
-
-    crate::db::update_db_from_config(db.clone(), config.clone())
-        .await
-        .unwrap();
+    let (db, _config) = test_setup().await.expect("Failed to set up test config");
 
     let known_service_check_service_id = entities::service_check::Entity::find()
         .all(&*db.write().await)
         .await
-        .unwrap()
+        .expect("Failed to query DB")
         .into_iter()
         .next()
-        .unwrap()
+        .expect("Failed to find service check")
         .service_id;
 
     info!(
@@ -230,8 +231,8 @@ async fn test_get_urgent_service_check() {
     let sc = entities::service_check::Entity::find()
         .one(&*db.read().await)
         .await
-        .unwrap()
-        .unwrap();
+        .expect("Failed to query DB")
+        .expect("Failed to get service check");
 
     sc.set_status(ServiceStatus::Urgent, db.clone())
         .await
@@ -242,7 +243,7 @@ async fn test_get_urgent_service_check() {
         .expect("Failed to query DB");
     assert!(urgent.is_some());
 
-    let (sc, _) = urgent.unwrap();
+    let (sc, _) = urgent.expect("Failed to get next service check");
     assert_eq!(sc.status, ServiceStatus::Urgent);
 }
 
@@ -253,8 +254,8 @@ async fn test_get_next_pending_service_check() {
     let sc = entities::service_check::Entity::find()
         .one(&*db.write().await)
         .await
-        .unwrap()
-        .unwrap();
+        .expect("Failed to query DB")
+        .expect("Failed to get service check");
 
     sc.set_status(ServiceStatus::Pending, db.clone())
         .await
@@ -265,6 +266,6 @@ async fn test_get_next_pending_service_check() {
         .expect("Failed to query DB");
     assert!(urgent.is_some());
 
-    let (sc, _) = urgent.unwrap();
+    let (sc, _) = urgent.expect("Failed to get next service check");
     assert_eq!(sc.status, ServiceStatus::Pending);
 }

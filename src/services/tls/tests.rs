@@ -27,7 +27,7 @@ async fn test_working_tls_service() {
 
     let service = crate::services::tls::TlsService {
         name: "test".to_string(),
-        cron_schedule: "0 0 * * * * *".parse().unwrap(),
+        cron_schedule: "0 0 * * * * *".parse().expect("Failed to parse cron"),
         port: test_container
             .tls_port
             .try_into()
@@ -53,7 +53,7 @@ async fn test_working_tls_service() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_ok());
-    assert!(result.unwrap().status == ServiceStatus::Ok);
+    assert!(result.expect("failed to run").status == ServiceStatus::Ok);
 }
 
 #[tokio::test]
@@ -72,7 +72,7 @@ async fn test_expired_tls_service() {
 
     let service = crate::services::tls::TlsService {
         name: "localhost".to_string(),
-        cron_schedule: "0 0 * * * * *".parse().unwrap(),
+        cron_schedule: "0 0 * * * * *".parse().expect("Failed to parse cron"),
         port: test_container
             .tls_port
             .try_into()
@@ -91,7 +91,7 @@ async fn test_expired_tls_service() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_ok());
-    assert!(result.unwrap().status == ServiceStatus::Critical);
+    assert!(result.expect("failed to run").status == ServiceStatus::Critical);
 }
 
 #[tokio::test]
@@ -125,7 +125,7 @@ async fn test_wrong_cert_host_name() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_ok());
-    assert!(result.unwrap().status == ServiceStatus::Critical);
+    assert!(result.expect("failed to run").status == ServiceStatus::Critical);
 }
 
 #[tokio::test]
@@ -152,7 +152,7 @@ async fn test_nxdomain() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_ok());
-    assert!(result.unwrap().status == ServiceStatus::Critical);
+    assert!(result.expect("failed to run").status == ServiceStatus::Critical);
 }
 
 #[tokio::test]
@@ -179,7 +179,7 @@ async fn test_invalid_hostname() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_ok());
-    assert!(result.unwrap().status == ServiceStatus::Critical);
+    assert!(result.expect("failed to run").status == ServiceStatus::Critical);
 }
 
 #[tokio::test]
@@ -216,7 +216,7 @@ async fn test_tls_sha1_intermediate() {
     dbg!(&result);
     assert!(result.is_ok());
     // TODO: one day work out how to check for a sha1 intermediate
-    assert!(result.unwrap().status == ServiceStatus::Ok);
+    assert!(result.expect("failed to run").status == ServiceStatus::Ok);
 }
 
 #[tokio::test]
@@ -252,7 +252,7 @@ async fn test_tls_no_subject() {
     let result = service.run(&host).await;
     dbg!(&result);
     assert!(result.is_ok());
-    assert!(result.unwrap().status == ServiceStatus::Critical);
+    assert!(result.expect("Failed to run").status == ServiceStatus::Critical);
 }
 
 // TODO: once we can generate arbitrary test certs, test for one that expires in x days
@@ -332,7 +332,7 @@ async fn test_service_parser() {
 
     service
         .config
-        .unwrap()
+        .expect("Failed to get config")
         .as_json_pretty(&host)
         .expect("Failed to convert to json");
 }
