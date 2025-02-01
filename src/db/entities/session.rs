@@ -24,6 +24,14 @@ pub struct ModelStore {
     db: Arc<RwLock<DatabaseConnection>>,
 }
 
+impl ModelStore {
+    pub async fn get_db_lock(
+        &self,
+    ) -> tokio::sync::RwLockWriteGuard<'_, sea_orm::DatabaseConnection> {
+        self.db.write().await
+    }
+}
+
 fn id_to_uuid(input: &Id) -> Result<Uuid, Error> {
     if input.0 <= 0 {
         return Err(Error::InvalidInput(format!(
@@ -37,7 +45,7 @@ fn id_to_uuid(input: &Id) -> Result<Uuid, Error> {
 #[test]
 fn test_to_uuid() {
     let id = Id(1);
-    let uuid = id_to_uuid(&id).unwrap();
+    let uuid = id_to_uuid(&id).expect("Failed to convert id to uuid");
     assert_eq!(uuid, Uuid::from_u128(1));
 
     let big_id = Id(u128::MAX as i128 + 1);
@@ -89,8 +97,10 @@ impl SessionStore for ModelStore {
         let id = id_to_uuid(&session_record.id)
             .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
 
+        let db_lock = self.get_db_lock().await;
+
         let mut session = match Entity::find_by_id(id)
-            .one(&*self.db.read().await)
+            .one(&*db_lock)
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?
         {
@@ -116,7 +126,7 @@ impl SessionStore for ModelStore {
 
         if session.is_changed() {
             session
-                .update(&*self.db.write().await)
+                .update(&*db_lock)
                 .await
                 .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
             debug!("Saved session with id={}", session_record.id.0);
@@ -133,8 +143,9 @@ impl SessionStore for ModelStore {
     ) -> Result<Option<Record>, tower_sessions::session_store::Error> {
         let id = id_to_uuid(session_id)
             .map_err(|err| tower_sessions::session_store::Error::Decode(format!("{:?}", err)))?;
+        let db_lock = self.get_db_lock().await;
         let session = match Entity::find_by_id(id)
-            .one(&*self.db.read().await)
+            .one(&*db_lock)
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?
         {
@@ -144,6 +155,7 @@ impl SessionStore for ModelStore {
                 return Ok(None);
             }
         };
+        drop(db_lock);
 
         let id = session.id.as_u128();
 

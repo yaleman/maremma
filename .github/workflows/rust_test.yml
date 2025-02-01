@@ -22,6 +22,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+      - uses: Swatinem/rust-cache@v2
       - name: Set up Docker
         uses: crazy-max/ghaction-setup-docker@v4
       - name: Install typical dependencies

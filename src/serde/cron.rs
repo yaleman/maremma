@@ -37,18 +37,26 @@ mod tests {
 
         let test = serde_json::json! {{"cronvalue": "0 * * * *"}};
 
-        let res: CronTest = serde_json::from_value(test).unwrap();
+        let res: CronTest = serde_json::from_value(test).expect("Failed to deserialize");
 
-        let expected_cron = Cron::new("0 * * * *").parse().unwrap();
+        let expected_cron = Cron::new("0 * * * *")
+            .parse()
+            .expect("Failed to build cron expression");
 
-        let time = chrono::Local::now().with_minute(59).unwrap();
+        let time = chrono::Local::now()
+            .with_minute(59)
+            .expect("Failed to parse time");
 
         assert_eq!(
-            res.cronvalue.find_next_occurrence(&time, false).unwrap(),
-            expected_cron.find_next_occurrence(&time, false).unwrap(),
+            res.cronvalue
+                .find_next_occurrence(&time, false)
+                .expect("Failed to get next occurrence"),
+            expected_cron
+                .find_next_occurrence(&time, false)
+                .expect("Failed to get next occurrence"),
         );
 
-        let serialized = serde_json::to_string(&res).unwrap();
+        let serialized = serde_json::to_string(&res).expect("Failed to serialize");
         dbg!(&serialized);
 
         assert_eq!(r#"{"cronvalue":"0 * * * *"}"#, serialized);

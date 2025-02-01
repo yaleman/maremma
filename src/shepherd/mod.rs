@@ -152,10 +152,7 @@ mod tests {
             .await
             .expect("Failed to run SessionCleanTask");
 
-        assert_eq!(
-            crontask.should_run().expect("Failed to check should_run"),
-            false
-        );
+        assert!(!crontask.should_run().expect("Failed to check should_run"),);
     }
 
     #[tokio::test]

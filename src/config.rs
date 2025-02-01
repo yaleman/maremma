@@ -370,7 +370,9 @@ mod tests {
             "oidc_client_secret" : "bar",
         }}
         .to_string();
-        let config = Configuration::new_from_string(&config).await.unwrap();
+        let config = Configuration::new_from_string(&config)
+            .await
+            .expect("Failed to parse config");
         assert_eq!(config.hosts.len(), 1);
 
         assert_eq!(config.listen_addr(), "127.0.0.1:8888");
@@ -394,15 +396,19 @@ mod tests {
     fn test_json_schema() {
         let schema = schema_for!(Configuration);
 
-        println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&schema).expect("Failed to serialize schema")
+        );
     }
 
     #[test]
     // This tries setting a static path that shouldn't exist, so it can throw an error
     fn test_config_static_missing() {
-        let mut cfg = ConfigurationParser::default();
-
-        cfg.static_path = Some("/tmp/does-not-exist".parse().unwrap());
+        let cfg = ConfigurationParser {
+            static_path: Some("/tmp/does-not-exist".parse().expect("Failed to parse path")),
+            ..Default::default()
+        };
         assert!(Configuration::try_from(cfg).is_err());
     }
 

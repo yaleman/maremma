@@ -64,14 +64,14 @@ pub(crate) async fn index(
         ),
     };
     debug!("Getting reader...");
-    let db_handle = state.db.read().await;
+    let db_lock = state.get_db_lock().await;
     debug!("got reader");
     let mut checks = checks
         .into_model()
-        .all(&*db_handle)
+        .all(&*db_lock)
         .await
         .map_err(Error::from)?;
-    drop(db_handle);
+    drop(db_lock);
     debug!("query done");
 
     if order_field == OrderFields::Status {
@@ -115,7 +115,10 @@ mod tests {
         .await;
         assert!(res.is_ok());
 
-        assert!(res.unwrap().to_string().contains("Maremma"));
+        assert!(res
+            .expect("Failed to get response")
+            .to_string()
+            .contains("Maremma"));
     }
 
     #[tokio::test]
@@ -133,7 +136,10 @@ mod tests {
         .await;
         assert!(res.is_ok());
 
-        assert!(res.unwrap().to_string().contains("Maremma"));
+        assert!(res
+            .expect("failed to get response")
+            .to_string()
+            .contains("Maremma"));
     }
 
     #[tokio::test]
@@ -151,7 +157,7 @@ mod tests {
         .await;
         assert!(res.is_ok());
 
-        let page_content = res.unwrap().to_string();
+        let page_content = res.expect("Failed to get response body").to_string();
 
         assert!(page_content.contains("example.com"));
         assert!(!page_content.contains("local_lslah"));

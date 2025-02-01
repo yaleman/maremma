@@ -27,3 +27,8 @@ pub(crate) const SESSION_CSRF_TOKEN: &str = "csrf_token";
 
 /// Default number of history entries to keep in the database
 pub const DEFAULT_SERVICE_CHECK_HISTORY_STORAGE: u64 = 25000;
+
+/// When we can't find the CSRF token in the session
+pub(crate) static CSRF_TOKEN_NOT_FOUND: &str = "CSRF Token wasn't found!";
+/// When the CSRF token in the session doesn't match the one in the form
+pub(crate) static CSRF_TOKEN_MISMATCH: &str = "CSRF token mismatch";

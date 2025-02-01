@@ -124,7 +124,7 @@ async fn test_basic_testcontainer() {
     debug!("TLS PORT: {}", container.tls_port);
 
     let res = match client
-        .get(&format!("https://localhost:{}", container.tls_port))
+        .get(format!("https://localhost:{}", container.tls_port))
         .send()
         .await
     {

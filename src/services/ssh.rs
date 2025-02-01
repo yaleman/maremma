@@ -256,7 +256,7 @@ mod tests {
         dbg!(&res);
         assert_eq!(service.name, hostname);
         assert!(res.is_ok());
-        assert!(res.unwrap().status == ServiceStatus::Ok);
+        assert!(res.expect("Failed to run").status == ServiceStatus::Ok);
     }
 
     #[tokio::test]
@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(service.name, hostname);
         assert!(res.is_ok());
 
-        assert!(res.unwrap().status == ServiceStatus::Ok);
+        assert!(res.expect("Failed to run").status == ServiceStatus::Ok);
     }
 
     #[test]

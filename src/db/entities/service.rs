@@ -186,7 +186,7 @@ pub(crate) fn test_service() -> Model {
         description: Some("Test Service Description".to_string()),
         service_type: crate::prelude::ServiceType::Cli,
         cron_schedule: "* * * * *".to_string(),
-        extra_config: serde_json::json!({ "url": "http://localhost:8080" }).into(),
+        extra_config: serde_json::json!({ "url": "http://localhost:8080" }),
     }
 }
 
@@ -219,26 +219,29 @@ mod tests {
         let service = test_service();
         info!("saving service... {:?}", &service);
         let am = service.clone().into_active_model();
-        super::Entity::insert(am).exec(&*db_writer).await.unwrap();
+        super::Entity::insert(am)
+            .exec(&*db_writer)
+            .await
+            .expect("Failed to insert service");
 
         let service = super::Entity::find()
             .filter(super::Column::Id.eq(service.id))
             .one(&*db_writer)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to query db")
+            .expect("Couldn't find service");
         info!("found it: {:?}", service);
 
         super::Entity::delete_by_id(service.id)
             .exec(&*db_writer)
             .await
-            .unwrap();
+            .expect("Failed to delete service");
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq("test_service".to_string()))
             .one(&*db_writer)
             .await
-            .unwrap()
+            .expect("Failed to query db")
             .is_none());
     }
 
@@ -248,10 +251,10 @@ mod tests {
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db.read().await)
+            .one(&*db.write().await)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to query db")
+            .expect("Couldn't find local_lslah");
         info!("found it: {:?}", service);
     }
 
@@ -260,11 +263,13 @@ mod tests {
     async fn test_config_updates() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
+        let db_lock = db.write().await;
+
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db.read().await)
+            .one(&*db_lock)
             .await
-            .unwrap()
+            .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
         info!("found it: {:?}", service);
 
@@ -290,16 +295,16 @@ mod tests {
             ),
         );
 
-        super::Model::update_db_from_config(&*db.write().await, Arc::new(RwLock::new(config)))
+        super::Model::update_db_from_config(&db_lock, Arc::new(RwLock::new(config)))
             .await
             .expect("Failed to update db from config");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db.read().await)
+            .one(&*db_lock)
             .await
-            .unwrap()
-            .unwrap();
+            .expect("Failed to query db")
+            .expect("Couldn't find local_lslah");
         info!("found it: {:?}", service);
         assert_eq!(service.description, Some("New Description".to_string()));
         assert_eq!(service.extra_config, json!(extra_config_json))
@@ -311,7 +316,7 @@ mod tests {
 
         let (service, groups) = super::Entity::find()
             .find_with_linked(crate::db::entities::service_group_link::ServiceToGroups)
-            .all(&*db.read().await)
+            .all(&*db.write().await)
             .await
             .expect("Failed to run query looking for a service with host groups")
             .into_iter()
@@ -325,17 +330,17 @@ mod tests {
     async fn test_find_related_service_to_service_check() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_reader = db.read().await;
+        let db_lock = db.write().await;
 
         let service = super::Entity::find()
-            .one(&*db_reader)
+            .one(&*db_lock)
             .await
             .expect("Failed to select service")
             .expect("Failed to find service");
 
         let service_checks = service
             .find_related(service_check::Entity)
-            .all(&*db_reader)
+            .all(&*db_lock)
             .await
             .expect("Failed to search for service_checks");
 

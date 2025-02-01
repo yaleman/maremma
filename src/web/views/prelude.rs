@@ -74,14 +74,14 @@ pub enum OrderFields {
 
 impl Display for OrderFields {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OrderFields::LastUpdated => write!(f, "last_updated"),
-            OrderFields::Host => write!(f, "host"),
-            OrderFields::Service => write!(f, "service"),
-            OrderFields::Status => write!(f, "status"),
-            OrderFields::Check => write!(f, "check"),
-            OrderFields::NextCheck => write!(f, "next_check"),
-        }
+        // this is so janky
+        write!(
+            f,
+            "{}",
+            serde_json::to_string(self)
+                .map_err(|_| std::fmt::Error)?
+                .replace("\"", "")
+        )
     }
 }
 

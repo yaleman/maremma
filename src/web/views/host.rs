@@ -1,7 +1,7 @@
 use super::index::SortQueries;
 use super::prelude::*;
 
-use crate::constants::SESSION_CSRF_TOKEN;
+use crate::constants::{CSRF_TOKEN_MISMATCH, CSRF_TOKEN_NOT_FOUND, SESSION_CSRF_TOKEN};
 use crate::db::entities::service_check::FullServiceCheck;
 use crate::errors::Error;
 use axum::Form;
@@ -57,11 +57,11 @@ pub(crate) async fn host(
         OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
-    let db_reader = state.db.read().await;
+    let db_lock = state.db.write().await;
 
     let (host, host_groups) = match entities::host::Entity::find_by_id(host_id)
         .find_with_linked(entities::host_group_members::HostToGroups)
-        .all(&*db_reader)
+        .all(&*db_lock)
         .await
         .map_err(Error::from)?
         .into_iter()
@@ -80,12 +80,13 @@ pub(crate) async fn host(
         .filter(entities::service_check::Column::HostId.eq(host.id))
         .order_by(order_column, queries.ord.unwrap_or_default().into())
         .into_model::<FullServiceCheck>()
-        .all(&*db_reader)
+        .all(&*db_lock)
         .await
         .map_err(|err| {
             error!("Failed to look up service checks for host={host_id} error={err:?}");
             Error::from(err)
         })?;
+    drop(db_lock);
 
     Ok(HostTemplate {
         title: host.hostname.to_owned(),
@@ -143,11 +144,14 @@ pub(crate) async fn hosts(
         OrderFields::Status => entities::host::Column::Check,
         OrderFields::Check => entities::host::Column::Check,
     };
+    let db_lock = state.get_db_lock().await;
+
     let hosts = hosts
         .order_by(order_column, ord.into())
-        .all(&*state.db.read().await)
+        .all(&*db_lock)
         .await
         .map_err(Error::from)?;
+    drop(db_lock);
 
     Ok(HostsTemplate {
         title: "Hosts".to_string(),
@@ -185,18 +189,15 @@ pub(crate) async fn delete_host(
     {
         Some(val) => val,
         None => {
-            return Err((
-                StatusCode::FORBIDDEN,
-                "CSRF Token wasn't found!".to_string(),
-            ));
+            return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_NOT_FOUND.to_string()));
         }
     };
 
     if csrf_form.csrf_token != session_csrf_token {
-        return Err((StatusCode::FORBIDDEN, "CSRF Token mismatch".to_string()));
+        return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()));
     }
 
-    let db_writer = state.db.write().await;
+    let db_writer = state.get_db_lock().await;
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(&*db_writer)
         .await
@@ -463,13 +464,13 @@ mod tests {
 
         assert!(res.is_err());
 
-        assert_eq!(
-            res.clone().unwrap_err(),
-            (
-                StatusCode::FORBIDDEN,
-                "CSRF Token wasn't found!".to_string(),
-            )
-        );
+        match res.clone() {
+            Err(err) => {
+                assert_eq!(err.0, StatusCode::FORBIDDEN);
+                assert_eq!(err.1, CSRF_TOKEN_NOT_FOUND.to_string());
+            }
+            Ok(_) => panic!("Should have gotten an error!"),
+        }
 
         let response = res.into_response();
         dbg!(&response);
@@ -496,10 +497,13 @@ mod tests {
 
         assert!(res.is_err());
 
-        assert_eq!(
-            res.clone().unwrap_err(),
-            (StatusCode::FORBIDDEN, "CSRF Token mismatch".to_string(),)
-        );
+        match res.clone() {
+            Err(err) => {
+                assert_eq!(err.0, StatusCode::FORBIDDEN);
+                assert_eq!(err.1, CSRF_TOKEN_MISMATCH.to_string());
+            }
+            Ok(_) => panic!("Should have gotten an error!"),
+        }
 
         let response = res.into_response();
         dbg!(&response);

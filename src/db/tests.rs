@@ -9,9 +9,11 @@ async fn test_next_service_check() {
 
     crate::db::update_db_from_config(db.clone(), config.clone())
         .await
-        .unwrap();
+        .expect("Failed to update DB from config");
 
-    let next_check = get_next_service_check(&*db.read().await).await.unwrap();
+    let next_check = get_next_service_check(&*db.write().await)
+        .await
+        .expect("Failed to get next check");
     dbg!(&next_check);
     assert!(next_check.is_some());
 }
@@ -90,24 +92,26 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
 async fn test_get_related() {
     let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
+    let db_lock: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
+
     for host in entities::host::Entity::find()
-        .all(&*db.read().await)
+        .all(&*db_lock)
         .await
-        .unwrap()
+        .expect("Failed to query hosts")
         .into_iter()
     {
         info!("Found host: {:?}", host);
 
         let host_group_members = entities::host_group_members::Entity::find()
-            .all(&*db.read().await)
+            .all(&*db_lock)
             .await
-            .unwrap();
+            .expect("Failed to query host_group_members");
 
         info!("Found host_group_members: {:?}", host_group_members);
 
         let linked = host
             .find_linked(entities::host_group_members::HostToGroups)
-            .all(&*db.read().await)
+            .all(&*db_lock)
             .await
             .expect("Failed to find linked");
         println!("linked {:?}", linked);

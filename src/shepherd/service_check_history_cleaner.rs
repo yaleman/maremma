@@ -113,8 +113,7 @@ mod tests {
                 timestamp: Set(chrono::Utc::now()),
                 status: Set(ServiceStatus::Ok),
                 result_text: Set(valid_service_check.id.to_string()),
-                time_elapsed: Set(0 as i64),
-                ..Default::default()
+                time_elapsed: Set(0_i64),
             }
             .insert(&*db_writer)
             .await
@@ -131,7 +130,7 @@ mod tests {
     async fn test_sch_counts_query() {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let query_as_string = sch_counts_query()
-            .build(db.read().await.get_database_backend())
+            .build(db.write().await.get_database_backend())
             .to_string();
         println!("{}", query_as_string);
 

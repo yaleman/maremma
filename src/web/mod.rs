@@ -44,9 +44,9 @@ use views::service_check::{service_check_delete, service_check_get};
 
 #[derive(Clone)]
 pub(crate) struct WebState {
-    pub db: Arc<RwLock<DatabaseConnection>>,
+    db: Arc<RwLock<DatabaseConnection>>,
     pub configuration: SendableConfig,
-    pub registry: Option<Arc<Registry>>,
+    registry: Option<Arc<Registry>>,
     pub web_tx: Option<Sender<WebServerControl>>,
     pub config_filepath: PathBuf,
 }
@@ -66,6 +66,12 @@ impl WebState {
             web_tx,
             config_filepath,
         }
+    }
+
+    pub async fn get_db_lock(
+        &self,
+    ) -> tokio::sync::RwLockWriteGuard<'_, sea_orm::DatabaseConnection> {
+        self.db.write().await
     }
 
     #[cfg(test)]
@@ -428,7 +434,7 @@ mod tests {
             .oneshot(
                 axum::http::Request::get(Urls::Index.as_ref())
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("failed to build empty body for request"),
             )
             .await
             .expect("Failed to run app");
@@ -441,7 +447,11 @@ mod tests {
 
         let url = format!("{}/{}", Urls::Host, host.id);
         app.clone()
-            .oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
+            .oneshot(
+                axum::http::Request::get(&url)
+                    .body(Body::empty())
+                    .expect("Failed to get the host ID"),
+            )
             .await
             .unwrap_or_else(|err| panic!("Failed to GET {} {:?}", url, err));
 
@@ -452,9 +462,13 @@ mod tests {
             .expect("Failed to find service_check");
 
         let url = format!("{}/{}", Urls::ServiceCheck, service_check.id);
-        app.oneshot(axum::http::Request::get(&url).body(Body::empty()).unwrap())
-            .await
-            .unwrap_or_else(|err| panic!("Failed to get {} {:?}", url, err));
+        app.oneshot(
+            axum::http::Request::get(&url)
+                .body(Body::empty())
+                .expect("failed to build empty body for request"),
+        )
+        .await
+        .unwrap_or_else(|err| panic!("Failed to get {} {:?}", url, err));
     }
 
     // #[tokio::test]

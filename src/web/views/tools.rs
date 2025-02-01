@@ -173,12 +173,13 @@ pub(crate) async fn tools(
         match action {
             FormAction::SetAllToUrgent => {
                 info!("Asked to set all to urgent");
+                let db_lock = state.get_db_lock().await;
                 entities::service_check::Entity::update_many()
                     .col_expr(
                         entities::service_check::Column::Status,
                         Expr::value(ServiceStatus::Urgent),
                     )
-                    .exec(&*state.db.write().await)
+                    .exec(&*db_lock)
                     .await
                     .map_err(|e| {
                         error!("Failed to set all to urgent: {:?}", e);
@@ -189,6 +190,7 @@ pub(crate) async fn tools(
                         ))
                         .into_response()
                     })?;
+                drop(db_lock);
                 return Err(Redirect::to(&format!(
                     "{}?result=Set all tasks to urgent&status={}",
                     Urls::Tools,

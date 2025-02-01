@@ -27,8 +27,10 @@ pub(crate) async fn service_check_get(
 ) -> Result<ServiceCheckTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
+    let db_lock = state.get_db_lock().await;
+
     let res = entities::service_check::Entity::find_by_id(service_check_id)
-        .one(&*state.db.read().await)
+        .one(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -49,7 +51,7 @@ pub(crate) async fn service_check_get(
         .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
         .order_by_desc(entities::service_check_history::Column::Timestamp)
         .limit(DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES)
-        .all(&*state.db.read().await)
+        .all(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -61,7 +63,7 @@ pub(crate) async fn service_check_get(
 
     let host = service_check
         .find_related(entities::host::Entity)
-        .one(&*state.db.read().await)
+        .one(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -79,7 +81,7 @@ pub(crate) async fn service_check_get(
 
     let service = service_check
         .find_related(entities::service::Entity)
-        .one(&*state.db.read().await)
+        .one(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -98,16 +100,16 @@ pub(crate) async fn service_check_get(
             )
         })?;
 
-    let mut parsed_service =
-        crate::services::Service::try_from_service_model(&service, &*state.db.read().await)
-            .await
-            .map_err(|err| {
-                error!(
-                    "Failed to render service_check {} into service {:?}",
-                    service_check_id, err
-                );
-                Error::Configuration("Failed to parse service definition".to_string())
-            })?;
+    let mut parsed_service = crate::services::Service::try_from_service_model(&service, &db_lock)
+        .await
+        .map_err(|err| {
+            error!(
+                "Failed to render service_check {} into service {:?}",
+                service_check_id, err
+            );
+            Error::Configuration("Failed to parse service definition".to_string())
+        })?;
+    drop(db_lock);
 
     parsed_service.parse_config().map_err(|err| {
         error!(
@@ -174,8 +176,9 @@ pub(crate) async fn set_service_check_status(
     status: ServiceStatus,
     form: RedirectTo,
 ) -> Result<Redirect, (StatusCode, String)> {
+    let db_lock = state.db.write().await;
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
-        .one(&*state.db.read().await)
+        .one(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -204,17 +207,16 @@ pub(crate) async fn set_service_check_status(
     let host_id = service_check.host_id.clone().unwrap();
 
     if service_check.is_changed() {
-        service_check
-            .save(&*state.db.write().await)
-            .await
-            .map_err(|err| {
-                error!(
-                    "Failed to set service_check_id={} to status={}: {:?}",
-                    service_check_id, status, err
-                );
-                Error::from(err)
-            })?;
+        service_check.save(&*db_lock).await.map_err(|err| {
+            error!(
+                "Failed to set service_check_id={} to status={}: {:?}",
+                service_check_id, status, err
+            );
+            Error::from(err)
+        })?;
     };
+    drop(db_lock);
+
     // TODO: make it so we can redirect to... elsewhere based on a query string?
     if let Some(redirect_to) = &form.redirect_to {
         Ok(Redirect::to(redirect_to))
@@ -252,9 +254,9 @@ pub(crate) async fn service_check_delete(
             "You must be logged in to view this page".to_string(),
         )
     })?;
-
+    let db_lock = state.get_db_lock().await;
     entities::service_check::Entity::delete_by_id(service_check_id)
-        .exec(&*state.db.write().await)
+        .exec(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -263,6 +265,7 @@ pub(crate) async fn service_check_delete(
             );
             Error::from(err)
         })?;
+    drop(db_lock);
 
     if let Some(redirect_to) = redirect_form.redirect_to {
         Ok(Redirect::to(&redirect_to))
@@ -364,7 +367,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*state.db.read().await)
+            .one(&*state.db.write().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");

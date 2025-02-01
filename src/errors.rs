@@ -8,6 +8,8 @@ use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
 
+use crate::constants::{CSRF_TOKEN_MISMATCH, CSRF_TOKEN_NOT_FOUND};
+
 #[derive(Debug, PartialEq)]
 /// Various errors that Maremma will throw
 pub enum Error {
@@ -170,13 +172,8 @@ impl From<axum::http::header::InvalidHeaderValue> for Error {
 impl IntoResponse for Error {
     fn into_response(self) -> askama_axum::Response {
         match self {
-            Self::CsrfTokenMissing => (
-                StatusCode::FORBIDDEN,
-                "CSRF token not found in session".to_string(),
-            ),
-            Self::CsrfValidationFailed => {
-                (StatusCode::FORBIDDEN, "CSRF token mismatch".to_string())
-            }
+            Self::CsrfTokenMissing => (StatusCode::FORBIDDEN, CSRF_TOKEN_NOT_FOUND.to_string()),
+            Self::CsrfValidationFailed => (StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             _ => {
                 error!("Response error occurred: {:?}", self);
@@ -211,6 +208,7 @@ mod tests {
 
     #[test]
     fn test_error_from_serde_json_error() {
+        #[allow(clippy::unwrap_used)]
         let err = serde_json::from_str::<String>("{").unwrap_err();
         assert_eq!(
             crate::errors::Error::Deserialization(err.to_string()),
@@ -275,6 +273,7 @@ mod tests {
 
     #[test]
     fn error_from_addrparseerror() {
+        #[allow(clippy::unwrap_used)]
         let err = std::net::IpAddr::from_str("Invalid IP address").unwrap_err();
         assert_eq!(
             crate::errors::Error::InvalidInput(
