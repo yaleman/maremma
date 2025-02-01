@@ -1,7 +1,7 @@
 use super::index::SortQueries;
 use super::prelude::*;
 
-use crate::constants::SESSION_CSRF_TOKEN;
+use crate::constants::{CSRF_TOKEN_MISMATCH, CSRF_TOKEN_NOT_FOUND, SESSION_CSRF_TOKEN};
 use crate::db::entities::service_check::FullServiceCheck;
 use crate::errors::Error;
 use axum::Form;
@@ -185,15 +185,12 @@ pub(crate) async fn delete_host(
     {
         Some(val) => val,
         None => {
-            return Err((
-                StatusCode::FORBIDDEN,
-                "CSRF Token wasn't found!".to_string(),
-            ));
+            return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_NOT_FOUND.to_string()));
         }
     };
 
     if csrf_form.csrf_token != session_csrf_token {
-        return Err((StatusCode::FORBIDDEN, "CSRF Token mismatch".to_string()));
+        return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()));
     }
 
     let db_writer = state.db.write().await;
@@ -466,7 +463,7 @@ mod tests {
         match res.clone() {
             Err(err) => {
                 assert_eq!(err.0, StatusCode::FORBIDDEN);
-                assert_eq!(err.1, "CSRF token wasn't found".to_string());
+                assert_eq!(err.1, CSRF_TOKEN_NOT_FOUND.to_string());
             }
             Ok(_) => panic!("Should have gotten an error!"),
         }
@@ -499,7 +496,7 @@ mod tests {
         match res.clone() {
             Err(err) => {
                 assert_eq!(err.0, StatusCode::FORBIDDEN);
-                assert_eq!(err.1, "CSRF Token mismatch".to_string());
+                assert_eq!(err.1, CSRF_TOKEN_MISMATCH.to_string());
             }
             Ok(_) => panic!("Should have gotten an error!"),
         }

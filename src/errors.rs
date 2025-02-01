@@ -8,6 +8,8 @@ use tokio::sync::oneshot;
 use tracing::error;
 use uuid::Uuid;
 
+use crate::constants::{CSRF_TOKEN_MISMATCH, CSRF_TOKEN_NOT_FOUND};
+
 #[derive(Debug, PartialEq)]
 /// Various errors that Maremma will throw
 pub enum Error {
@@ -170,13 +172,8 @@ impl From<axum::http::header::InvalidHeaderValue> for Error {
 impl IntoResponse for Error {
     fn into_response(self) -> askama_axum::Response {
         match self {
-            Self::CsrfTokenMissing => (
-                StatusCode::FORBIDDEN,
-                "CSRF token not found in session".to_string(),
-            ),
-            Self::CsrfValidationFailed => {
-                (StatusCode::FORBIDDEN, "CSRF token mismatch".to_string())
-            }
+            Self::CsrfTokenMissing => (StatusCode::FORBIDDEN, CSRF_TOKEN_NOT_FOUND.to_string()),
+            Self::CsrfValidationFailed => (StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             _ => {
                 error!("Response error occurred: {:?}", self);
