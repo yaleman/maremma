@@ -64,14 +64,14 @@ pub(crate) async fn index(
         ),
     };
     debug!("Getting reader...");
-    let db_handle = state.db.read().await;
+    let db_lock = state.get_db_lock().await;
     debug!("got reader");
     let mut checks = checks
         .into_model()
-        .all(&*db_handle)
+        .all(&*db_lock)
         .await
         .map_err(Error::from)?;
-    drop(db_handle);
+    drop(db_lock);
     debug!("query done");
 
     if order_field == OrderFields::Status {

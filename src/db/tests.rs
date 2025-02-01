@@ -92,8 +92,10 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
 async fn test_get_related() {
     let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
+    let db_lock: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
+
     for host in entities::host::Entity::find()
-        .all(&*db.read().await)
+        .all(&*db_lock)
         .await
         .expect("Failed to query hosts")
         .into_iter()
@@ -101,7 +103,7 @@ async fn test_get_related() {
         info!("Found host: {:?}", host);
 
         let host_group_members = entities::host_group_members::Entity::find()
-            .all(&*db.read().await)
+            .all(&*db_lock)
             .await
             .expect("Failed to query host_group_members");
 
@@ -109,7 +111,7 @@ async fn test_get_related() {
 
         let linked = host
             .find_linked(entities::host_group_members::HostToGroups)
-            .all(&*db.read().await)
+            .all(&*db_lock)
             .await
             .expect("Failed to find linked");
         println!("linked {:?}", linked);

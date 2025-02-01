@@ -68,6 +68,12 @@ impl WebState {
         }
     }
 
+    pub async fn get_db_lock(
+        &self,
+    ) -> tokio::sync::RwLockWriteGuard<'_, sea_orm::DatabaseConnection> {
+        self.db.write().await
+    }
+
     #[cfg(test)]
     pub async fn test() -> Self {
         let (db, config) = crate::db::tests::test_setup()

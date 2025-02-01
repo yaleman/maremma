@@ -57,11 +57,11 @@ pub(crate) async fn host(
         OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
-    let db_reader = state.db.read().await;
+    let db_lock = state.db.read().await;
 
     let (host, host_groups) = match entities::host::Entity::find_by_id(host_id)
         .find_with_linked(entities::host_group_members::HostToGroups)
-        .all(&*db_reader)
+        .all(&*db_lock)
         .await
         .map_err(Error::from)?
         .into_iter()
@@ -80,12 +80,13 @@ pub(crate) async fn host(
         .filter(entities::service_check::Column::HostId.eq(host.id))
         .order_by(order_column, queries.ord.unwrap_or_default().into())
         .into_model::<FullServiceCheck>()
-        .all(&*db_reader)
+        .all(&*db_lock)
         .await
         .map_err(|err| {
             error!("Failed to look up service checks for host={host_id} error={err:?}");
             Error::from(err)
         })?;
+    drop(db_lock);
 
     Ok(HostTemplate {
         title: host.hostname.to_owned(),
@@ -193,7 +194,7 @@ pub(crate) async fn delete_host(
         return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()));
     }
 
-    let db_writer = state.db.write().await;
+    let db_writer = state.get_db_lock().await;
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(&*db_writer)
         .await

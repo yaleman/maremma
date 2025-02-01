@@ -70,12 +70,12 @@ impl Model {
     pub async fn set_status(
         &self,
         status: ServiceStatus,
-        db: Arc<RwLock<DatabaseConnection>>,
+        db: &DatabaseConnection,
     ) -> Result<Self, Error> {
         let mut model = self.clone().into_active_model();
         model.status.set_if_not_equals(status);
         model
-            .save(&*db.write().await)
+            .save(db)
             .await
             .map_err(|err| {
                 error!(
@@ -369,7 +369,7 @@ mod tests {
         // this should error
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let res = super::Model::find_by_name("test", &*db.read().await).await;
+        let res = super::Model::find_by_name("test", &*db.write().await).await;
 
         assert!(res.is_err());
         assert_eq!(res.expect_err("Failed to run"), Error::NotImplemented);
@@ -380,9 +380,10 @@ mod tests {
     async fn test_delete_service_checks_when_service_deleted() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
+        let db_lock = db.write().await;
         let (service_check, services) = entities::service_check::Entity::find()
             .find_with_related(entities::service::Entity)
-            .all(&*db.read().await)
+            .all(&*db_lock)
             .await
             .expect("Failed to find service")
             .into_iter()
@@ -395,12 +396,12 @@ mod tests {
 
         let service_check_id = service_check.id;
         service
-            .delete(&*db.write().await)
+            .delete(&*db_lock)
             .await
             .expect("Failed to delete service");
 
         let res = entities::service_check::Entity::find_by_id(service_check_id)
-            .one(&*db.read().await)
+            .one(&*db_lock)
             .await
             .expect("Failed to find service_check");
 

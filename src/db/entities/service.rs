@@ -251,7 +251,7 @@ mod tests {
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db.read().await)
+            .one(&*db.write().await)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -263,9 +263,11 @@ mod tests {
     async fn test_config_updates() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
+        let db_lock = db.write().await;
+
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db.read().await)
+            .one(&*db_lock)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -293,13 +295,13 @@ mod tests {
             ),
         );
 
-        super::Model::update_db_from_config(&*db.write().await, Arc::new(RwLock::new(config)))
+        super::Model::update_db_from_config(&*db_lock, Arc::new(RwLock::new(config)))
             .await
             .expect("Failed to update db from config");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db.read().await)
+            .one(&*db_lock)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -328,17 +330,17 @@ mod tests {
     async fn test_find_related_service_to_service_check() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_reader = db.read().await;
+        let db_lock = db.write().await;
 
         let service = super::Entity::find()
-            .one(&*db_reader)
+            .one(&*db_lock)
             .await
             .expect("Failed to select service")
             .expect("Failed to find service");
 
         let service_checks = service
             .find_related(service_check::Entity)
-            .all(&*db_reader)
+            .all(&*db_lock)
             .await
             .expect("Failed to search for service_checks");
 

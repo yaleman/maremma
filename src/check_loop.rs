@@ -1,5 +1,6 @@
 //! Runs the service checks on a loop
 
+use crate::db::get_next_service_check;
 use crate::prelude::*;
 use opentelemetry::metrics::Counter;
 use opentelemetry::KeyValue;
@@ -85,19 +86,17 @@ pub(crate) async fn run_service_check(
             result_text: format!("Error: {:?}", err),
         },
     };
-    let jitter = service_to_run.jitter_value();
     debug!(
         "Completed service_check={:?} result={:?}",
         service_check, result.status
     );
+    let jitter = service_to_run.jitter_value();
 
     let db_writer = db.write().await;
-
     entities::service_check_history::Model::from_service_check_result(service_check.id, &result)
         .into_active_model()
         .insert(&*db_writer)
         .await?;
-
     let mut model = service_check.clone().into_active_model();
     model.last_check.set_if_not_equals(chrono::Utc::now());
     model.status.set_if_not_equals(result.status);
@@ -120,6 +119,7 @@ pub(crate) async fn run_service_check(
     } else {
         debug!("set_last_check with no change? {:?}", model);
     }
+    drop(db_writer);
 
     Ok(())
 }
@@ -146,6 +146,7 @@ async fn run_inner(
             service_check.status.set_if_not_equals(ServiceStatus::Error);
             service_check.update(&*db_writer).await?;
         }
+        drop(db_writer);
 
         checks_run_since_startup.add(
             1,
@@ -175,8 +176,6 @@ pub async fn run_check_loop(
 ) -> Result<(), Error> {
     // Create a Counter Instrument.
 
-    use crate::db::get_next_service_check;
-
     let checks_run_since_startup = metrics_meter
         .u64_counter("checks_run_since_startup")
         .build();
@@ -193,13 +192,15 @@ pub async fn run_check_loop(
         }
         match semaphore.clone().acquire_owned().await {
             Ok(permit) => {
-                let next_service = get_next_service_check(&*db.write().await).await?;
+                let db_lock = db.write().await;
+                let next_service = get_next_service_check(&db_lock).await?;
 
                 if let Some((service_check, service)) = next_service {
                     // set the service_check to running
                     service_check
-                        .set_status(ServiceStatus::Checking, db.clone())
+                        .set_status(ServiceStatus::Checking, &db_lock)
                         .await?;
+                    drop(db_lock);
                     tokio::spawn(run_inner(
                         db.clone(),
                         service_check,

@@ -150,7 +150,7 @@ mod tests {
         // this should error
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let res = super::Model::find_by_name("test", &*db.read().await).await;
+        let res = super::Model::find_by_name("test", &*db.write().await).await;
 
         assert!(res.is_err());
         assert_eq!(res.expect_err("failed to run"), Error::NotImplemented);
@@ -180,7 +180,7 @@ mod tests {
 
         let services = super::super::service::Entity::find()
             .find_with_linked(super::ServiceToGroups)
-            .all(&*db.read().await)
+            .all(&*db.write().await)
             .await
             .expect("Failed to query group to hosts relation");
 
@@ -203,7 +203,7 @@ mod tests {
 
         let groups = super::super::host_group::Entity::find()
             .find_with_linked(super::GroupToServices)
-            .all(&*db.read().await)
+            .all(&*db.write().await)
             .await
             .expect("Failed to query group to hosts relation");
 

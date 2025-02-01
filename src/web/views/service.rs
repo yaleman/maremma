@@ -25,10 +25,10 @@ pub(crate) async fn service(
 ) -> Result<ServiceTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
-    let reader = state.db.read().await;
+    let db_lock = state.get_db_lock().await;
 
     let service = match entities::service::Entity::find_by_id(service_id)
-        .one(&*reader)
+        .one(&*db_lock)
         .await
         .map_err(Error::from)?
     {
@@ -41,10 +41,10 @@ pub(crate) async fn service(
         }
     };
 
-    let service_checks = FullServiceCheck::get_by_service_id(service_id, &reader)
+    let service_checks = FullServiceCheck::get_by_service_id(service_id, &db_lock)
         .await
         .map_err(Error::from)?;
-
+    drop(db_lock);
     Ok(ServiceTemplate {
         title: service.name.clone(),
         service,
