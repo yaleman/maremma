@@ -129,8 +129,7 @@ pub async fn get_next_service_check(
 
     // prioritize pending
     if res.is_none() {
-        // all others we just care about:
-        // - the next_check time
+        // all others we just care about the next_check time
         let base_query = base_query
             .order_by_asc(entities::service_check::Column::NextCheck)
             .filter(
