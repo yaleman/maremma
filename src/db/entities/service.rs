@@ -295,7 +295,7 @@ mod tests {
             ),
         );
 
-        super::Model::update_db_from_config(&*db_lock, Arc::new(RwLock::new(config)))
+        super::Model::update_db_from_config(&db_lock, Arc::new(RwLock::new(config)))
             .await
             .expect("Failed to update db from config");
 
