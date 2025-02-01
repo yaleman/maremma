@@ -193,7 +193,7 @@ pub async fn run_check_loop(
         }
         match semaphore.clone().acquire_owned().await {
             Ok(permit) => {
-                let next_service = get_next_service_check(&*db.read().await).await?;
+                let next_service = get_next_service_check(&*db.write().await).await?;
 
                 if let Some((service_check, service)) = next_service {
                     // set the service_check to running
@@ -237,22 +237,22 @@ mod tests {
     async fn test_run_service_check() {
         let (db, _config) = test_setup().await.expect("Failed to setup test");
 
-        let db_reader = db.read().await;
+        let db_lock = db.write().await;
 
         let service = entities::service::Entity::find()
             .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
-            .one(&*db_reader)
+            .one(&*db_lock)
             .await
             .expect("Failed to query ping service")
             .expect("Failed to find ping service");
 
         let service_check = service_check::Entity::find()
             .filter(service_check::Column::ServiceId.eq(service.id))
-            .one(&*db_reader)
+            .one(&*db_lock)
             .await
             .expect("Failed to query service check")
             .expect("Failed to find service check");
-        drop(db_reader);
+        drop(db_lock);
 
         run_service_check(db.clone(), &service_check, service)
             .await
