@@ -100,7 +100,7 @@ pub(crate) async fn service_check_get(
             )
         })?;
 
-    let mut parsed_service = crate::services::Service::try_from_service_model(&service, &*db_lock)
+    let mut parsed_service = crate::services::Service::try_from_service_model(&service, &db_lock)
         .await
         .map_err(|err| {
             error!(
