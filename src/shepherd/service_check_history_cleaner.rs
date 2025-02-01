@@ -130,7 +130,7 @@ mod tests {
     async fn test_sch_counts_query() {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let query_as_string = sch_counts_query()
-            .build(db.read().await.get_database_backend())
+            .build(db.write().await.get_database_backend())
             .to_string();
         println!("{}", query_as_string);
 

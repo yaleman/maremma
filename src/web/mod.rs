@@ -44,9 +44,9 @@ use views::service_check::{service_check_delete, service_check_get};
 
 #[derive(Clone)]
 pub(crate) struct WebState {
-    pub db: Arc<RwLock<DatabaseConnection>>,
+    db: Arc<RwLock<DatabaseConnection>>,
     pub configuration: SendableConfig,
-    pub registry: Option<Arc<Registry>>,
+    registry: Option<Arc<Registry>>,
     pub web_tx: Option<Sender<WebServerControl>>,
     pub config_filepath: PathBuf,
 }

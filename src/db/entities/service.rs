@@ -316,7 +316,7 @@ mod tests {
 
         let (service, groups) = super::Entity::find()
             .find_with_linked(crate::db::entities::service_group_link::ServiceToGroups)
-            .all(&*db.read().await)
+            .all(&*db.write().await)
             .await
             .expect("Failed to run query looking for a service with host groups")
             .into_iter()

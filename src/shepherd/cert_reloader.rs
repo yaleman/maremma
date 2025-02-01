@@ -113,10 +113,19 @@ mod tests {
     async fn test_get_file_time() {
         let (_db, config) = test_setup().await.expect("Failed to set up tests");
 
-        assert!(get_file_times(config).await.is_err());
+        assert!(get_file_times(config.clone()).await.is_err());
 
         get_file_time(std::path::Path::new("Cargo.toml"))
             .expect("Failed to get file time for Cargo.toml");
+
+        let good_cert_file = config.write().await.cert_file.clone();
+
+        config.write().await.cert_file = std::path::PathBuf::from("bad_cert_file");
+        assert!(get_file_times(config.clone()).await.is_err());
+
+        config.write().await.cert_file = good_cert_file;
+        config.write().await.cert_key = std::path::PathBuf::from("bad_cert_file");
+        assert!(get_file_times(config).await.is_err());
     }
 
     #[tokio::test]

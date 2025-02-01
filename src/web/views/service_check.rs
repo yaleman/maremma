@@ -27,8 +27,10 @@ pub(crate) async fn service_check_get(
 ) -> Result<ServiceCheckTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
+    let db_lock = state.get_db_lock().await;
+
     let res = entities::service_check::Entity::find_by_id(service_check_id)
-        .one(&*state.db.read().await)
+        .one(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -49,7 +51,7 @@ pub(crate) async fn service_check_get(
         .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
         .order_by_desc(entities::service_check_history::Column::Timestamp)
         .limit(DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES)
-        .all(&*state.db.read().await)
+        .all(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -61,7 +63,7 @@ pub(crate) async fn service_check_get(
 
     let host = service_check
         .find_related(entities::host::Entity)
-        .one(&*state.db.read().await)
+        .one(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -79,7 +81,7 @@ pub(crate) async fn service_check_get(
 
     let service = service_check
         .find_related(entities::service::Entity)
-        .one(&*state.db.read().await)
+        .one(&*db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -98,16 +100,16 @@ pub(crate) async fn service_check_get(
             )
         })?;
 
-    let mut parsed_service =
-        crate::services::Service::try_from_service_model(&service, &*state.db.read().await)
-            .await
-            .map_err(|err| {
-                error!(
-                    "Failed to render service_check {} into service {:?}",
-                    service_check_id, err
-                );
-                Error::Configuration("Failed to parse service definition".to_string())
-            })?;
+    let mut parsed_service = crate::services::Service::try_from_service_model(&service, &*db_lock)
+        .await
+        .map_err(|err| {
+            error!(
+                "Failed to render service_check {} into service {:?}",
+                service_check_id, err
+            );
+            Error::Configuration("Failed to parse service definition".to_string())
+        })?;
+    drop(db_lock);
 
     parsed_service.parse_config().map_err(|err| {
         error!(

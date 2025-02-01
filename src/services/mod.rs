@@ -515,15 +515,15 @@ mod tests {
         let (db, _config) = test_setup()
             .await
             .expect("Failed to set up test environment");
-
+        let db_lock = db.write().await;
         let service_model = entities::service::Entity::find()
             .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
-            .one(&*db.read().await)
+            .one(&*db_lock)
             .await
             .expect("Failed to do query")
             .expect("Failed to find service_model");
 
-        let service_from_model = Service::try_from_service_model(&service_model, &*db.read().await)
+        let service_from_model = Service::try_from_service_model(&service_model, &*db_lock)
             .await
             .expect("Failed to convert model to service");
 
@@ -536,7 +536,7 @@ mod tests {
         };
 
         let service_without_host_groups_model =
-            Service::try_from_service_model(&model_without_host_groups, &*db.read().await)
+            Service::try_from_service_model(&model_without_host_groups, &*db_lock)
                 .await
                 .expect("Failed to take service without groups from model");
         dbg!(&service_without_host_groups_model.host_groups);

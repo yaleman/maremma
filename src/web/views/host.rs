@@ -57,7 +57,7 @@ pub(crate) async fn host(
         OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
-    let db_lock = state.db.read().await;
+    let db_lock = state.db.write().await;
 
     let (host, host_groups) = match entities::host::Entity::find_by_id(host_id)
         .find_with_linked(entities::host_group_members::HostToGroups)
@@ -144,11 +144,14 @@ pub(crate) async fn hosts(
         OrderFields::Status => entities::host::Column::Check,
         OrderFields::Check => entities::host::Column::Check,
     };
+    let db_lock = state.get_db_lock().await;
+
     let hosts = hosts
         .order_by(order_column, ord.into())
-        .all(&*state.db.read().await)
+        .all(&*db_lock)
         .await
         .map_err(Error::from)?;
+    drop(db_lock);
 
     Ok(HostsTemplate {
         title: "Hosts".to_string(),
