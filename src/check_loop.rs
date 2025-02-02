@@ -23,6 +23,17 @@ pub struct CheckResult {
     pub result_text: String,
 }
 
+impl Default for CheckResult {
+    fn default() -> Self {
+        Self {
+            timestamp: chrono::Utc::now(),
+            time_elapsed: Duration::zero(),
+            status: ServiceStatus::Unknown,
+            result_text: String::new(),
+        }
+    }
+}
+
 #[instrument(level = "INFO", skip_all, fields(service_check_id=%service_check.id, service_id=%service.id))]
 /// Does what it says on the tin
 pub(crate) async fn run_service_check(
@@ -34,14 +45,12 @@ pub(crate) async fn run_service_check(
     let check = match Service::try_from_service_model(&service, &db_writer).await {
         Ok(check) => check,
         Err(err) => {
-            error!(
+            let errmsg = format!(
                 "Failed to convert service check {} to service: {:?}",
                 service_check.id, err
             );
-            return Err(Error::Generic(format!(
-                "Failed to convert service check {} to service: {:?}",
-                service_check.id, err
-            )));
+            error!(errmsg);
+            return Err(Error::Generic(errmsg));
         }
     };
 
@@ -50,14 +59,7 @@ pub(crate) async fn run_service_check(
         .one(&*db_writer)
         .await?
     {
-        Some(host) => {
-            debug!(
-                "Found host: {} for service_check={}",
-                host.name,
-                service_check.id.hyphenated()
-            );
-            host
-        }
+        Some(host) => host,
         None => {
             error!(
                 "Failed to get host for service check: {:?}",
@@ -76,21 +78,23 @@ pub(crate) async fn run_service_check(
         Error::ServiceConfigNotFound(service.id.hyphenated().to_string())
     })?;
     drop(db_writer);
+
     debug!("Starting service_check={:?}", service_check);
+    let start_time = chrono::Utc::now();
     let result = match service_to_run.run(&host).await {
         Ok(val) => val,
         Err(err) => CheckResult {
-            timestamp: chrono::Utc::now(),
-            time_elapsed: Duration::zero(),
             status: ServiceStatus::Error,
+            time_elapsed: chrono::Utc::now() - start_time,
             result_text: format!("Error: {:?}", err),
+            ..Default::default()
         },
     };
     debug!(
         "Completed service_check={:?} result={:?}",
         service_check, result.status
     );
-    let jitter = service_to_run.jitter_value();
+    let max_jitter = service_to_run.jitter_value();
 
     let db_writer = db.write().await;
     entities::service_check_history::Model::from_service_check_result(service_check.id, &result)
@@ -102,10 +106,16 @@ pub(crate) async fn run_service_check(
     model.status.set_if_not_equals(result.status);
 
     // get a number between 0 and jitter
-    let jitter: i64 = (0..jitter).choose(&mut rand::thread_rng()).unwrap_or(0) as i64;
+    let jitter: i64 = (0..max_jitter).choose(&mut rand::thread_rng()).unwrap_or(0) as i64;
 
-    let next_check = Cron::new(&service.cron_schedule)
-        .parse()?
+    let next_check: DateTime<Utc> = Cron::new(&service.cron_schedule)
+        .parse()
+        .inspect_err(|err| {
+            error!(
+                "Failed to parse cron schedule while setting next occurrence of {:?}: {:?}",
+                model.id, err
+            );
+        })?
         .find_next_occurrence(&chrono::Utc::now(), false)?
         + chrono::Duration::seconds(jitter);
     model.next_check.set_if_not_equals(next_check);
@@ -117,7 +127,7 @@ pub(crate) async fn run_service_check(
             Error::from(err)
         })?;
     } else {
-        debug!("set_last_check with no change? {:?}", model);
+        warn!("set_last_check with no change? {:?}", model);
     }
     drop(db_writer);
 
@@ -135,16 +145,21 @@ async fn run_inner(
     if let Err(err) = run_service_check(db.clone(), &service_check, service).await {
         error!("Failed to run service_check {} error={:?}", sc_id, err);
 
-        let db_writer = db.write().await;
+        let db_writer: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
         if let Some(service_check) = entities::service_check::Entity::find()
             .filter(entities::service_check::Column::Id.eq(&sc_id))
             .one(&*db_writer)
             .await
             .map_err(Error::from)?
         {
-            let mut service_check = service_check.into_active_model();
-            service_check.status.set_if_not_equals(ServiceStatus::Error);
-            service_check.update(&*db_writer).await?;
+            service_check
+                .set_status(ServiceStatus::Error, &*db_writer)
+                .await?;
+        } else {
+            error!(
+                "Trying to set error status but couldn't find service check {}",
+                sc_id
+            );
         }
         drop(db_writer);
 
@@ -215,6 +230,7 @@ pub async fn run_check_loop(
                     if backoff > MAX_BACKOFF {
                         backoff = MAX_BACKOFF;
                     }
+                    drop(db_lock);
                 }
                 drop(permit); // Release the semaphore when the task is done
             }

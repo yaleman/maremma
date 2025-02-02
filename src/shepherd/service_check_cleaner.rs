@@ -9,7 +9,7 @@ impl CronTaskTrait for ServiceCheckCleanTask {
     async fn run(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
         debug!("Checking for stuck service checks...");
 
-        let res = entities::service_check::Entity::update_many()
+        let res: sea_orm::UpdateResult = entities::service_check::Entity::update_many()
             .col_expr(
                 entities::service_check::Column::Status,
                 Expr::value(ServiceStatus::Pending),
