@@ -139,7 +139,7 @@ pub async fn get_next_service_check(
                     .and(entities::service_check::Column::NextCheck.lte(chrono::Utc::now())),
             )
             .distinct();
-
+        // check for pending ones
         if let Some(row) = base_query
             .clone()
             .filter(entities::service_check::Column::Status.eq(ServiceStatus::Pending))
@@ -150,6 +150,7 @@ pub async fn get_next_service_check(
         {
             res = Some(row)
         } else {
+            // fall through to whatever
             res = base_query.all(db).await?.into_iter().next();
         }
     }
