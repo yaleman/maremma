@@ -97,6 +97,7 @@ webpki = "0.22.4"
 rustls-webpki = { version = "0.102.8", features = ["aws_lc_rs"] }
 futures = "0.3.31"
 sea-query = "0.32.1"
+which = { version = "7.0.1", features = ["tracing"] }
 
 [dev-dependencies]
 rand = "0.8.5"
