@@ -153,7 +153,7 @@ async fn run_inner(
             .map_err(Error::from)?
         {
             service_check
-                .set_status(ServiceStatus::Error, &*db_writer)
+                .set_status(ServiceStatus::Error, &db_writer)
                 .await?;
         } else {
             error!(
