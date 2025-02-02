@@ -69,12 +69,10 @@ impl ServiceTrait for CliService {
 
         if !(PathBuf::from(cmd)).exists() {
             // check if the command exists
-            return Ok(CheckResult {
-                timestamp: chrono::Utc::now(),
-                result_text: format!("Command not found: {}", cmd),
-                status: ServiceStatus::Critical,
-                time_elapsed: chrono::Utc::now() - start_time,
-            });
+            return Err(Error::CommandNotFound(format!(
+                "Command not found: {}",
+                cmd
+            )));
         }
 
         let args = cmd_split.collect::<Vec<&str>>();
