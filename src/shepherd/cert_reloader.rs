@@ -113,19 +113,30 @@ mod tests {
     async fn test_get_file_time() {
         let (_db, config) = test_setup().await.expect("Failed to set up tests");
 
+        // this should fail because it's set to a non-existent file in the test config
         assert!(get_file_times(config.clone()).await.is_err());
 
+        // make some tempfiles so we know things exist
+        let tempdir = tempfile::tempdir().expect("Failed to create tempdir");
+        let cert_file = tempdir.path().join("cert_file");
+        std::fs::write(&cert_file, "test").expect("Failed to write to cert file");
+        let cert_key = tempdir.path().join("cert_key");
+        std::fs::write(&cert_key, "test").expect("Failed to write to key file");
+
+        get_file_time(tempdir.path().join("YeahNah").as_path())
+            .expect_err("This should definitely fail!");
         get_file_time(std::path::Path::new("Cargo.toml"))
-            .expect("Failed to get file time for Cargo.toml");
+            .expect("Failed to get file time for Cargo.toml, which should exist");
 
-        let good_cert_file = config.write().await.cert_file.clone();
-
-        config.write().await.cert_file = std::path::PathBuf::from("bad_cert_file");
+        // good cert, bad key
+        config.write().await.cert_file = cert_file.clone();
         assert!(get_file_times(config.clone()).await.is_err());
-
-        config.write().await.cert_file = good_cert_file;
-        config.write().await.cert_key = std::path::PathBuf::from("bad_cert_file");
-        assert!(get_file_times(config).await.is_err());
+        // good cert, good key
+        config.write().await.cert_key = cert_key.clone();
+        assert!(get_file_times(config.clone()).await.is_ok());
+        // good key, bad cert
+        config.write().await.cert_file = tempdir.path().join("nope");
+        assert!(get_file_times(config.clone()).await.is_err());
     }
 
     #[tokio::test]
@@ -146,9 +157,37 @@ mod tests {
             key_time: chrono::Utc::now(),
         };
 
-        let res = task.run(db).await;
+        let res = task.run(db.clone()).await;
 
         dbg!(&res);
         assert!(res.is_err());
+
+        // make some tempfiles so we know things exist
+        let tempdir = tempfile::tempdir().expect("Failed to create tempdir");
+        let cert_file = tempdir.path().join("cert_file");
+        std::fs::write(&cert_file, "test").expect("Failed to write to cert file");
+        let cert_key = tempdir.path().join("cert_key");
+        std::fs::write(&cert_key, "test").expect("Failed to write to key file");
+
+        let good_config = Configuration {
+            cert_file: cert_file.clone(),
+            cert_key: cert_key.clone(),
+            ..Default::default()
+        };
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+
+        let mut task = CertReloaderTask {
+            tx,
+            config: Arc::new(RwLock::new(good_config)),
+            cert_time: chrono::Utc::now(),
+            key_time: chrono::Utc::now(),
+        };
+
+        let res = task.run(db).await;
+        let _ = rx.recv().await;
+
+        dbg!(&res);
+        assert!(res.is_ok());
     }
 }

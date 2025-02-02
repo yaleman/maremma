@@ -118,7 +118,7 @@ pub async fn set_check_result(
             Error::from(err)
         })?;
     } else {
-        debug!("set_last_check with no change? {:?}", model);
+        error!("set_check_result with no change? {:?}", model);
     }
     Ok(())
 }

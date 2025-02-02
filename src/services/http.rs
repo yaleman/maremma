@@ -166,10 +166,11 @@ impl HttpService {
 
         let mut body: String = String::new();
 
+        // if we're looking for a string, we need to read the body and check for it
         if let Some(expected_string) = client_config.contains_string.as_ref() {
             body = response.text().await?;
             if !body.contains(expected_string) {
-                debug!("Couldn't find {} in boxy", expected_string);
+                debug!("Couldn't find {} in body", expected_string);
                 return Ok((
                     format!("Expected string '{}' not found in body", expected_string),
                     ServiceStatus::Critical,

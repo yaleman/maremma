@@ -5,7 +5,6 @@ use schemars::JsonSchema;
 use super::prelude::*;
 use crate::prelude::*;
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
 use std::process::Stdio;
 
 #[derive(Debug, Deserialize, Serialize, clap::Parser, JsonSchema)]
@@ -67,14 +66,14 @@ impl ServiceTrait for CliService {
             None => return Err(Error::Generic("No command specified!".to_string())),
         };
 
-        if !(PathBuf::from(cmd)).exists() {
+        let which_cmd = which::which(cmd).map_err(|err| Error::CommandNotFound(err.to_string()))?;
+
+        if !which_cmd.exists() {
             // check if the command exists
-            return Ok(CheckResult {
-                timestamp: chrono::Utc::now(),
-                result_text: format!("Command not found: {}", cmd),
-                status: ServiceStatus::Critical,
-                time_elapsed: chrono::Utc::now() - start_time,
-            });
+            return Err(Error::CommandNotFound(format!(
+                "Command not found: {}",
+                cmd
+            )));
         }
 
         let args = cmd_split.collect::<Vec<&str>>();

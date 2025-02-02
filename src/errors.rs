@@ -74,6 +74,8 @@ pub enum Error {
     IPCRecvError(String),
     /// When we fail to send a message into the channel
     IPCSendError(String),
+    /// You specified a CLI command but it wasn't found
+    CommandNotFound(String),
 }
 
 impl From<serde_json::Error> for Error {
