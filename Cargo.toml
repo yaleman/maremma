@@ -103,6 +103,6 @@ which = { version = "7.0.1", features = ["tracing"] }
 rand = "0.8.5"
 
 openidconnect = { version = "3.5.0", default-features = false }
-openssl = { version = "0.10.68" }
+openssl = { version = "0.10.70" }
 tempfile = "3.14.0"
 testcontainers = { version = "0.23.1" }
