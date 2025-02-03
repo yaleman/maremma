@@ -41,10 +41,10 @@ COPY . /maremma/
 WORKDIR /maremma
 
 RUN ./scripts/copy_linker_config.sh
-
-# ENV SCCACHE_DIR="/sccache"
-# ENV RUSTC_WRAPPER="/usr/bin/sccache"
+# attempting to fix cross-build issues ref https://github.com/briansmith/ring/issues/1221
 ENV CC="/usr/bin/clang"
+
+ENV CARGO_INCREMENTAL=0
 # # do the build bits
 RUN cargo build --release --bins
 RUN chmod +x /maremma/target/release/maremma
