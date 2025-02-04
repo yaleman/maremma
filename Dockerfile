@@ -41,10 +41,8 @@ COPY . /maremma/
 WORKDIR /maremma
 
 RUN ./scripts/copy_linker_config.sh
-
-# ENV SCCACHE_DIR="/sccache"
-# ENV RUSTC_WRAPPER="/usr/bin/sccache"
 ENV CC="/usr/bin/clang"
+
 # # do the build bits
 RUN cargo build --release --bins
 RUN chmod +x /maremma/target/release/maremma

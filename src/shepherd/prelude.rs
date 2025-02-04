@@ -1,4 +1,4 @@
-pub(crate) use axum::async_trait;
+pub(crate) use async_trait::async_trait;
 pub(crate) use chrono::{DateTime, Duration, Utc};
 pub(crate) use croner::Cron;
 pub(crate) use sea_orm::prelude::Expr;
