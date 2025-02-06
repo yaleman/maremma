@@ -81,6 +81,7 @@ pub(crate) async fn run_service_check(
 
     debug!("Starting service_check={:?}", service_check);
     let start_time = chrono::Utc::now();
+    // Here we actually run the check
     let result = match service_to_run.run(&host).await {
         Ok(val) => val,
         Err(err) => CheckResult {
@@ -101,6 +102,7 @@ pub(crate) async fn run_service_check(
         .into_active_model()
         .insert(&*db_writer)
         .await?;
+
     let mut model = service_check.clone().into_active_model();
     model.last_check.set_if_not_equals(chrono::Utc::now());
     model.status.set_if_not_equals(result.status);
@@ -116,7 +118,13 @@ pub(crate) async fn run_service_check(
                 model.id, err
             );
         })?
-        .find_next_occurrence(&chrono::Utc::now(), false)?
+        .find_next_occurrence(&chrono::Utc::now(), false)
+        .inspect_err(|err| {
+            error!(
+                "Failed to get next occurrence for check {}! {err:?}",
+                service_check.id
+            )
+        })?
         + chrono::Duration::seconds(jitter);
     model.next_check.set_if_not_equals(next_check);
 
