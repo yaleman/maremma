@@ -523,7 +523,7 @@ mod tests {
             .expect("Failed to do query")
             .expect("Failed to find service_model");
 
-        let service_from_model = Service::try_from_service_model(&service_model, &*db_lock)
+        let service_from_model = Service::try_from_service_model(&service_model, &db_lock)
             .await
             .expect("Failed to convert model to service");
 
