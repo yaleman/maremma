@@ -51,7 +51,7 @@ async fn main() -> Result<(), ExitCode> {
 
     match cli.action {
         Actions::Run(_) => {
-            if update_db_from_config(db.clone(), config.clone())
+            if update_db_from_config(&*db.write().await, config.clone())
                 .await
                 .is_err()
             {

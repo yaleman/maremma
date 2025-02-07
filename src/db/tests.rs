@@ -5,11 +5,7 @@ use crate::log::setup_logging;
 
 #[tokio::test]
 async fn test_next_service_check() {
-    let (db, config) = test_setup().await.expect("Failed to start test harness");
-
-    crate::db::update_db_from_config(db.clone(), config.clone())
-        .await
-        .expect("Failed to update DB from config");
+    let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
     let next_check = get_next_service_check(&*db.write().await)
         .await
@@ -41,7 +37,7 @@ pub(crate) async fn test_setup_harness(
 
     let config = Configuration::load_test_config().await;
 
-    crate::db::update_db_from_config(db.clone(), config.clone())
+    crate::db::update_db_from_config(&*db.write().await, config.clone())
         .await
         .expect("Failed to update DB from config");
     Ok((db, config))
@@ -82,7 +78,7 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
             .expect("Failed to connect to database"),
     ));
 
-    crate::db::update_db_from_config(db.clone(), config.clone())
+    crate::db::update_db_from_config(&*db.write().await, config.clone())
         .await
         .expect("Failed to update DB from config");
     Ok((tempfile, db, config))
@@ -132,11 +128,7 @@ async fn test_failing_update_db_from_config() {
         }]])
         .into_connection();
 
-    let res = update_db_from_config(
-        Arc::new(RwLock::new(db)),
-        Configuration::load_test_config().await,
-    )
-    .await;
+    let res = update_db_from_config(&db, Configuration::load_test_config().await).await;
 
     dbg!(&res);
     assert!(res.is_err());

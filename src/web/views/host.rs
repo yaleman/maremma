@@ -57,7 +57,7 @@ pub(crate) async fn host(
         OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
-    let db_lock = state.db.write().await;
+    let db_lock = state.get_db_lock().await;
 
     let (host, host_groups) = match entities::host::Entity::find_by_id(host_id)
         .find_with_linked(entities::host_group_members::HostToGroups)
@@ -229,7 +229,7 @@ mod tests {
         let state = WebState::test().await;
 
         let host = entities::host::Entity::find()
-            .one(&*state.db.read().await)
+            .one(&*state.get_db_lock().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -271,7 +271,7 @@ mod tests {
         let _ = test_setup().await.expect("Failed to set up test");
         let state = WebState::test().await;
         let host = entities::host::Entity::find()
-            .one(&*state.db.read().await)
+            .one(&*state.get_db_lock().await)
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -297,7 +297,7 @@ mod tests {
 
         let mut host_id = Uuid::new_v4();
         while entities::host::Entity::find_by_id(host_id)
-            .one(&*state.db.read().await)
+            .one(&*state.get_db_lock().await)
             .await
             .expect("Failed to search for host")
             .is_some()
@@ -360,7 +360,7 @@ mod tests {
         let state = WebState::test().await;
 
         let host = entities::host::Entity::find()
-            .one(&*state.db.read().await)
+            .one(&*state.get_db_lock().await)
             .await
             .expect("Failed to search for host")
             .expect("No host found");
@@ -396,7 +396,7 @@ mod tests {
 
         let mut nonexistent_host_id = Uuid::new_v4();
         while entities::host::Entity::find_by_id(nonexistent_host_id)
-            .one(&*state.db.read().await)
+            .one(&*state.get_db_lock().await)
             .await
             .expect("Failed to search for host")
             .is_some()
