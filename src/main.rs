@@ -19,7 +19,7 @@ async fn main() -> Result<(), ExitCode> {
     use maremma::shepherd::shepherd;
 
     let cli = CliOpts::parse();
-    if let Err(err) = setup_logging(cli.debug(), cli.db_debug()) {
+    if let Err(err) = setup_logging(cli.debug(), cli.db_debug(), cli.tokio_console()) {
         println!("Failed to setup logging: {:?}", err);
         return Err(ExitCode::from(1));
     };

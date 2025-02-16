@@ -62,20 +62,23 @@ impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
                 );
                 continue;
             }
-            if let Some(target_service_check) = entities::service_check::Entity::find_by_id(id)
+            match entities::service_check::Entity::find_by_id(id)
                 .one(&*db_writer)
                 .await?
             {
-                let res = entities::service_check_history::Entity::head(
-                    &db_writer,
-                    Some(target_service_check.id),
-                    target_num,
-                )
-                .await?;
-                info!(
-                    "Deleted {} old service check history entries for {}",
-                    res, target_service_check.id
-                );
+                Some(target_service_check) => {
+                    let res = entities::service_check_history::Entity::head(
+                        &db_writer,
+                        Some(target_service_check.id),
+                        target_num,
+                    )
+                    .await?;
+                    info!(
+                        "Deleted {} old service check history entries for {}",
+                        res, target_service_check.id
+                    );
+                }
+                None => debug!("No service check found for id {}", id),
             }
         }
         Ok(())

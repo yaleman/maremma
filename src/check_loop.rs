@@ -103,6 +103,12 @@ pub(crate) async fn run_service_check(
         .insert(&*db_writer)
         .await?;
 
+    // // explicitly set status to work around the weird issues that are happening
+    // service_check
+    //     .set_status(result.status, &db_writer)
+    //     .await
+    //     .inspect_err(|err| error!("Failed to set service status at end of check: {:?}", err))?;
+
     let mut model = service_check.clone().into_active_model();
     model.last_check.set_if_not_equals(chrono::Utc::now());
     model.status.set_if_not_equals(result.status);
@@ -128,15 +134,11 @@ pub(crate) async fn run_service_check(
         + chrono::Duration::seconds(jitter);
     model.next_check.set_if_not_equals(next_check);
 
-    if model.is_changed() {
-        debug!("Saving {:?}", model);
-        model.save(&*db_writer).await.map_err(|err| {
-            error!("{} error saving {:?}", service.id.hyphenated(), err);
-            Error::from(err)
-        })?;
-    } else {
-        warn!("set_last_check with no change? {:?}", model);
-    }
+    model.update(&*db_writer).await.map_err(|err| {
+        error!("{} error saving {:?}", service.id.hyphenated(), err);
+        Error::from(err)
+    })?;
+
     drop(db_writer);
 
     Ok(())
@@ -150,43 +152,50 @@ async fn run_inner(
     checks_run_since_startup: Arc<Counter<u64>>,
 ) -> Result<(), Error> {
     let sc_id = service_check.id.hyphenated().to_string();
-    if let Err(err) = run_service_check(db.clone(), &service_check, service).await {
-        error!("Failed to run service_check {} error={:?}", sc_id, err);
+    match run_service_check(db.clone(), &service_check, service).await {
+        Err(err) => {
+            error!("Failed to run service_check {} error={:?}", sc_id, err);
 
-        let db_writer: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
-        if let Some(service_check) = entities::service_check::Entity::find()
-            .filter(entities::service_check::Column::Id.eq(&sc_id))
-            .one(&*db_writer)
-            .await
-            .map_err(Error::from)?
-        {
-            service_check
-                .set_status(ServiceStatus::Error, &db_writer)
-                .await?;
-        } else {
-            error!(
-                "Trying to set error status but couldn't find service check {}",
-                sc_id
+            let db_writer: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
+            match entities::service_check::Entity::find()
+                .filter(entities::service_check::Column::Id.eq(&sc_id))
+                .one(&*db_writer)
+                .await
+                .map_err(Error::from)?
+            {
+                Some(service_check) => {
+                    service_check
+                        .set_status(ServiceStatus::Error, &db_writer)
+                        .await?;
+                }
+                _ => {
+                    error!(
+                        "Trying to set error status but couldn't find service check {}",
+                        sc_id
+                    );
+                }
+            }
+            drop(db_writer);
+
+            checks_run_since_startup.add(
+                1,
+                &[
+                    KeyValue::new("result", ToString::to_string(&ServiceStatus::Error)),
+                    KeyValue::new("id", sc_id),
+                ],
             );
         }
-        drop(db_writer);
+        Ok(_) => {
+            checks_run_since_startup.add(
+                1,
+                &[
+                    KeyValue::new("result", ToString::to_string(&ServiceStatus::Ok)),
+                    KeyValue::new("id", sc_id),
+                ],
+            );
+        }
+    };
 
-        checks_run_since_startup.add(
-            1,
-            &[
-                KeyValue::new("result", ToString::to_string(&ServiceStatus::Error)),
-                KeyValue::new("id", sc_id),
-            ],
-        );
-    } else {
-        checks_run_since_startup.add(
-            1,
-            &[
-                KeyValue::new("result", ToString::to_string(&ServiceStatus::Ok)),
-                KeyValue::new("id", sc_id),
-            ],
-        );
-    }
     Ok(())
 }
 

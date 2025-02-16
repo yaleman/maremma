@@ -29,7 +29,7 @@ async fn test_working_tls_service() {
         name: "test".to_string(),
         cron_schedule: "0 0 * * * * *".parse().expect("Failed to parse cron"),
         port: test_container
-            .tls_port
+            .published_port
             .try_into()
             .expect("Failed to convert port"),
         expiry_critical: Some(0),
@@ -41,7 +41,7 @@ async fn test_working_tls_service() {
         check: crate::host::HostCheck::None,
         hostname: "localhost".to_string(),
         config: json!({
-            "port": test_container.tls_port,
+            "port": test_container.published_port,
             "cron_schedule" : "* * * * *",
             "expiry_critical": 0,
             "expiry_warn" : 5,
@@ -74,7 +74,7 @@ async fn test_expired_tls_service() {
         name: "localhost".to_string(),
         cron_schedule: "0 0 * * * * *".parse().expect("Failed to parse cron"),
         port: test_container
-            .tls_port
+            .published_port
             .try_into()
             .expect("Failed to convert port"),
         expiry_critical: Some(30),
@@ -111,7 +111,7 @@ async fn test_wrong_cert_host_name() {
     let service_def = serde_json::json! {{
         "name": "test",
         "cron_schedule": "0 0 * * *",
-        "port": test_container.tls_port,
+        "port": test_container.published_port,
     }};
 
     let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
@@ -200,7 +200,7 @@ async fn test_tls_sha1_intermediate() {
     let service_def = serde_json::json! {{
         "name": "test",
         "cron_schedule": "0 0 * * *",
-        "port": test_container.tls_port,
+        "port": test_container.published_port,
     }};
 
     let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
@@ -236,7 +236,7 @@ async fn test_tls_no_subject() {
     let service_def = serde_json::json! {{
         "name": "test",
         "cron_schedule": "0 0 * * *",
-        "port": test_container.tls_port,
+        "port": test_container.published_port,
         "timeout" : 5,
     }};
 

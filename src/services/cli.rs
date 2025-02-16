@@ -54,7 +54,7 @@ impl ServiceTrait for CliService {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
         let hostname = match &config.hostname {
-            Some(ref h) => h.to_owned(),
+            Some(h) => h.to_owned(),
             None => host.hostname.to_owned(),
         };
 

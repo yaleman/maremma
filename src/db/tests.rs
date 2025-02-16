@@ -25,7 +25,7 @@ pub(crate) async fn test_setup_harness(
 ) -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error> {
     // make sure logging is happening
 
-    let _ = setup_logging(debug, db_debug);
+    let _ = setup_logging(debug, db_debug, false);
     // enable the rustls crypto provider
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
@@ -57,7 +57,7 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
     Error,
 > {
     // make sure logging is happening
-    let _ = setup_logging(true, true);
+    let _ = setup_logging(true, true, false);
     // enable the rustls crypto provider
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 

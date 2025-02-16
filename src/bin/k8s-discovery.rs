@@ -271,7 +271,7 @@ async fn main() -> Result<(), Error> {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let ignore_annotation = format!("{}/{}", MAREMMA_SERVICE_NAME, "ignore");
 
-    if let Err(err) = setup_logging(true, true) {
+    if let Err(err) = setup_logging(true, true, false) {
         eprintln!("Error setting up logging: {:?}", err);
         return Err(Error::Generic("Error setting up logging".to_string()));
     };

@@ -119,8 +119,10 @@ pub async fn get_next_service_check(
     let mut res = base_query
         .clone()
         .filter(entities::service_check::Column::Status.eq(ServiceStatus::Urgent))
-        // oldest-last-updated is the most urgent
-        .order_by_asc(entities::service_check::Column::LastUpdated)
+        // TODO: test the whole "which next check gets picked if they're both urgent"
+        // oldest-next-check is the most urgent
+        .order_by_asc(entities::service_check::Column::NextCheck)
+        .limit(1)
         .all(db)
         .await?
         .into_iter()
@@ -139,19 +141,21 @@ pub async fn get_next_service_check(
             )
             .distinct();
         // check for pending ones
-        if let Some(row) = base_query
+        res = match base_query
             .clone()
             .filter(entities::service_check::Column::Status.eq(ServiceStatus::Pending))
+            .limit(1)
             .all(db)
             .await?
             .into_iter()
             .next()
         {
-            res = Some(row)
-        } else {
-            // fall through to whatever
-            res = base_query.all(db).await?.into_iter().next();
-        }
+            Some(row) => Some(row),
+            None => {
+                // fall through to whatever
+                base_query.all(db).await?.into_iter().next()
+            }
+        };
     }
 
     match res {
@@ -159,7 +163,7 @@ pub async fn get_next_service_check(
             let service = services.pop().ok_or_else(|| {
                 Error::Generic("Failed to get service for service check".to_string())
             })?;
-            Ok(Some((service_check, service)))
+            Ok(Some((service_check.to_owned(), service)))
         }
         None => Ok(None),
     }
