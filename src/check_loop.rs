@@ -134,9 +134,8 @@ pub(crate) async fn run_service_check(
         + chrono::Duration::seconds(jitter);
     model.next_check.set_if_not_equals(next_check);
 
-    model.update(&*db_writer).await.map_err(|err| {
+    model.update(&*db_writer).await.inspect_err(|err| {
         error!("{} error saving {:?}", service.id.hyphenated(), err);
-        Error::from(err)
     })?;
 
     drop(db_writer);
