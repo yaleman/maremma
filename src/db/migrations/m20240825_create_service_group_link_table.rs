@@ -85,42 +85,46 @@ impl MigrationTrait for Migration {
 
             if group_id.is_none() {
                 // check the db
-                if let Some(host_group) = entities::host_group::Entity::find()
+                match entities::host_group::Entity::find()
                     .filter(entities::host_group::Column::Name.eq(&host_group))
                     .one(db)
                     .await?
                 {
-                    group_ids.insert(host_group.name.clone(), host_group.id);
-                    // group_id = Some(host_group.id);
+                    Some(host_group) => {
+                        group_ids.insert(host_group.name.clone(), host_group.id);
+                        // group_id = Some(host_group.id);
 
-                    // ensure the service_group_link record exists
-                    if entities::service_group_link::Entity::find()
-                        .filter(
-                            entities::service_group_link::Column::ServiceId
-                                .eq(service_id)
-                                .and(
-                                    entities::service_group_link::Column::GroupId.eq(host_group.id),
-                                ),
-                        )
-                        .one(db)
-                        .await?
-                        .is_none()
-                    {
-                        let mut sglam = entities::service_group_link::ActiveModel::new();
-                        sglam.id.set_if_not_equals(Uuid::new_v4());
-                        sglam.service_id.set_if_not_equals(service_id);
-                        sglam.group_id.set_if_not_equals(host_group.id);
-                        debug!(
-                            "adding service group link for service_id: {:?}, group_id: {:?}",
-                            service_id, host_group
-                        );
-                        sglam.insert(db).await?;
+                        // ensure the service_group_link record exists
+                        if entities::service_group_link::Entity::find()
+                            .filter(
+                                entities::service_group_link::Column::ServiceId
+                                    .eq(service_id)
+                                    .and(
+                                        entities::service_group_link::Column::GroupId
+                                            .eq(host_group.id),
+                                    ),
+                            )
+                            .one(db)
+                            .await?
+                            .is_none()
+                        {
+                            let mut sglam = entities::service_group_link::ActiveModel::new();
+                            sglam.id.set_if_not_equals(Uuid::new_v4());
+                            sglam.service_id.set_if_not_equals(service_id);
+                            sglam.group_id.set_if_not_equals(host_group.id);
+                            debug!(
+                                "adding service group link for service_id: {:?}, group_id: {:?}",
+                                service_id, host_group
+                            );
+                            sglam.insert(db).await?;
+                        }
                     }
-                } else {
-                    return Err(DbErr::Custom(format!(
-                        "Couldn't find the host group {} in the database?",
-                        host_group
-                    )));
+                    None => {
+                        return Err(DbErr::Custom(format!(
+                            "Couldn't find the host group {} in the database?",
+                            host_group
+                        )));
+                    }
                 }
             }
             // debug!("Found group_id: {:?}", group_id);

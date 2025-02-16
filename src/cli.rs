@@ -20,6 +20,10 @@ pub struct SharedOpts {
     #[clap(short, long, help=format!("Path to the configuration file. Defaults to {}", crate::DEFAULT_CONFIG_FILE), default_value=crate::DEFAULT_CONFIG_FILE)]
     /// Defaults to [crate::DEFAULT_CONFIG_FILE]
     pub config: PathBuf,
+
+    #[cfg(debug_assertions)]
+    #[clap(long, help = "Enable tokio console integration for testing",action = clap::ArgAction::SetTrue)]
+    tokio_console: Option<bool>,
 }
 
 #[derive(Parser, Clone, Default)]
@@ -111,6 +115,22 @@ impl CliOpts {
             Actions::CheckConfig(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::ShowConfig(run) => run.sharedopts.db_debug.unwrap_or(false),
             Actions::OneShot(run) => run.sharedopts.db_debug.unwrap_or(false),
+            Actions::ExportConfigSchema => false,
+        }
+    }
+    /// Gets the tokio_console field
+    pub fn tokio_console(&self) -> bool {
+        {
+            #[cfg(not(debug_assertions))]
+            false
+        }
+
+        #[cfg(debug_assertions)]
+        match &self.action {
+            Actions::Run(run) => run.sharedopts.tokio_console.unwrap_or(false),
+            Actions::CheckConfig(run) => run.sharedopts.tokio_console.unwrap_or(false),
+            Actions::ShowConfig(run) => run.sharedopts.tokio_console.unwrap_or(false),
+            Actions::OneShot(run) => run.sharedopts.tokio_console.unwrap_or(false),
             Actions::ExportConfigSchema => false,
         }
     }

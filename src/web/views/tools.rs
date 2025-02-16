@@ -108,16 +108,19 @@ async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
                 ActionStatus::Error,
             ))
         })?;
-    update_db_from_config(state.db.clone(), Arc::new(RwLock::new(new_config)))
-        .await
-        .map_err(|e| {
-            error!("Failed to reload config: {:?}", e);
-            Redirect::to(&format!(
-                "{}?result=Failed to reload config&status={}",
-                Urls::Tools,
-                ActionStatus::Error,
-            ))
-        })?;
+    update_db_from_config(
+        &*state.get_db_lock().await,
+        Arc::new(RwLock::new(new_config)),
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to reload config: {:?}", e);
+        Redirect::to(&format!(
+            "{}?result=Failed to reload config&status={}",
+            Urls::Tools,
+            ActionStatus::Error,
+        ))
+    })?;
 
     info!("Reloaded config");
     // not really an error but we're doing this to show the user that the config was reloaded

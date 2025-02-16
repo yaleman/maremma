@@ -62,7 +62,11 @@ book:
 
 # Run a local debug instance
 run:
-    cargo run run
+    cargo run -- run
+
+# Run and enable the tokio console
+run_tokio:
+     RUSTFLAGS="--cfg tokio_unstable" cargo run -- run --tokio-console
 
 # Run in docker
 run_docker:

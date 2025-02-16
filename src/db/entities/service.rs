@@ -123,12 +123,10 @@ impl MaremmaEntity for Model {
                     debug!("found it!");
                     let mut res = res.into_active_model();
                     res.name.set_if_not_equals(service_name.clone());
-                    if let Err(err) = res.set_from_json(service_value) {
+                    res.set_from_json(service_value).map_err(|err| {
                         error!("Error setting service from json: {:?}", err);
-                        return Err(err.into());
-                    } else {
-                        debug!("Service set from json: {:?}", res);
-                    };
+                        Error::from(err)
+                    })?;
 
                     if res.is_changed() {
                         debug!("Updating service with {:?}", res);

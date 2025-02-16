@@ -181,10 +181,13 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
 
     let oidc_auth_layer = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
-            if let MiddlewareError::SessionNotFound = e {
-                error!("No OIDC session found, redirecting to logout to clear it client-side");
-            } else {
-                oidc_error_handler.handle_oidc_error(&e).await;
+            match e {
+                MiddlewareError::SessionNotFound => {
+                    error!("No OIDC session found, redirecting to logout to clear it client-side");
+                }
+                _ => {
+                    oidc_error_handler.handle_oidc_error(&e).await;
+                }
             }
             Redirect::to(Urls::Logout.as_ref()).into_response()
         }))

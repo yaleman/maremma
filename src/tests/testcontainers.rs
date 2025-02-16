@@ -53,7 +53,7 @@ async fn handle_err_or_shutdown_container<T>(
 
 pub struct TestContainer {
     pub container: ContainerAsync<GenericImage>,
-    pub tls_port: u16,
+    pub published_port: u16,
 }
 
 impl TestContainer {
@@ -89,7 +89,8 @@ impl TestContainer {
             })
             .expect("Failed!");
         let ports = handle_err_or_shutdown_container(&container, container.ports().await).await;
-        let tls_port = match ports.map_to_host_port_ipv4(443) {
+
+        let published_port = match ports.map_to_host_port_ipv4(443) {
             Some(port) => port,
             None => {
                 container.stop().await.expect("Failed to stop container");
@@ -98,9 +99,69 @@ impl TestContainer {
         };
         Self {
             container,
-            tls_port,
+            published_port,
         }
     }
+
+    pub async fn new_httpbin(name: &str) -> Self {
+        let http_port = 80;
+
+        let container = GenericImage::new("kong/httpbin", "latest")
+            .with_exposed_port(ContainerPort::Tcp(http_port))
+            .with_wait_for(testcontainers::core::WaitFor::message_on_stderr(
+                "Listening at: http://0.0.0.0:80",
+            ))
+            .with_container_name(name)
+            .start()
+            .await
+            .expect("Failed to start container");
+        let ports = handle_err_or_shutdown_container(&container, container.ports().await).await;
+        let tls_port = match ports.map_to_host_port_ipv4(http_port) {
+            Some(port) => port,
+            None => {
+                container.stop().await.expect("Failed to stop container");
+                panic!("Failed to get port from container");
+            }
+        };
+        Self {
+            container,
+            published_port: tls_port,
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_httpbin_testcontainer() {
+    use crate::prelude::*;
+
+    let (_db, _config) = test_setup().await.expect("Failed to set up test");
+
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()
+        .expect("failed to build reqwest client");
+    let container = TestContainer::new_httpbin("test_httpbin_testcontainer").await;
+
+    debug!("published port: {}", container.published_port);
+
+    let res = match client
+        .get(format!("http://localhost:{}", container.published_port))
+        .send()
+        .await
+    {
+        Ok(res) => res,
+        Err(e) => {
+            container
+                .container
+                .stop()
+                .await
+                .expect("Failed to stop container");
+            panic!("Failed to get response from container: {:?}", e);
+        }
+    };
+
+    debug!("Response: {:?}", res);
 }
 
 #[tokio::test]
@@ -121,10 +182,10 @@ async fn test_basic_testcontainer() {
     )
     .await;
 
-    debug!("TLS PORT: {}", container.tls_port);
+    debug!("published port: {}", container.published_port);
 
     let res = match client
-        .get(format!("https://localhost:{}", container.tls_port))
+        .get(format!("https://localhost:{}", container.published_port))
         .send()
         .await
     {

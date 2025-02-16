@@ -50,39 +50,44 @@ fn get_signing_func() -> hash::MessageDigest {
 pub fn check_privkey_minimums(privkey: &PKeyRef<Private>) -> Result<(), String> {
     if let Ok(key) = privkey.rsa() {
         if key.size() < (RSA_MIN_KEY_SIZE_BITS / 8) as u32 {
-            Err(format!(
+            return Err(format!(
                 "TLS RSA key is less than {} bits!",
                 RSA_MIN_KEY_SIZE_BITS
-            ))
+            ));
         } else {
             debug!(
                 "The RSA private key size is: {} bits, that's OK!",
                 key.size() * 8
             );
-            Ok(())
+            return Ok(());
         }
-    } else if let Ok(key) = privkey.ec_key() {
-        // allowing this to panic because ... it's an i32 and hopefully we don't have negative bit lengths?
-        #[allow(clippy::panic)]
-        let key_bits: u64 = key.private_key().num_bits().try_into().unwrap_or_else(|_| {
-            panic!(
-                "Failed to convert EC bitlength {} to u64",
-                key.private_key().num_bits()
-            )
-        });
+    }
 
-        if key_bits < EC_MIN_KEY_SIZE_BITS {
-            Err(format!(
-                "TLS EC key is less than {} bits! Got: {}",
-                EC_MIN_KEY_SIZE_BITS, key_bits
-            ))
-        } else {
-            debug!("The EC private key size is: {} bits, that's OK!", key_bits);
+    match privkey.ec_key() {
+        Ok(key) => {
+            // allowing this to panic because ... it's an i32 and hopefully we don't have negative bit lengths?
+            #[allow(clippy::panic)]
+            let key_bits: u64 = key.private_key().num_bits().try_into().unwrap_or_else(|_| {
+                panic!(
+                    "Failed to convert EC bitlength {} to u64",
+                    key.private_key().num_bits()
+                )
+            });
+
+            if key_bits < EC_MIN_KEY_SIZE_BITS {
+                Err(format!(
+                    "TLS EC key is less than {} bits! Got: {}",
+                    EC_MIN_KEY_SIZE_BITS, key_bits
+                ))
+            } else {
+                debug!("The EC private key size is: {} bits, that's OK!", key_bits);
+                Ok(())
+            }
+        }
+        Err(_) => {
+            error!("TLS key is not RSA or EC, cannot check minimums!");
             Ok(())
         }
-    } else {
-        error!("TLS key is not RSA or EC, cannot check minimums!");
-        Ok(())
     }
 }
 
