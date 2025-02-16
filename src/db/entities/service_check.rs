@@ -103,7 +103,7 @@ pub async fn set_check_result(
     model.status.set_if_not_equals(status);
 
     // get a number between 0 and jitter
-    let jitter: i64 = (0..jitter).choose(&mut rand::thread_rng()).unwrap_or(0) as i64;
+    let jitter: i64 = (0..jitter).choose(&mut rand::rng()).unwrap_or(0) as i64;
 
     let next_check = Cron::new(&service.cron_schedule)
         .parse()?

@@ -114,7 +114,7 @@ pub(crate) async fn run_service_check(
     model.status.set_if_not_equals(result.status);
 
     // get a number between 0 and jitter
-    let jitter: i64 = (0..max_jitter).choose(&mut rand::thread_rng()).unwrap_or(0) as i64;
+    let jitter: i64 = (0..max_jitter).choose(&mut rand::rng()).unwrap_or(0) as i64;
 
     let next_check: DateTime<Utc> = Cron::new(&service.cron_schedule)
         .parse()
