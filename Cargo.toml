@@ -13,7 +13,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 [dependencies]
 askama = { version = "0.12.1", features = ["with-axum"] }
 askama_axum = "0.4.0"
-async-trait = "0.1.81"
+async-trait = "0.1.86"
 axum = { version = "0.7.5", features = [
   "http2",
   "macros",
@@ -24,7 +24,7 @@ axum = { version = "0.7.5", features = [
 axum-oidc = "0.5.0"
 axum-server = { version = "0.7.1", features = ["rustls", "tls-rustls"] }
 chrono = "0.4.39"
-clap = { version = "4.5.23", features = ["derive", "env"] }
+clap = { version = "4.5.29", features = ["derive", "env"] }
 croner = "2.0.5"
 env_logger = { version = "0.11.6", features = ["color", "default"] }
 log = { version = "0.4.22", features = ["release_max_level_debug"] }
@@ -43,21 +43,21 @@ opentelemetry_sdk = { version = "0.27.0", features = [
   "url",
 ] }
 prometheus = "0.13.4"
-rand = "0.8.5"
-reqwest = { version = "0.12.11", features = [
+rand = "0.9.0"
+reqwest = { version = "0.12.12", features = [
   "http2",
   "json",
   "rustls-tls",
 ], default-features = false }
-rustls = { version = "0.23.20", features = ["zlib"] }
+rustls = { version = "0.23.23", features = ["zlib"] }
 schemars = { version = "0.8.21", features = [
   "uuid1",
   "url",
   "chrono",
   "preserve_order",
 ] }
-serde = { version = "1.0.216", features = ["derive"] }
-serde_json = "1.0.134"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"
 sha256 = "1.5.0"
 sea-orm = { version = "1.1.3", features = [
   "runtime-tokio-rustls",
@@ -78,7 +78,7 @@ sqlx = { version = "0.8.2", default-features = false }
 ssh-rs = "0.5.0"
 surge-ping = "0.8.1"
 time = "0.3.37"
-tokio = { version = "1.42.0", features = [
+tokio = { version = "1.43.0", features = [
   "rt-multi-thread",
   "macros",
   "process",
@@ -90,20 +90,18 @@ tower = { version = "0.5.2", features = ["util"] }
 tower-http = { version = "0.6.1", features = ["fs", "trace"] }
 tower-sessions = "0.13.0"
 tracing = { version = "0.1.40", features = ["release_max_level_debug"] }
-uuid = { version = "1.11.0", features = ["serde", "v4"] }
-webpki-roots = "0.26.3"
-x509-parser = "0.16.0"
+uuid = { version = "1.13.1", features = ["serde", "v4"] }
+webpki-roots = "0.26.8"
+x509-parser = "0.17.0"
 webpki = "0.22.4"
 rustls-webpki = { version = "0.102.8", features = ["aws_lc_rs"] }
 futures = "0.3.31"
 sea-query = "0.32.1"
-which = { version = "7.0.1", features = ["tracing"] }
+which = { version = "7.0.2", features = ["tracing"] }
 console-subscriber = "0.4.1"
 
 [dev-dependencies]
-rand = "0.8.5"
-
 openidconnect = { version = "3.5.0", default-features = false }
-openssl = { version = "0.10.70" }
-tempfile = "3.14.0"
-testcontainers = { version = "0.23.1" }
+openssl = { version = "0.10.71" }
+tempfile = "3.16.0"
+testcontainers = { version = "0.23.2" }
