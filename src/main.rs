@@ -11,7 +11,7 @@ use maremma::db::update_db_from_config;
 use opentelemetry::metrics::MeterProvider;
 use std::process::ExitCode;
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 async fn main() -> Result<(), ExitCode> {
     use maremma::db::get_connect_string;

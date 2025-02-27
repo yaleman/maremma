@@ -207,6 +207,8 @@ pub async fn run_check_loop(
 ) -> Result<(), Error> {
     // Create a Counter Instrument.
 
+    use std::cmp::min;
+
     let checks_run_since_startup = metrics_meter
         .u64_counter("checks_run_since_startup")
         .build();
@@ -226,28 +228,28 @@ pub async fn run_check_loop(
                 let db_lock = db.write().await;
                 let next_service = get_next_service_check(&db_lock).await?;
 
-                if let Some((service_check, service)) = next_service {
-                    // set the service_check to running
-                    service_check
-                        .set_status(ServiceStatus::Checking, &db_lock)
-                        .await?;
-                    drop(db_lock);
-                    tokio::spawn(run_inner(
-                        db.clone(),
-                        service_check,
-                        service,
-                        checks_run_since_startup.clone(),
-                    ));
-                    // we did a thing, so we can reset the back-off time, because there might be another
-                    backoff = DEFAULT_BACKOFF;
-                } else {
-                    // didn't get a task, increase backoff a little, but don't overflow the max
-                    backoff += DEFAULT_BACKOFF;
-                    if backoff > MAX_BACKOFF {
-                        backoff = MAX_BACKOFF;
+                match next_service {
+                    Some((service_check, service)) => {
+                        // set the service_check to running
+                        service_check
+                            .set_status(ServiceStatus::Checking, &db_lock)
+                            .await?;
+                        drop(db_lock);
+                        tokio::spawn(run_inner(
+                            db.clone(),
+                            service_check,
+                            service,
+                            checks_run_since_startup.clone(),
+                        ));
+                        // we did a thing, so we can reset the back-off time, because there might be another
+                        backoff = DEFAULT_BACKOFF;
                     }
-                    drop(db_lock);
-                }
+                    None => {
+                        drop(db_lock);
+                        // didn't get a task, increase backoff a little, but don't overflow the max
+                        backoff = min(MAX_BACKOFF, backoff + DEFAULT_BACKOFF);
+                    }
+                };
                 drop(permit); // Release the semaphore when the task is done
             }
             Err(err) => {
