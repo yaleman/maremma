@@ -11,20 +11,32 @@ use maremma::db::update_db_from_config;
 use opentelemetry::metrics::MeterProvider;
 use std::process::ExitCode;
 
-#[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
-async fn main() -> Result<(), ExitCode> {
-    use maremma::db::get_connect_string;
-    use maremma::services::oneshot::run_oneshot;
-    use maremma::shepherd::shepherd;
-
+fn main() -> Result<(), ExitCode> {
     let cli = CliOpts::parse();
     if let Err(err) = setup_logging(cli.debug(), cli.db_debug(), cli.tokio_console()) {
-        println!("Failed to setup logging: {:?}", err);
+        eprintln!("Failed to setup logging: {:?}", err);
         return Err(ExitCode::from(1));
     };
 
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+    let num_cpus = num_cpus::get();
+    let threads = std::cmp::min(4, num_cpus);
+    debug!("Starting {} threads", threads);
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(threads)
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async_main(cli))
+}
+
+#[cfg(not(tarpaulin_include))] // ignore for code coverage
+async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
+    use maremma::db::get_connect_string;
+    use maremma::services::oneshot::run_oneshot;
+    use maremma::shepherd::shepherd;
 
     if let Actions::ExportConfigSchema = cli.action {
         let schema = schemars::schema_for!(Configuration);

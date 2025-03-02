@@ -41,9 +41,7 @@ pub(crate) async fn service(
         }
     };
 
-    let service_checks = FullServiceCheck::get_by_service_id(service_id, &db_lock)
-        .await
-        .map_err(Error::from)?;
+    let service_checks = FullServiceCheck::get_by_service_id(service_id, &db_lock).await?;
     drop(db_lock);
     Ok(ServiceTemplate {
         title: service.name.clone(),
