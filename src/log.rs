@@ -7,6 +7,7 @@ use log::LevelFilter;
 
 /// Sets up logging
 pub fn setup_logging(
+    config_log_level: Option<String>,
     debug: bool,
     db_debug: bool,
     tokio_console: bool,
@@ -18,14 +19,20 @@ pub fn setup_logging(
     }
 
     let mut filters: Vec<(&str, LevelFilter)> = vec![
+        ("ssh::client", LevelFilter::Warn),
         ("ssh::channel::local::channel", LevelFilter::Warn),
         ("h2", LevelFilter::Warn),
+        ("hyper", LevelFilter::Info),
         ("tower_http::trace::on_request", LevelFilter::Warn),
         ("tower_http::trace::on_response", LevelFilter::Warn),
         ("tracing::span", LevelFilter::Warn),
     ];
 
-    let level = if debug && env::var("RUST_LOG").is_err() {
+    let config_log_level = config_log_level
+        .unwrap_or("info".to_string())
+        .to_lowercase();
+
+    let level = if (debug || config_log_level == "debug") && env::var("RUST_LOG").is_err() {
         LevelFilter::Debug
     } else {
         LevelFilter::Info
@@ -77,17 +84,20 @@ mod tests {
 
     #[test]
     fn test_setup_logging() {
-        let test1 = setup_logging(false, true, false);
+        let test1 = setup_logging(None, false, true, false);
         dbg!(&test1);
         assert!(test1.is_ok());
 
         // it'll probably throw an error because we're trying to re-init the logger, but we're in test so it's OK.
-        let test2 = setup_logging(true, true, false);
+        let test2 = setup_logging(None, true, true, false);
         dbg!(&test2);
         assert!(test2.is_ok());
 
-        let test3 = setup_logging(true, false, false);
+        let test3 = setup_logging(None, true, false, false);
         dbg!(&test3);
         assert!(test3.is_ok());
+        let testf = setup_logging(Some("debug".to_string()), false, false, false);
+        dbg!(&testf);
+        assert!(testf.is_ok());
     }
 }

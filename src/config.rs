@@ -134,6 +134,9 @@ pub struct Configuration {
 
     /// How many history entries to keep per check, defaults to 25000 ([crate::constants::DEFAULT_HISTORY_LIMIT]), setting this too high can cause slowdowns.
     pub(crate) max_history_entries_per_check: u64,
+
+    /// Log noisyness
+    pub log_level: Option<String>,
 }
 
 impl TryFrom<ConfigurationParser> for Configuration {
@@ -209,6 +212,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             max_history_entries_per_check: value
                 .max_history_entries_per_check
                 .unwrap_or(DEFAULT_SERVICE_CHECK_HISTORY_STORAGE),
+            log_level: None,
         })
     }
 
@@ -217,18 +221,18 @@ impl TryFrom<ConfigurationParser> for Configuration {
 
 impl Configuration {
     /// New Configuration object from a file reference
-    pub async fn new(filename: &PathBuf) -> Result<Self, Error> {
+    pub fn new(filename: &PathBuf) -> Result<Self, Error> {
         if !filename.exists() {
             return Err(Error::ConfigFileNotFound(
                 filename.to_string_lossy().to_string(),
             ));
         }
         debug!("Loading config from {:?}", filename);
-        Self::new_from_string(&tokio::fs::read_to_string(filename).await?).await
+        Self::new_from_string(&std::fs::read_to_string(filename)?)
     }
 
     /// If you've got the file contents, use that to build a configuration
-    pub async fn new_from_string(config: &str) -> Result<Self, Error> {
+    pub fn new_from_string(config: &str) -> Result<Self, Error> {
         let mut res: ConfigurationParser = serde_json::from_str(config)?;
 
         if !res.local_services.services.is_empty() {
@@ -355,7 +359,6 @@ mod tests {
                 .parse()
                 .expect("Failed to parse filename")
         )
-        .await
         .is_err());
 
         let config = serde_json::json! {{
@@ -370,9 +373,7 @@ mod tests {
             "oidc_client_secret" : "bar",
         }}
         .to_string();
-        let config = Configuration::new_from_string(&config)
-            .await
-            .expect("Failed to parse config");
+        let config = Configuration::new_from_string(&config).expect("Failed to parse config");
         assert_eq!(config.hosts.len(), 1);
 
         assert_eq!(config.listen_addr(), "127.0.0.1:8888");

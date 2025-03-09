@@ -25,7 +25,9 @@ pub(crate) async fn test_setup_harness(
 ) -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error> {
     // make sure logging is happening
 
-    let _ = setup_logging(debug, db_debug, false);
+    let config = Configuration::load_test_config().await;
+
+    let _ = setup_logging(None, debug, db_debug, false);
     // enable the rustls crypto provider
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
@@ -34,8 +36,6 @@ pub(crate) async fn test_setup_harness(
             .await
             .expect("Failed to connect to database"),
     ));
-
-    let config = Configuration::load_test_config().await;
 
     crate::db::update_db_from_config(&*db.write().await, config.clone())
         .await
@@ -57,7 +57,7 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
     Error,
 > {
     // make sure logging is happening
-    let _ = setup_logging(true, true, false);
+    let _ = setup_logging(None, true, true, false);
     // enable the rustls crypto provider
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 

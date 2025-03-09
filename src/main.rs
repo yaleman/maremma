@@ -14,7 +14,19 @@ use std::process::ExitCode;
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 fn main() -> Result<(), ExitCode> {
     let cli = CliOpts::parse();
-    if let Err(err) = setup_logging(cli.debug(), cli.db_debug(), cli.tokio_console()) {
+
+    // parse the config file
+    let config = Configuration::new(&cli.config()).map_err(|err| {
+        eprintln!("Failed to load config: {:?}", err);
+        ExitCode::from(1)
+    })?;
+
+    if let Err(err) = setup_logging(
+        config.log_level.clone(),
+        cli.debug(),
+        cli.db_debug(),
+        cli.tokio_console(),
+    ) {
         eprintln!("Failed to setup logging: {:?}", err);
         return Err(ExitCode::from(1));
     };
@@ -29,11 +41,11 @@ fn main() -> Result<(), ExitCode> {
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async_main(cli))
+        .block_on(async_main(config, cli))
 }
 
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
-async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
+async fn async_main(config: Configuration, cli: CliOpts) -> Result<(), ExitCode> {
     use maremma::db::get_connect_string;
     use maremma::services::oneshot::run_oneshot;
     use maremma::shepherd::shepherd;
@@ -43,12 +55,6 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
         println!("{}", serde_json::to_string_pretty(&schema).unwrap());
         return Ok(());
     }
-
-    // parse the config file
-    let config = Configuration::new(&cli.config()).await.map_err(|err| {
-        error!("Failed to load config: {:?}", err);
-        ExitCode::from(1)
-    })?;
 
     let config = Arc::new(RwLock::new(config));
 

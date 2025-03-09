@@ -85,29 +85,25 @@ pub(crate) struct ToolsQuery {
 async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
     info!("Asked to reload config");
 
-    let new_config = Configuration::new(&state.config_filepath)
-        .await
-        .map_err(|e| {
-            error!("Failed to reload config: {:?}", e);
-            Redirect::to(&format!(
-                "{}?result=Failed to load config from file&status={}",
-                Urls::Tools,
-                ActionStatus::Error,
-            ))
-        })?;
+    let new_config = Configuration::new(&state.config_filepath).map_err(|e| {
+        error!("Failed to reload config: {:?}", e);
+        Redirect::to(&format!(
+            "{}?result=Failed to load config from file&status={}",
+            Urls::Tools,
+            ActionStatus::Error,
+        ))
+    })?;
 
     *state.configuration.write().await = new_config;
 
-    let new_config = Configuration::new(&state.config_filepath)
-        .await
-        .map_err(|e| {
-            error!("Failed to reload config: {:?}", e);
-            Redirect::to(&format!(
-                "{}?result=Failed to load config from file&status={}",
-                Urls::Tools,
-                ActionStatus::Error,
-            ))
-        })?;
+    let new_config = Configuration::new(&state.config_filepath).map_err(|e| {
+        error!("Failed to reload config: {:?}", e);
+        Redirect::to(&format!(
+            "{}?result=Failed to load config from file&status={}",
+            Urls::Tools,
+            ActionStatus::Error,
+        ))
+    })?;
     update_db_from_config(
         &*state.get_db_lock().await,
         Arc::new(RwLock::new(new_config)),

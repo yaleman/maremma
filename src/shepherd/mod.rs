@@ -68,7 +68,7 @@ pub async fn shepherd(
     // run the clean_up_checking loop every x minutes
     let mut service_check_clean = CronTask::new(
         "ServiceCheckClean".to_string(),
-        Cron::new("* * * * *").parse()?,
+        Cron::new("*/5 * * * *").parse()?,
         Box::new(ServiceCheckCleanTask {}),
     );
 

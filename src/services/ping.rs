@@ -152,7 +152,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ping_service_localhost() {
-        let _ = setup_logging(true, true, false);
+        let _ = setup_logging(None, true, true, false);
 
         if std::env::var("CI").is_ok() {
             eprintln!("Skipping test because it fails in CI");
@@ -182,7 +182,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_ping_service_127_0_0_1() {
-        let _ = setup_logging(true, true, false);
+        let _ = setup_logging(None, true, true, false);
 
         if std::env::var("CI").is_ok() {
             eprintln!("Skipping test because it fails in CI");

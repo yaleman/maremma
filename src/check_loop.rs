@@ -5,7 +5,8 @@ use crate::prelude::*;
 use opentelemetry::metrics::Counter;
 use opentelemetry::KeyValue;
 use rand::seq::IteratorRandom;
-use tokio::sync::Semaphore;
+
+use std::cmp::min;
 
 const DEFAULT_BACKOFF: std::time::Duration = tokio::time::Duration::from_millis(50);
 const MAX_BACKOFF: std::time::Duration = tokio::time::Duration::from_secs(1);
@@ -57,8 +58,13 @@ pub(crate) async fn run_service_check(
     let host: entities::host::Model = match service_check
         .find_related(entities::host::Entity)
         .one(&*db_writer)
-        .await?
-    {
+        .await
+        .inspect_err(|err| {
+            error!(
+                "Failed to search for host for service_check={} error={}",
+                service_check.id, err
+            )
+        })? {
         Some(host) => host,
         None => {
             error!(
@@ -93,7 +99,7 @@ pub(crate) async fn run_service_check(
     };
     debug!(
         "Completed service_check={:?} result={:?}",
-        service_check, result.status
+        service_check.id, result.status
     );
     let max_jitter = service_to_run.jitter_value();
 
@@ -101,13 +107,13 @@ pub(crate) async fn run_service_check(
     entities::service_check_history::Model::from_service_check_result(service_check.id, &result)
         .into_active_model()
         .insert(&*db_writer)
-        .await?;
-
-    // // explicitly set status to work around the weird issues that are happening
-    // service_check
-    //     .set_status(result.status, &db_writer)
-    //     .await
-    //     .inspect_err(|err| error!("Failed to set service status at end of check: {:?}", err))?;
+        .await
+        .inspect_err(|err| {
+            error!(
+                "Failed to insert service check history for {}: {:?}",
+                service_check.id, err
+            )
+        })?;
 
     let mut model = service_check.clone().into_active_model();
     model.last_check.set_if_not_equals(chrono::Utc::now());
@@ -139,6 +145,10 @@ pub(crate) async fn run_service_check(
     })?;
 
     drop(db_writer);
+    debug!(
+        "run_service_check service_check={} completed",
+        service_check.id
+    );
 
     Ok(())
 }
@@ -202,12 +212,10 @@ async fn run_inner(
 /// Loop around and do the checks, keeping it to a limit based on `max_permits`
 pub async fn run_check_loop(
     db: Arc<RwLock<DatabaseConnection>>,
-    max_permits: usize,
+    max_tasks: usize,
     metrics_meter: Arc<Meter>,
 ) -> Result<(), Error> {
     // Create a Counter Instrument.
-
-    use std::cmp::min;
 
     let checks_run_since_startup = metrics_meter
         .u64_counter("checks_run_since_startup")
@@ -216,48 +224,76 @@ pub async fn run_check_loop(
 
     let mut backoff: std::time::Duration = DEFAULT_BACKOFF;
     // Limit to n concurrent tasks
-    let semaphore = Arc::new(Semaphore::new(max_permits));
-    info!("Max concurrent tasks set to {}", max_permits);
-    loop {
-        while semaphore.available_permits() == 0 {
-            warn!("No spare task slots, something might be running slow!");
-            tokio::time::sleep(backoff).await;
-        }
-        match semaphore.clone().acquire_owned().await {
-            Ok(permit) => {
-                let db_lock = db.write().await;
-                let next_service = get_next_service_check(&db_lock).await?;
+    info!("Max concurrent tasks set to {}", max_tasks);
 
-                match next_service {
-                    Some((service_check, service)) => {
-                        // set the service_check to running
-                        service_check
-                            .set_status(ServiceStatus::Checking, &db_lock)
-                            .await?;
+    loop {
+        let mut tasks = Vec::new();
+        while tasks.len() < max_tasks {
+            let db_lock = db.write().await;
+            let next_service = match get_next_service_check(&db_lock).await {
+                Ok(val) => val,
+                Err(err) => {
+                    if let Error::SqlError(DbErr::ConnectionAcquire(ConnAcquireErr::Timeout)) = err
+                    {
+                        error!(
+                            "Timed out trying to acquire connection, retrying in {:?}",
+                            backoff
+                        );
                         drop(db_lock);
-                        tokio::spawn(run_inner(
-                            db.clone(),
-                            service_check,
-                            service,
-                            checks_run_since_startup.clone(),
-                        ));
-                        // we did a thing, so we can reset the back-off time, because there might be another
-                        backoff = DEFAULT_BACKOFF;
+                        tokio::time::sleep(backoff).await;
+                        continue;
+                    } else {
+                        error!("Failed to get next service check: {:?}", err);
+                        return Err(err);
                     }
-                    None => {
-                        drop(db_lock);
-                        // didn't get a task, increase backoff a little, but don't overflow the max
-                        backoff = min(MAX_BACKOFF, backoff + DEFAULT_BACKOFF);
-                    }
-                };
-                drop(permit); // Release the semaphore when the task is done
+                }
+            };
+
+            match next_service {
+                Some((service_check, service)) => {
+                    // set the service_check to running
+                    if let Err(err) = service_check
+                        .set_status(ServiceStatus::Checking, &db_lock)
+                        .await
+                    {
+                        if let Error::SqlError(DbErr::ConnectionAcquire(ConnAcquireErr::Timeout)) =
+                            err
+                        {
+                            error!(
+                                "Timed out trying to acquire connection, retrying in {:?}",
+                                backoff
+                            );
+                            drop(db_lock);
+                            tokio::time::sleep(backoff).await;
+                            continue;
+                        } else {
+                            error!("Failed to get next service check: {:?}", err);
+                            return Err(err);
+                        }
+                    };
+                    drop(db_lock);
+                    tasks.push(tokio::spawn(run_inner(
+                        db.clone(),
+                        service_check,
+                        service,
+                        checks_run_since_startup.clone(),
+                    )));
+                    // we did a thing, so we can reset the back-off time, because there might be another
+                    backoff = DEFAULT_BACKOFF;
+                }
+                None => {
+                    drop(db_lock);
+                    // didn't get a task, increase backoff a little, but don't overflow the max
+                    backoff = min(MAX_BACKOFF, backoff + DEFAULT_BACKOFF);
+                }
+            };
+        }
+        // we're at max tasks, so we need to wait for one to finish
+        for res in futures::future::join_all(tasks).await {
+            if let Err(err) = res {
+                error!("Error running check: {:?}", err);
             }
-            Err(err) => {
-                error!("Failed to acquire semaphore permit: {:?}", err);
-                // something went wrong so we want to chill a bit
-                backoff = std::cmp::max(MAX_BACKOFF / 2, DEFAULT_BACKOFF);
-            }
-        };
+        }
     }
 }
 
