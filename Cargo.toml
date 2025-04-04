@@ -101,6 +101,6 @@ console-subscriber = "0.4.1"
 
 [dev-dependencies]
 openidconnect = { version = "3.5.0", default-features = false }
-openssl = { version = "0.10.71" }
+openssl = { version = "0.10.72" }
 tempfile = "3.16.0"
 testcontainers = { version = "0.23.2" }
