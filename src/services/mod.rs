@@ -92,7 +92,7 @@ impl Display for ServiceStatus {
             "{}",
             format!("{:?}", self)
                 .split(':')
-                .last()
+                .next_back()
                 .unwrap_or(format!("{:?}", self).as_str()) // should never trigger this
         )
     }

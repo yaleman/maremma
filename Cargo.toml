@@ -77,7 +77,7 @@ sqlx = { version = "0.8.3", default-features = false }
 ssh-rs = "0.5.0"
 surge-ping = "0.8.1"
 time = "0.3.37"
-tokio = { version = "1.43.0", features = [
+tokio = { version = "1.43.1", features = [
   "rt-multi-thread",
   "macros",
   "process",

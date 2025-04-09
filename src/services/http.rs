@@ -63,7 +63,7 @@ impl Display for HttpMethod {
         f.write_str(
             format!("{:?}", self)
                 .split(':')
-                .last()
+                .next_back()
                 .ok_or(std::fmt::Error)?
                 .to_ascii_uppercase()
                 .as_str(),
