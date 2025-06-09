@@ -246,39 +246,45 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         .route(Urls::Profile.as_ref(), get(views::profile::profile))
         .route(Urls::Services.as_ref(), get(views::service::services))
         .route(
-            &format!("{}/:service_check_id/urgent", Urls::ServiceCheck),
+            &format!("{}/{{service_check_id}}/urgent", Urls::ServiceCheck),
             post(views::service_check::set_service_check_urgent),
         )
         .route(
-            &format!("{}/:service_check_id/disable", Urls::ServiceCheck),
+            &format!("{}/{{service_check_id}}/disable", Urls::ServiceCheck),
             post(views::service_check::set_service_check_disabled),
         )
         .route(
-            &format!("{}/:service_check_id/enable", Urls::ServiceCheck),
+            &format!("{}/{{service_check_id}}/enable", Urls::ServiceCheck),
             post(views::service_check::set_service_check_enabled),
         )
         .route(
-            &format!("{}/:service_check_id/delete", Urls::ServiceCheck),
+            &format!("{}/{{service_check_id}}/delete", Urls::ServiceCheck),
             post(service_check_delete),
         )
         .route(
-            &format!("{}/:service_check_id", Urls::ServiceCheck),
+            &format!("{}/{{service_check_id}}", Urls::ServiceCheck),
             get(service_check_get),
         )
         .route(Urls::Hosts.as_ref(), get(views::host::hosts))
-        .route(&format!("{}/:host_id", Urls::Host), get(views::host::host))
         .route(
-            &format!("{}/:host_id/delete", Urls::Host),
+            &format!("{}/{{host_id}}", Urls::Host),
+            get(views::host::host),
+        )
+        .route(
+            &format!("{}/{{host_id}}/delete", Urls::Host),
             post(views::host::delete_host),
         )
-        .route(&format!("{}/:service_id", Urls::Service), get(service))
-        .route(&format!("{}/:group_id", Urls::HostGroup), get(host_group))
+        .route(&format!("{}/{{service_id}}", Urls::Service), get(service))
         .route(
-            &format!("{}/:group_id/delete", Urls::HostGroup),
+            &format!("{}/{{group_id}}", Urls::HostGroup),
+            get(host_group),
+        )
+        .route(
+            &format!("{}/{{group_id}}/delete", Urls::HostGroup),
             post(host_group_delete),
         )
         .route(
-            &format!("{}/:group_id/member/:host_id/delete", Urls::HostGroup),
+            &format!("{}/{{group_id}}/member/{{host_id}}/delete", Urls::HostGroup),
             post(host_group_member_delete),
         )
         .route(Urls::HostGroups.as_ref(), get(host_groups))
