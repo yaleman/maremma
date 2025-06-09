@@ -9,7 +9,7 @@ use entities::host_group;
 use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
-#[derive(Template, Debug)]
+#[derive(Template, Debug, WebTemplate)]
 #[template(path = "host.html")]
 pub(crate) struct HostTemplate {
     title: String,
@@ -36,7 +36,7 @@ pub(crate) async fn host(
     Query(queries): Query<SortQueries>,
     session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
+) -> Result<HostTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
     let csrf_token = state.new_csrf_token();
@@ -99,7 +99,7 @@ pub(crate) async fn host(
     })
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "hosts.html")]
 pub(crate) struct HostsTemplate {
     title: String,

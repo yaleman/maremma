@@ -1,3 +1,4 @@
+use askama_web::WebTemplate;
 use axum::Form;
 use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
@@ -6,7 +7,7 @@ use crate::web::Error;
 
 use super::prelude::*;
 
-#[derive(Template, Debug)]
+#[derive(Template, Debug, WebTemplate)]
 #[template(path = "service_check.html")]
 pub(crate) struct ServiceCheckTemplate {
     title: String,

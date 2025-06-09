@@ -15,7 +15,7 @@ use reqwest::Url;
 #[cfg(test)]
 use std::str::FromStr;
 
-#[derive(Template, Debug)]
+#[derive(Template, Debug, WebTemplate)]
 #[template(path = "tools.html")]
 pub(crate) struct ToolsTemplate {
     title: String,

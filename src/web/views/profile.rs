@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Template, Debug)]
+#[derive(Template, Debug, WebTemplate)]
 #[template(path = "profile.html")]
 pub(crate) struct ProfileTemplate {
     title: String,

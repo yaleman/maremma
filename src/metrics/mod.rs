@@ -1,13 +1,9 @@
 //! Prometheus metrics magic
 
 use crate::prelude::*;
-use std::time::Duration;
 
 use opentelemetry::KeyValue;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
-use opentelemetry_sdk::resource::{
-    EnvResourceDetector, SdkProvidedResourceDetector, TelemetryResourceDetector,
-};
 use opentelemetry_sdk::Resource;
 use prometheus::Registry;
 
@@ -24,19 +20,9 @@ pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
     //     .build()
     //     .map_err(|err| Error::Generic(err.to_string()))?;
 
-    let resource = Resource::from_detectors(
-        Duration::from_secs(0),
-        vec![
-            Box::new(SdkProvidedResourceDetector),
-            Box::new(TelemetryResourceDetector),
-            Box::new(EnvResourceDetector::new()),
-        ],
-    );
-
-    let resource = resource.merge(&Resource::new(vec![KeyValue::new(
-        "service.name",
-        "maremma",
-    )]));
+    let resource = Resource::builder()
+        .with_attribute(KeyValue::new("service.name", "maremma"))
+        .build();
 
     // set up a meter to create instruments
     let provider = SdkMeterProvider::builder()
