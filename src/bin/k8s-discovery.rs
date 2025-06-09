@@ -249,12 +249,7 @@ async fn discover_ingress(
         .iter()
         .flat_map(|ingress| {
             if has_maremma_annotations(ingress.metadata.annotations.as_ref()) {
-                // info!("  ingress: {:?}", ingress.metadata.name);
-                if let Ok(k8si) = K8sIngress::try_from((namespace, ingress)) {
-                    Some(k8si)
-                } else {
-                    None
-                }
+                K8sIngress::try_from((namespace, ingress)).ok()
             } else {
                 debug!("  skipping ingress: {:?}", ingress.metadata.name);
                 None

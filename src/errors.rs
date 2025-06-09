@@ -2,6 +2,8 @@
 
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+#[cfg(not(tarpaulin_include))]
+use axum::response::Response;
 use croner::errors::CronError;
 use kube::config::KubeconfigError;
 use tokio::sync::oneshot;
@@ -172,7 +174,7 @@ impl From<axum::http::header::InvalidHeaderValue> for Error {
 }
 #[cfg(not(tarpaulin_include))]
 impl IntoResponse for Error {
-    fn into_response(self) -> askama_axum::Response {
+    fn into_response(self) -> Response {
         match self {
             Self::CsrfTokenMissing => (StatusCode::FORBIDDEN, CSRF_TOKEN_NOT_FOUND.to_string()),
             Self::CsrfValidationFailed => (StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()),
@@ -205,7 +207,7 @@ where
 mod tests {
     use std::str::FromStr;
 
-    use askama_axum::IntoResponse;
+    use axum::response::IntoResponse;
     use reqwest::StatusCode;
 
     #[test]
@@ -220,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_error_from_std_io_error() {
-        let err = std::io::Error::new(std::io::ErrorKind::Other, "test");
+        let err = std::io::Error::other("test");
         assert_eq!(
             crate::errors::Error::IoError(err.to_string()),
             crate::errors::Error::from(err)

@@ -11,11 +11,10 @@ use tempfile::NamedTempFile;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use askama_axum::IntoResponse;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri};
-use axum::response::Redirect;
+use axum::response::{IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::Router;
 use axum_oidc::error::MiddlewareError;
@@ -152,6 +151,8 @@ impl OidcErrorHandler {
 pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
     // get all the config variables we need, quickly, so we can drop the lock
 
+    use axum_oidc::OidcClient;
+
     let config_reader = state.configuration.read().await;
     let oidc_issuer = config_reader.oidc_issuer.clone();
     let oidc_client_id = config_reader.oidc_client_id.clone();
@@ -179,35 +180,63 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         }))
         .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
 
-    let oidc_auth_layer = ServiceBuilder::new()
+    let mut oidc_client = OidcClient::builder()
+        .with_default_http_client()
+        .add_scope("openid")
+        .add_scope("groups")
+        .with_redirect_url(frontend_url)
+        .with_client_id(oidc_client_id);
+
+    if let Some(oidc_client_secret) = oidc_client_secret {
+        oidc_client = oidc_client.with_client_secret(oidc_client_secret);
+    }
+
+    let oidc_client: OidcClient<EmptyAdditionalClaims> =
+        oidc_client.discover(oidc_issuer).await?.build();
+
+    let oidc_auth_layer: OidcAuthLayer<EmptyAdditionalClaims> =
+        OidcAuthLayer::<EmptyAdditionalClaims>::new(oidc_client);
+
+    let oidc_auth_service = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
-            match e {
-                MiddlewareError::SessionNotFound => {
-                    error!("No OIDC session found, redirecting to logout to clear it client-side");
-                }
-                _ => {
-                    oidc_error_handler.handle_oidc_error(&e).await;
-                }
+            if let MiddlewareError::SessionNotFound = e {
+                error!("No OIDC session found, redirecting to logout to clear it client-side");
+            } else {
+                oidc_error_handler.handle_oidc_error(&e).await;
             }
             Redirect::to(Urls::Logout.as_ref()).into_response()
         }))
-        .layer(
-            OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
-                frontend_url,
-                oidc_issuer,
-                oidc_client_id,
-                oidc_client_secret,
-                vec!["openid", "groups"]
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect(),
-            )
-            .await
-            .map_err(|err| {
-                error!("Failed to set up OIDC: {:?}", err);
-                Error::from(err)
-            })?,
-        );
+        .layer(oidc_auth_layer);
+
+    // let oidc_auth_layer = ServiceBuilder::new()
+    //     .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
+    //         match e {
+    //             MiddlewareError::SessionNotFound => {
+    //                 error!("No OIDC session found, redirecting to logout to clear it client-side");
+    //             }
+    //             _ => {
+    //                 oidc_error_handler.handle_oidc_error(&e).await;
+    //             }
+    //         }
+    //         Redirect::to(Urls::Logout.as_ref()).into_response()
+    //     }))
+    //     .layer(
+    //         OidcAuthLayer::<EmptyAdditionalClaims>::di(
+    //             frontend_url,
+    //             oidc_issuer,
+    //             oidc_client_id,
+    //             oidc_client_secret,
+    //             vec!["openid", "groups"]
+    //                 .into_iter()
+    //                 .map(|s| s.to_string())
+    //                 .collect(),
+    //         )
+    //         .await
+    //         .map_err(|err| {
+    //             error!("Failed to set up OIDC: {:?}", err);
+    //             Error::from(err)
+    //         })?,
+    //     );
 
     let app = Router::new()
         .route(
@@ -262,7 +291,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         .layer(oidc_login_service)
         // after here, the routers don't *require* auth
         .route(Urls::Index.as_ref(), get(views::index::index))
-        .layer(oidc_auth_layer)
+        .layer(oidc_auth_service)
         .route(Urls::Metrics.as_ref(), get(views::metrics::metrics))
         // after here, the URLs cannot have auth
         .route(Urls::HealthCheck.as_ref(), get(up))

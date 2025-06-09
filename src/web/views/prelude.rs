@@ -4,7 +4,8 @@ pub(crate) use crate::web::oidc::User;
 pub(crate) use crate::web::urls::Urls;
 pub(crate) use crate::web::WebState;
 
-pub(crate) use askama_axum::Template;
+pub(crate) use askama::Template;
+pub(crate) use askama_web::WebTemplate;
 pub(crate) use axum::extract::{Path, Query, State};
 pub(crate) use axum::response::Redirect;
 pub(crate) use chrono::{DateTime, Local};

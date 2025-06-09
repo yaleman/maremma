@@ -3,11 +3,12 @@
 use super::index::SortQueries;
 use super::prelude::*;
 use crate::errors::Error;
+use askama_web::WebTemplate;
 use entities::service_check::FullServiceCheck;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
-#[derive(Template, Debug)]
+#[derive(Template, Debug, WebTemplate)]
 #[template(path = "service.html")]
 pub(crate) struct ServiceTemplate {
     title: String,
@@ -51,7 +52,7 @@ pub(crate) async fn service(
     })
 }
 
-#[derive(Template, Debug)]
+#[derive(Template, WebTemplate, Debug)]
 #[template(path = "services.html")]
 pub(crate) struct ServicesTemplate {
     title: String,

@@ -1,9 +1,10 @@
 //! log configuration and setup module
 
-use std::env;
+use std::{env, process::exit};
 
 use env_logger::{Builder, Target};
 use log::LevelFilter;
+use tracing::error;
 
 /// Sets up logging
 pub fn setup_logging(
@@ -41,10 +42,13 @@ pub fn setup_logging(
 
     match tokio_console {
         true => {
-            console_subscriber::init();
-            println!("You're in tokio console mode, can't really log  :(");
-
-            Ok(())
+            // console_subscriber::init();
+            // println!("You're in tokio console mode, can't really log  :(");
+            error!(
+                "Can't support console_subscriber in this context, please use env_logger instead."
+            );
+            exit(1);
+            // Ok(())
         }
         false => {
             let mut builder = Builder::from_default_env();

@@ -1,7 +1,6 @@
 //! Host Group Related views
 //!
 
-use askama::Template;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::Redirect;
@@ -17,7 +16,7 @@ use crate::db::entities::{host, host_group, host_group_members};
 use crate::web::oidc::User;
 use crate::web::{Error, WebState};
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "host_groups.html")]
 pub(crate) struct HostGroupsTemplate {
     title: String,
@@ -66,7 +65,7 @@ pub(crate) async fn host_groups(
     })
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "host_group.html")]
 pub(crate) struct HostGroupTemplate {
     title: String,
@@ -208,8 +207,8 @@ pub(crate) async fn host_group_delete(
 
 #[cfg(test)]
 mod tests {
-    use askama_axum::IntoResponse;
     use axum::extract::{Path, Query, State};
+    use axum::response::IntoResponse;
     use uuid::Uuid;
 
     use crate::db::tests::test_setup;

@@ -4,14 +4,10 @@ use super::urls::Urls;
 use super::WebState;
 use crate::prelude::*;
 
-use askama_axum::IntoResponse;
 use axum::extract::State;
-use axum::http::StatusCode;
-use axum::http::Uri;
+use axum::http::{StatusCode, Uri};
 use axum::response::Redirect;
-use axum_oidc::AdditionalClaims;
-use axum_oidc::OidcClaims;
-use axum_oidc::OidcRpInitiatedLogout;
+use axum_oidc::{AdditionalClaims, OidcClaims, OidcRpInitiatedLogout};
 use tower_sessions::Session;
 
 /// Logs the user out
@@ -28,7 +24,7 @@ pub async fn rp_logout(
     State(state): State<WebState>,
     session: Session,
     logout: OidcRpInitiatedLogout,
-) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
+) -> Result<OidcRpInitiatedLogout, (StatusCode, &'static str)> {
     session.clear().await;
 
     let url: Uri = state
@@ -78,6 +74,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
+    use axum::response::IntoResponse;
     use tower::ServiceExt;
 
     use crate::db::tests::test_setup;

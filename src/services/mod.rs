@@ -469,7 +469,7 @@ mod tests {
                 format!("{}", status),
                 format!("{:?}", status)
                     .split(':')
-                    .last()
+                    .next_back()
                     .expect("This should be impossible to fail")
             );
         }

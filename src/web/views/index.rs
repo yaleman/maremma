@@ -1,3 +1,4 @@
+use askama_web::WebTemplate;
 use entities::service_check::FullServiceCheck;
 use sea_orm::{ColumnTrait, Order as SeaOrmOrder, QueryFilter, QueryOrder};
 
@@ -5,7 +6,7 @@ use crate::errors::Error;
 
 use super::prelude::*;
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "index.html")]
 pub struct IndexTemplate {
     pub title: String,
