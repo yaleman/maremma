@@ -24,7 +24,7 @@ axum = { version = "0.8.4", features = [
 axum-oidc = { git = "https://github.com/pfzetto/axum-oidc", branch = "pfzetto" }                               # until https://github.com/pfzetto/axum-oidc/pull/23 is merged
 axum-server = { version = "0.7.2", features = ["rustls", "tls-rustls"] }
 chrono = "0.4.41"
-clap = { version = "4.5.39", features = ["derive", "env"] }
+clap = { version = "4.5.40", features = ["derive", "env"] }
 croner = "2.0.5"
 env_logger = { version = "0.11.6", features = ["color", "default"] }
 log = { version = "0.4.27", features = ["release_max_level_debug"] }
@@ -43,7 +43,7 @@ opentelemetry_sdk = { version = "0.30.0", features = [
 ] }
 prometheus = "0.14.0"
 rand = "0.9.1"
-reqwest = { version = "0.12.19", features = [
+reqwest = { version = "0.12.20", features = [
   "http2",
   "json",
   "rustls-tls",
