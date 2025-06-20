@@ -25,7 +25,7 @@ axum-oidc = { git = "https://github.com/pfzetto/axum-oidc", branch = "pfzetto" }
 axum-server = { version = "0.7.2", features = ["rustls", "tls-rustls"] }
 chrono = "0.4.41"
 clap = { version = "4.5.40", features = ["derive", "env"] }
-croner = "2.0.5"
+croner = "2.2.0"
 env_logger = { version = "0.11.6", features = ["color", "default"] }
 log = { version = "0.4.27", features = ["release_max_level_debug"] }
 kube = { version = "1.1.0", features = ["config"] }
@@ -48,7 +48,7 @@ reqwest = { version = "0.12.20", features = [
   "json",
   "rustls-tls",
 ], default-features = false }
-rustls = { version = "0.23.27", features = ["zlib"] }
+rustls = { version = "0.23.28", features = ["zlib"] }
 schemars = { version = "0.8.22", features = [
   "uuid1",
   "url",
@@ -90,7 +90,7 @@ tower-http = { version = "0.6.6", features = ["fs", "trace"] }
 tower-sessions = "0.14.0"
 tracing = { version = "0.1.40", features = ["release_max_level_debug"] }
 uuid = { version = "1.17.0", features = ["serde", "v4"] }
-webpki-roots = "1.0.0"
+webpki-roots = "1.0.1"
 x509-parser = "0.17.0"
 webpki = "0.22.4"
 rustls-webpki = { version = "0.103.3", features = ["aws-lc-rs"] }
@@ -98,7 +98,7 @@ futures = "0.3.31"
 sea-query = "0.32.6"
 which = { version = "8.0.0", features = ["tracing"] }
 console-subscriber = "0.4.1"
-askama_web = { version = "0.14.3", features = ["axum-0.8"] }
+askama_web = { version = "0.14.4", features = ["axum-0.8"] }
 
 [dev-dependencies]
 openidconnect = { version = "4.0.0", default-features = false }
