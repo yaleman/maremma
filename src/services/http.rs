@@ -61,7 +61,7 @@ impl From<HttpMethod> for String {
 impl Display for HttpMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(
-            format!("{:?}", self)
+            format!("{self:?}")
                 .split(':')
                 .next_back()
                 .ok_or(std::fmt::Error)?
@@ -172,7 +172,7 @@ impl HttpService {
             if !body.contains(expected_string) {
                 debug!("Couldn't find {} in body", expected_string);
                 return Ok((
-                    format!("Expected string '{}' not found in body", expected_string),
+                    format!("Expected string '{expected_string}' not found in body"),
                     ServiceStatus::Critical,
                 ));
             } else {
@@ -270,8 +270,7 @@ impl ServiceTrait for HttpService {
         if let Some(http_status) = self.http_status {
             if StatusCode::try_from(u16::from(http_status)).is_err() {
                 return Err(Error::Configuration(format!(
-                    "Invalid HTTP status code: {}",
-                    http_status
+                    "Invalid HTTP status code: {http_status}"
                 )));
             }
         }
@@ -298,7 +297,7 @@ impl ServiceTrait for HttpService {
             host.hostname,
             config
                 .port
-                .map(|p| format!(":{}", p))
+                .map(|p| format!(":{p}"))
                 .unwrap_or("".to_string()),
             config.http_uri.as_ref().unwrap_or(&"".to_string())
         );
@@ -338,7 +337,7 @@ impl ServiceTrait for HttpService {
             .await
         {
             Ok(val) => self.validate_response(val, config).await?,
-            Err(err) => (format!("{:?}", err), ServiceStatus::Critical),
+            Err(err) => (format!("{err:?}"), ServiceStatus::Critical),
         };
 
         let time_elapsed = chrono::Utc::now() - start_time;
@@ -499,7 +498,7 @@ mod tests {
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
-        println!("{:?}", res);
+        println!("{res:?}");
         assert_eq!(res.expect("failed to run").status, ServiceStatus::Ok);
 
         // if we put this text on the page, we're just kicking ourselves in the shins

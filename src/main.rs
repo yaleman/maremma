@@ -15,7 +15,7 @@ use std::process::ExitCode;
 fn main() -> Result<(), ExitCode> {
     let cli = CliOpts::parse();
     if let Err(err) = setup_logging(cli.debug(), cli.db_debug(), cli.tokio_console()) {
-        eprintln!("Failed to setup logging: {:?}", err);
+        eprintln!("Failed to setup logging: {err:?}");
         return Err(ExitCode::from(1));
     };
 

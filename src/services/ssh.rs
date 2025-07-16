@@ -329,7 +329,7 @@ mod tests {
             "password" : "testpassword"
         }"#,
         ) {
-            Err(err) => panic!("Failed to parse service: {:?}", err),
+            Err(err) => panic!("Failed to parse service: {err:?}"),
             Ok(val) => val,
         };
         assert_eq!(service.name, "local_lslah".to_string());

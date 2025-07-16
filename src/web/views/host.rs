@@ -71,7 +71,7 @@ pub(crate) async fn host(
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                format!("Host with id={} not found", host_id),
+                format!("Host with id={host_id} not found"),
             ))
         }
     };
@@ -207,7 +207,7 @@ pub(crate) async fn delete_host(
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                format!("Host with id={} not found", host_id),
+                format!("Host with id={host_id} not found"),
             ))
         }
     };

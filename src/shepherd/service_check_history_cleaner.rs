@@ -135,7 +135,7 @@ mod tests {
         let query_as_string = sch_counts_query()
             .build(db.write().await.get_database_backend())
             .to_string();
-        println!("{}", query_as_string);
+        println!("{query_as_string}");
 
         assert!(!query_as_string.contains("timestamp"));
     }

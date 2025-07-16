@@ -37,8 +37,8 @@ fn export_config(cmd: &OneShotCmd) -> (String, String) {
 pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(), Error> {
     if cmd.show_config {
         let (msg, config) = export_config(&cmd);
-        eprintln!("{}", msg);
-        println!("{}", config);
+        eprintln!("{msg}");
+        println!("{config}");
     }
 
     let mut service_config: serde_json::Value = serde_json::from_str(&cmd.service_config)?;

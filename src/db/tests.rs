@@ -110,7 +110,7 @@ async fn test_get_related() {
             .all(&*db_lock)
             .await
             .expect("Failed to find linked");
-        println!("linked {:?}", linked);
+        println!("linked {linked:?}");
     }
 }
 

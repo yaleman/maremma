@@ -87,7 +87,7 @@ pub(crate) async fn run_service_check(
         Err(err) => CheckResult {
             status: ServiceStatus::Error,
             time_elapsed: chrono::Utc::now() - start_time,
-            result_text: format!("Error: {:?}", err),
+            result_text: format!("Error: {err:?}"),
             ..Default::default()
         },
     };

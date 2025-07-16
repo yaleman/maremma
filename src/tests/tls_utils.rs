@@ -51,8 +51,7 @@ pub fn check_privkey_minimums(privkey: &PKeyRef<Private>) -> Result<(), String> 
     if let Ok(key) = privkey.rsa() {
         if key.size() < (RSA_MIN_KEY_SIZE_BITS / 8) as u32 {
             return Err(format!(
-                "TLS RSA key is less than {} bits!",
-                RSA_MIN_KEY_SIZE_BITS
+                "TLS RSA key is less than {RSA_MIN_KEY_SIZE_BITS} bits!"
             ));
         } else {
             debug!(
@@ -76,8 +75,7 @@ pub fn check_privkey_minimums(privkey: &PKeyRef<Private>) -> Result<(), String> 
 
             if key_bits < EC_MIN_KEY_SIZE_BITS {
                 Err(format!(
-                    "TLS EC key is less than {} bits! Got: {}",
-                    EC_MIN_KEY_SIZE_BITS, key_bits
+                    "TLS EC key is less than {EC_MIN_KEY_SIZE_BITS} bits! Got: {key_bits}"
                 ))
             } else {
                 debug!("The EC private key size is: {} bits, that's OK!", key_bits);
@@ -180,8 +178,7 @@ impl CAConfig {
                 );
                 if self.key_bits < RSA_MIN_KEY_SIZE_BITS {
                     return Err(format!(
-                        "RSA key size must be at least {} bits",
-                        RSA_MIN_KEY_SIZE_BITS
+                        "RSA key size must be at least {RSA_MIN_KEY_SIZE_BITS} bits"
                     ));
                 }
             }
@@ -189,8 +186,7 @@ impl CAConfig {
                 trace!("Generating CA Config for EcKey with {} bits", self.key_bits);
                 if self.key_bits < EC_MIN_KEY_SIZE_BITS {
                     return Err(format!(
-                        "EC key size must be at least {} bits",
-                        EC_MIN_KEY_SIZE_BITS
+                        "EC key size must be at least {EC_MIN_KEY_SIZE_BITS} bits"
                     ));
                 }
             }
@@ -472,12 +468,12 @@ fn test_ca_loader() {
         (KeyType::Ec, 256, false),
     ];
     good_ca_configs.into_iter().for_each(|config| {
-        println!("testing good config {:?}", config);
+        println!("testing good config {config:?}");
         let ca_config = CAConfig::new(config.0, config.1, config.2).expect("Failed bo build CA");
         let ca = build_ca(Some(ca_config), None).expect("Failed bo build CA");
         write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).expect("Failed to write CA");
         let ca_result = load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path());
-        println!("result: {:?}", ca_result);
+        println!("result: {ca_result:?}");
         assert!(ca_result.is_ok());
     });
     let bad_ca_configs = vec![
@@ -494,7 +490,7 @@ fn test_ca_loader() {
         let ca = build_ca(Some(ca_config), None).expect("Failed to build CA");
         write_ca(ca_key_tempfile.path(), ca_cert_tempfile.path(), &ca).expect("Failed to write CA");
         let ca_result = load_ca(ca_key_tempfile.path(), ca_cert_tempfile.path());
-        println!("result: {:?}", ca_result);
+        println!("result: {ca_result:?}");
         assert!(ca_result.is_err());
     });
 }

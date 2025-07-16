@@ -92,12 +92,10 @@ impl Action for PushOver {
             Ok(data) => data,
             Err(err) => {
                 error!(
-                    "Failed to parse pushover response: {:?} body={:?}",
-                    err, response_body
+                    "Failed to parse pushover response: {err:?} body={response_body:?}"
                 );
                 return Err(Error::Generic(format!(
-                    "Failed to parse pushover response: {:?}",
-                    err
+                    "Failed to parse pushover response: {err:?}"
                 )));
             }
         };

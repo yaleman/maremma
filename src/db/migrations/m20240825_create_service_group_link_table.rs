@@ -121,8 +121,7 @@ impl MigrationTrait for Migration {
                     }
                     None => {
                         return Err(DbErr::Custom(format!(
-                            "Couldn't find the host group {} in the database?",
-                            host_group
+                            "Couldn't find the host group {host_group} in the database?"
                         )));
                     }
                 }

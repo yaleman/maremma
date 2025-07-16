@@ -163,7 +163,7 @@ impl From<KubeconfigError> for Error {
 
 impl From<std::net::AddrParseError> for Error {
     fn from(value: std::net::AddrParseError) -> Self {
-        Self::InvalidInput(format!("invalid IP address: {}", value))
+        Self::InvalidInput(format!("invalid IP address: {value}"))
     }
 }
 
@@ -181,7 +181,7 @@ impl IntoResponse for Error {
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             _ => {
                 error!("Response error occurred: {:?}", self);
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", self))
+                (StatusCode::INTERNAL_SERVER_ERROR, format!("{self:?}"))
             }
         }
         .into_response()
