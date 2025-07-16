@@ -46,7 +46,7 @@ async fn handle_err_or_shutdown_container<T>(
         Ok(val) => val,
         Err(e) => {
             container.stop().await.expect("Failed to stop container");
-            panic!("Failed to do something! {:?}", e);
+            panic!("Failed to do something! {e:?}");
         }
     }
 }
@@ -83,8 +83,7 @@ impl TestContainer {
             .await
             .map_err(|err| {
                 panic!(
-                    "Failed to start container is docker running? Error:\n{:?}",
-                    err
+                    "Failed to start container is docker running? Error:\n{err:?}"
                 );
             })
             .expect("Failed!");
@@ -157,7 +156,7 @@ async fn test_httpbin_testcontainer() {
                 .stop()
                 .await
                 .expect("Failed to stop container");
-            panic!("Failed to get response from container: {:?}", e);
+            panic!("Failed to get response from container: {e:?}");
         }
     };
 
@@ -196,7 +195,7 @@ async fn test_basic_testcontainer() {
                 .stop()
                 .await
                 .expect("Failed to stop container");
-            panic!("Failed to get response from container: {:?}", e);
+            panic!("Failed to get response from container: {e:?}");
         }
     };
 

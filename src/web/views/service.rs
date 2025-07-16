@@ -37,7 +37,7 @@ pub(crate) async fn service(
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                format!("Service with id={} not found", service_id),
+                format!("Service with id={service_id} not found"),
             ))
         }
     };

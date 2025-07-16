@@ -68,7 +68,7 @@ impl SessionStore for ModelStore {
         // now we do the database-side things
         let mut dbrecord = ActiveModel::new();
         let id_uuid = id_to_uuid(&record.id)
-            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
+            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{err:?}")))?;
         dbrecord.id.set_if_not_equals(id_uuid);
         dbrecord.data.set_if_not_equals(
             serde_json::to_value(&record.data)
@@ -95,7 +95,7 @@ impl SessionStore for ModelStore {
             .map_err(|err| tower_sessions::session_store::Error::Encode(err.to_string()))?;
 
         let id = id_to_uuid(&session_record.id)
-            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{:?}", err)))?;
+            .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{err:?}")))?;
 
         let db_lock = self.get_db_lock().await;
 
@@ -142,7 +142,7 @@ impl SessionStore for ModelStore {
         session_id: &Id,
     ) -> Result<Option<Record>, tower_sessions::session_store::Error> {
         let id = id_to_uuid(session_id)
-            .map_err(|err| tower_sessions::session_store::Error::Decode(format!("{:?}", err)))?;
+            .map_err(|err| tower_sessions::session_store::Error::Decode(format!("{err:?}")))?;
         let db_lock = self.get_db_lock().await;
         let session = match Entity::find_by_id(id)
             .one(&*db_lock)
@@ -178,7 +178,7 @@ impl SessionStore for ModelStore {
     async fn delete(&self, session_id: &Id) -> Result<(), tower_sessions::session_store::Error> {
         Entity::delete_by_id(
             id_to_uuid(session_id).map_err(|err| {
-                tower_sessions::session_store::Error::Encode(format!("{:?}", err))
+                tower_sessions::session_store::Error::Encode(format!("{err:?}"))
             })?,
         )
         .exec(&*self.db.write().await)

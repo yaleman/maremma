@@ -91,7 +91,7 @@ impl TryFrom<(&Namespace, &Pod)> for K8sPod {
                     annotations.iter().filter_map(|(key, value)| {
                         if key.starts_with(MAREMMA_SERVICE_NAME) {
                             Some((
-                                key.replace(&format!("{}/", MAREMMA_SERVICE_NAME), ""),
+                                key.replace(&format!("{MAREMMA_SERVICE_NAME}/"), ""),
                                 value.clone(),
                             ))
                         } else {
@@ -130,7 +130,7 @@ impl TryFrom<(&Namespace, &Ingress)> for K8sIngress {
                 if key.starts_with(MAREMMA_SERVICE_NAME) {
                     debug!("ingress annotation: {}={}", key, value);
                     res.annotations.insert(
-                        key.replace(&format!("{}/", MAREMMA_SERVICE_NAME), ""),
+                        key.replace(&format!("{MAREMMA_SERVICE_NAME}/"), ""),
                         value.clone(),
                     );
                 }
@@ -170,7 +170,7 @@ impl TryFrom<(&Namespace, &Service)> for K8sService {
                 if key.starts_with(MAREMMA_SERVICE_NAME) {
                     debug!("service annotation: {}={}", key, value);
                     res.annotations.insert(
-                        key.replace(&format!("{}/", MAREMMA_SERVICE_NAME), ""),
+                        key.replace(&format!("{MAREMMA_SERVICE_NAME}/"), ""),
                         value.clone(),
                     );
                 }
@@ -267,7 +267,7 @@ async fn main() -> Result<(), Error> {
     let ignore_annotation = format!("{}/{}", MAREMMA_SERVICE_NAME, "ignore");
 
     if let Err(err) = setup_logging(true, true, false) {
-        eprintln!("Error setting up logging: {:?}", err);
+        eprintln!("Error setting up logging: {err:?}");
         return Err(Error::Generic("Error setting up logging".to_string()));
     };
 

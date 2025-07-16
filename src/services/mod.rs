@@ -90,10 +90,10 @@ impl Display for ServiceStatus {
         write!(
             f,
             "{}",
-            format!("{:?}", self)
+            format!("{self:?}")
                 .split(':')
                 .next_back()
-                .unwrap_or(format!("{:?}", self).as_str()) // should never trigger this
+                .unwrap_or(format!("{self:?}").as_str()) // should never trigger this
         )
     }
 }
@@ -236,8 +236,7 @@ pub trait ConfigOverlay: Serialize {
 
         match config.get(name) {
             Some(val) => val.as_object().cloned().ok_or(Error::Configuration(format!(
-                "Failed to parse {} config",
-                name
+                "Failed to parse {name} config"
             ))),
             None => Ok(Map::new()),
         }
@@ -464,10 +463,10 @@ mod tests {
     #[test]
     fn test_servicestatus_display() {
         for status in ServiceStatus::iter() {
-            println!("{}", status);
+            println!("{status}");
             assert_eq!(
-                format!("{}", status),
-                format!("{:?}", status)
+                format!("{status}"),
+                format!("{status:?}")
                     .split(':')
                     .next_back()
                     .expect("This should be impossible to fail")

@@ -40,12 +40,12 @@ pub(crate) async fn service_check_get(
             );
             (
                 StatusCode::NOT_FOUND,
-                format!("Service check with id={} not found", service_check_id),
+                format!("Service check with id={service_check_id} not found"),
             )
         })?;
     let service_check = res.ok_or((
         StatusCode::NOT_FOUND,
-        format!("Service check with id={} not found", service_check_id),
+        format!("Service check with id={service_check_id} not found"),
     ))?;
 
     let service_check_history = entities::service_check_history::Entity::find()
@@ -76,7 +76,7 @@ pub(crate) async fn service_check_get(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                format!("Service check with id={} host not found", service_check_id),
+                format!("Service check with id={service_check_id} host not found"),
             )
         })?;
 
@@ -95,8 +95,7 @@ pub(crate) async fn service_check_get(
             (
                 StatusCode::NOT_FOUND,
                 format!(
-                    "Service check with id={} service not found",
-                    service_check_id
+                    "Service check with id={service_check_id} service not found"
                 ),
             )
         })?;
@@ -194,7 +193,7 @@ pub(crate) async fn set_service_check_status(
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                format!("Service check with id={} not found", service_check_id),
+                format!("Service check with id={service_check_id} not found"),
             ))
         }
     };

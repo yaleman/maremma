@@ -78,7 +78,7 @@ impl ServiceTrait for PingService {
             None => host.hostname.clone(),
         };
 
-        let hostname = lookup_host(format!("{}:80", target))
+        let hostname = lookup_host(format!("{target}:80"))
             .await?
             .next()
             .ok_or(Error::DnsFailed)?;
@@ -109,7 +109,7 @@ impl ServiceTrait for PingService {
                     return Err(Error::Generic(err.to_string()));
                 }
                 Err(err) => {
-                    return Err(Error::Generic(format!("Running task failed: {}", err)));
+                    return Err(Error::Generic(format!("Running task failed: {err}")));
                 }
             }
         }

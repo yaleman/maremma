@@ -31,7 +31,7 @@ pub async fn get_connect_string(config: SendableConfig) -> String {
         info!("Using in-memory database!");
         "sqlite::memory:".to_string()
     } else {
-        format!("sqlite://{}?mode=rwc", database_file)
+        format!("sqlite://{database_file}?mode=rwc")
     }
 }
 

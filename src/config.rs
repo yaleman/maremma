@@ -143,7 +143,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             .iter()
             .map(|(name, service)| {
                 let service: Service = serde_json::from_value(service.clone()).map_err(|e| {
-                    Error::Configuration(format!("Failed to parse service {}: {}", name, e))
+                    Error::Configuration(format!("Failed to parse service {name}: {e}"))
                 })?;
                 Ok((name.clone(), service))
             })

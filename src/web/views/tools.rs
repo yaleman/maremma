@@ -255,7 +255,7 @@ pub(crate) async fn export_db(
     );
     headers.insert(
         CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+        HeaderValue::from_str(&format!("attachment; filename=\"{filename}\""))
             .map_err(Error::from)?,
     );
 

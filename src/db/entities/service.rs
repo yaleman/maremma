@@ -97,8 +97,7 @@ impl MaremmaEntity for Model {
                         *id = json!(Uuid::new_v4());
                     } else {
                         return Err(Error::Configuration(format!(
-                            "Failed to add ID to service '{}', check the configuration!",
-                            service_name
+                            "Failed to add ID to service '{service_name}', check the configuration!"
                         )));
                     };
                 }
@@ -107,8 +106,7 @@ impl MaremmaEntity for Model {
             } else {
                 error!("Failed to convert service to object: {:?}", service_value);
                 return Err(Error::Configuration(format!(
-                    "Failed to convert service '{}' to object, check the configuration!",
-                    service_name
+                    "Failed to convert service '{service_name}' to object, check the configuration!"
                 )));
             }
 

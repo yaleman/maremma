@@ -46,7 +46,7 @@ impl ServiceTrait for KubernetesService {
             Err(err) => {
                 return Ok(CheckResult {
                     timestamp: start_time,
-                    result_text: format!("UNKNOWN: Unable to configure Kubernetes client: {}", err),
+                    result_text: format!("UNKNOWN: Unable to configure Kubernetes client: {err}"),
                     status: ServiceStatus::Unknown,
                     time_elapsed: chrono::Utc::now() - start_time,
                 })
@@ -55,7 +55,7 @@ impl ServiceTrait for KubernetesService {
 
         let (result_text, status) = match client.apiserver_version().await {
             Ok(_) => ("OK".to_string(), ServiceStatus::Ok),
-            Err(err) => (format!("CRITICAL: {}", err), ServiceStatus::Critical),
+            Err(err) => (format!("CRITICAL: {err}"), ServiceStatus::Critical),
         };
 
         Ok(CheckResult {

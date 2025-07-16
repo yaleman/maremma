@@ -71,8 +71,7 @@ impl ServiceTrait for CliService {
         if !which_cmd.exists() {
             // check if the command exists
             return Err(Error::CommandNotFound(format!(
-                "Command not found: {}",
-                cmd
+                "Command not found: {cmd}"
             )));
         }
 
@@ -163,7 +162,7 @@ mod tests {
             "cron_schedule": "* * * * *"
         }"#,
         ) {
-            Err(err) => panic!("Failed to parse service: {:?}", err),
+            Err(err) => panic!("Failed to parse service: {err:?}"),
             Ok(val) => val,
         };
         assert_eq!(service.name, "local_lslah".to_string());

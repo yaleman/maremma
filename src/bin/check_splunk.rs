@@ -125,7 +125,7 @@ async fn main() -> Result<(), String> {
                 .map(|i| format!("\"{i}\""))
                 .collect::<Vec<String>>()
                 .join(",");
-            format!("index IN ( {} )", indexes)
+            format!("index IN ( {indexes} )")
         }
         true => "index IN (_*, *)".to_string(),
     };
@@ -138,7 +138,7 @@ async fn main() -> Result<(), String> {
                 .map(|s| format!("\"{s}\""))
                 .collect::<Vec<String>>()
                 .join(",");
-            format!("sourcetype IN ( {} ) ", sourcetypes)
+            format!("sourcetype IN ( {sourcetypes} ) ")
         }
         true => "sourcetype=*".to_string(),
     };
@@ -158,13 +158,13 @@ async fn main() -> Result<(), String> {
 
     if let Some(earliest) = &args.earliest {
         payload.insert("earliest_time".to_string(), earliest.to_string());
-        time_message.push_str(&format!("over {}", earliest));
+        time_message.push_str(&format!("over {earliest}"));
     } else if let Some(lookback) = &args.lookback {
         payload.insert(
             "earliest_time".to_string(),
             format!("-{}h", lookback.parse::<u64>().unwrap_or(24)),
         );
-        time_message.push_str(&format!("over -{} hours", lookback));
+        time_message.push_str(&format!("over -{lookback} hours"));
     }
 
     if let Some(latest) = &args.latest {
@@ -177,7 +177,7 @@ async fn main() -> Result<(), String> {
 
     let client = client.build().expect("Failed to build client");
     if args.debug {
-        eprintln!("payload: {:#?}", payload);
+        eprintln!("payload: {payload:#?}");
     }
     let mut request = client
         .post(&url)
@@ -193,13 +193,12 @@ async fn main() -> Result<(), String> {
     let res = request.send().await;
 
     if args.debug {
-        eprintln!("Sending request to splunk at {}", url);
+        eprintln!("Sending request to splunk at {url}");
     }
     let res = match res {
         Err(err) => {
             eprint!(
-                "CRITICAL: Failed to send request to splunk at {}: {:?}",
-                url, err
+                "CRITICAL: Failed to send request to splunk at {url}: {err:?}"
             );
             std::process::exit(1)
         }
@@ -223,8 +222,7 @@ async fn main() -> Result<(), String> {
         Ok(val) => val,
         Err(err) => {
             print!(
-                "CRITICAL: Failed to get response body from Splunk: {:?}",
-                err
+                "CRITICAL: Failed to get response body from Splunk: {err:?}"
             );
             std::process::exit(1)
         }
@@ -239,7 +237,7 @@ async fn main() -> Result<(), String> {
                 match serde_json::from_str(l.trim()) {
                     Ok(r) => Some(r),
                     Err(_) => {
-                        eprintln!("Failed to parse this to a search result: {:?}", l);
+                        eprintln!("Failed to parse this to a search result: {l:?}");
                         None
                     }
                 }
@@ -248,7 +246,7 @@ async fn main() -> Result<(), String> {
         .collect();
 
     if args.debug {
-        eprintln!("{:#?}", results);
+        eprintln!("{results:#?}");
     }
     let result = match results.into_iter().next() {
         Some(r) => r,
@@ -282,7 +280,7 @@ async fn main() -> Result<(), String> {
     let count = match serde_json::from_value::<GetCount>(result_entry) {
         Ok(val) => val.count,
         Err(err) => {
-            print!("CRITICAL: Failed to parse count from result: {:?}", err);
+            print!("CRITICAL: Failed to parse count from result: {err:?}");
             std::process::exit(1)
         }
     };
