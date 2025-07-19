@@ -5,6 +5,7 @@ use crate::prelude::*;
 use opentelemetry::metrics::Counter;
 use opentelemetry::KeyValue;
 use rand::seq::IteratorRandom;
+use std::str::FromStr;
 use tokio::sync::Semaphore;
 
 const DEFAULT_BACKOFF: std::time::Duration = tokio::time::Duration::from_millis(50);
@@ -116,8 +117,7 @@ pub(crate) async fn run_service_check(
     // get a number between 0 and jitter
     let jitter: i64 = (0..max_jitter).choose(&mut rand::rng()).unwrap_or(0) as i64;
 
-    let next_check: DateTime<Utc> = Cron::new(&service.cron_schedule)
-        .parse()
+    let next_check: DateTime<Utc> = Cron::from_str(&service.cron_schedule)
         .inspect_err(|err| {
             error!(
                 "Failed to parse cron schedule while setting next occurrence of {:?}: {:?}",

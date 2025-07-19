@@ -161,8 +161,7 @@ mod tests {
 
         let test_service = super::PingService {
             name: "test".to_string(),
-            cron_schedule: Cron::new("* * * * *")
-                .parse()
+            cron_schedule: std::str::FromStr::from_str("* * * * *")
                 .expect("Failed to parse cron"),
             jitter: None,
             count: Some(5),
@@ -190,8 +189,7 @@ mod tests {
         }
         let test_service = super::PingService {
             name: "test".to_string(),
-            cron_schedule: Cron::new("* * * * *")
-                .parse()
+            cron_schedule: std::str::FromStr::from_str("* * * * *")
                 .expect("Failed to parse cron"),
             jitter: None,
             count: Some(5),

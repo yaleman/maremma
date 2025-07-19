@@ -111,8 +111,7 @@ mod tests {
         let service = KubernetesService {
             name: "kubernetes".to_string(),
             host,
-            cron_schedule: Cron::new("0 0 * * *")
-                .parse()
+            cron_schedule: std::str::FromStr::from_str("0 0 * * *")
                 .expect("Failed to parse cron"),
             jitter: None,
         };

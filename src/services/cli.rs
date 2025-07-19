@@ -128,6 +128,7 @@ impl ServiceTrait for CliService {
 #[cfg(test)]
 mod tests {
     use entities::host::test_host;
+    use std::str::FromStr;
 
     use crate::prelude::*;
 
@@ -174,7 +175,7 @@ mod tests {
             id: Default::default(),
             description: None,
             host_groups: vec![],
-            cron_schedule: Cron::new("@hourly").parse().expect("Failed to parse cron"),
+            cron_schedule: Cron::from_str("@hourly").expect("Failed to parse cron"),
             extra_config: HashMap::from_iter([("hello".to_string(), json!("world"))]),
             config: None
         }

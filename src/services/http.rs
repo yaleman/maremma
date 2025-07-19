@@ -192,8 +192,7 @@ async fn test_overlay_host_config() {
 
     let service = HttpService {
         name: "test".to_string(),
-        cron_schedule: Cron::new("@hourly")
-            .parse()
+        cron_schedule: std::str::FromStr::from_str("@hourly")
             .expect("Failed to parse @hourly"),
         http_method: HttpMethod::Get,
         http_uri: None,
@@ -224,7 +223,9 @@ async fn test_overlay_host_config() {
         service.cron_schedule.pattern.to_string(),
         res.cron_schedule.pattern.to_string()
     );
-    assert_eq!(res.cron_schedule.pattern.to_string(), "@daily".to_string());
+    // Both @daily and "0 0 * * *" are equivalent
+    let cron_pattern = res.cron_schedule.pattern.to_string();
+    assert!(cron_pattern == "@daily" || cron_pattern == "0 0 * * *", "Expected @daily or '0 0 * * *', got: {}", cron_pattern);
     assert_eq!(res.ca_file, Some(PathBuf::from("/dev/null")));
 }
 
