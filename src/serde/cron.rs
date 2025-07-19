@@ -1,4 +1,5 @@
 use croner::Cron;
+use std::str::FromStr;
 
 pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Cron, D::Error>
 where
@@ -8,7 +9,7 @@ where
 
     // ignore for code coverage because for some reason it doesn't pick it up?
     #[cfg(not(tarpaulin_include))]
-    Cron::new(&s).parse().map_err(serde::de::Error::custom)
+    Cron::from_str(&s).map_err(serde::de::Error::custom)
 }
 
 pub(crate) fn serialize<S>(cron: &Cron, serializer: S) -> Result<S::Ok, S::Error>
@@ -24,6 +25,7 @@ mod tests {
     use crate::prelude::*;
     use chrono::Timelike;
     use croner::Cron;
+    use std::str::FromStr;
 
     #[test]
     fn test_serde_croner() {
@@ -39,8 +41,7 @@ mod tests {
 
         let res: CronTest = serde_json::from_value(test).expect("Failed to deserialize");
 
-        let expected_cron = Cron::new("0 * * * *")
-            .parse()
+        let expected_cron = Cron::from_str("0 * * * *")
             .expect("Failed to build cron expression");
 
         let time = chrono::Local::now()

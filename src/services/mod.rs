@@ -21,6 +21,7 @@ use crate::check_loop::CheckResult;
 use crate::db::entities::{self, host};
 use crate::prelude::*;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::str::FromStr;
 
 use clap::ValueEnum;
 use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
@@ -395,7 +396,7 @@ impl Service {
             description: value.description.clone(),
             host_groups,
             service_type: value.service_type.clone(),
-            cron_schedule: Cron::new(&value.cron_schedule).parse()?,
+            cron_schedule: Cron::from_str(&value.cron_schedule)?,
             extra_config,
             config: None,
         }
@@ -571,8 +572,7 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly")
-                .parse()
+            Cron::from_str("@hourly")
                 .expect("Failed to parse cron expression")
                 .pattern
                 .to_string()
@@ -595,8 +595,7 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly")
-                .parse()
+            Cron::from_str("@hourly")
                 .expect("Failed to parse cron expression")
                 .pattern
                 .to_string()
@@ -621,8 +620,7 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly")
-                .parse()
+            Cron::from_str("@hourly")
                 .expect("Failed to parse cron expression")
                 .pattern
                 .to_string()
@@ -644,8 +642,7 @@ mod tests {
         assert_eq!(service.host_groups, vec!["test_group".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly")
-                .parse()
+            Cron::from_str("@hourly")
                 .expect("Failed to parse cron expression")
                 .pattern
                 .to_string()
@@ -667,8 +664,7 @@ mod tests {
         // assert_eq!(service.host_groups, vec!["test".to_string()]);
         assert_eq!(
             service.cron_schedule.pattern.to_string(),
-            Cron::new("@hourly")
-                .parse()
+            Cron::from_str("@hourly")
                 .expect("Failed to parse cron expression")
                 .pattern
                 .to_string()

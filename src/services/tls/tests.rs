@@ -1,5 +1,6 @@
 use sea_orm::EntityTrait;
 use serde_json::json;
+use std::str::FromStr;
 
 use uuid::Uuid;
 
@@ -314,7 +315,7 @@ async fn test_service_parser() {
         extra_config,
         config: Some(Box::new(TlsService {
             name: "tls_service".to_string(),
-            cron_schedule: croner::Cron::new("* * * * *"),
+            cron_schedule: croner::Cron::from_str("* * * * *").expect("Failed to parse cron"),
             port: 1234.try_into().expect("Failed to convert port"),
             expiry_critical: Some(1),
             expiry_warn: Some(7),
@@ -349,7 +350,7 @@ fn test_failed_service_parser() {
         extra_config: std::collections::HashMap::new(),
         config: Some(Box::new(TlsService {
             name: "tls_service".to_string(),
-            cron_schedule: croner::Cron::new("* * * * *"),
+            cron_schedule: croner::Cron::from_str("* * * * *").expect("Failed to parse cron"),
             port: 1234.try_into().expect("Failed to convert port"),
             expiry_critical: Some(1),
             expiry_warn: Some(7),

@@ -6,6 +6,7 @@ pub(crate) use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, Order, QueryFilter, QueryOrder,
     QuerySelect,
 };
+pub(crate) use std::str::FromStr;
 pub(crate) use std::sync::Arc;
 pub(crate) use tokio::sync::RwLock;
 pub(crate) use tracing::{debug, error, info, instrument, warn};

@@ -68,26 +68,26 @@ pub async fn shepherd(
     // run the clean_up_checking loop every x minutes
     let mut service_check_clean = CronTask::new(
         "ServiceCheckClean".to_string(),
-        Cron::new("* * * * *").parse()?,
+        Cron::from_str("* * * * *")?,
         Box::new(ServiceCheckCleanTask {}),
     );
 
     // run the session clean up check every hour
     let mut session_cleaner = CronTask::new(
         "SessionCleaner".to_string(),
-        Cron::new("49 * * * *").parse()?,
+        Cron::from_str("49 * * * *")?,
         Box::new(SessionCleanTask {}),
     );
 
     let mut check_cert_changed = CronTask::new(
         "CheckCertChanged".to_string(),
-        Cron::new("* * * * *").parse()?,
+        Cron::from_str("* * * * *")?,
         Box::new(CertReloaderTask::new(web_tx, config.clone()).await?),
     );
 
     let mut service_check_history_cleaner: CronTask = CronTask::new(
         "ServiceCheckHistoryCleaner".to_string(),
-        Cron::new("27 * * * *").parse()?,
+        Cron::from_str("27 * * * *")?,
         Box::new(ServiceCheckHistoryCleanerTask::new(config.clone())),
     )
     .with_last_run(Utc::now() + Duration::minutes(5));
@@ -140,8 +140,7 @@ mod tests {
 
         let mut crontask = CronTask::new(
             "test_task".to_string(),
-            Cron::new("* * * * *")
-                .parse()
+            Cron::from_str("* * * * *")
                 .expect("Failed to create cron"),
             Box::new(SessionCleanTask {}),
         );

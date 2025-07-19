@@ -198,7 +198,6 @@ mod tests {
     use crate::db::{MaremmaEntity, Service, ServiceType};
 
     use super::*;
-    use croner::Cron;
     use sea_orm::ModelTrait;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use serde_json::{json, Value};
@@ -284,8 +283,7 @@ mod tests {
                 Some("New Description".to_string()),
                 vec!["test".to_string()],
                 ServiceType::Cli,
-                Cron::new(&service.cron_schedule)
-                    .parse()
+                std::str::FromStr::from_str(&service.cron_schedule)
                     .expect("couldn't parse cron schedule"),
                 extra_config,
             ),
