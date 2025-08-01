@@ -24,7 +24,7 @@ axum = { version = "0.8.4", features = [
 axum-oidc = { git = "https://github.com/pfzetto/axum-oidc", branch = "pfzetto" }                               # until https://github.com/pfzetto/axum-oidc/pull/23 is merged
 axum-server = { version = "0.7.2", features = ["rustls", "tls-rustls"] }
 chrono = "0.4.41"
-clap = { version = "4.5.41", features = ["derive", "env"] }
+clap = { version = "4.5.42", features = ["derive", "env"] }
 croner = "3.0.0"
 env_logger = { version = "0.11.6", features = ["color", "default"] }
 log = { version = "0.4.27", features = ["release_max_level_debug"] }
@@ -48,7 +48,7 @@ reqwest = { version = "0.12.22", features = [
   "json",
   "rustls-tls",
 ], default-features = false }
-rustls = { version = "0.23.29", features = ["zlib"] }
+rustls = { version = "0.23.31", features = ["zlib"] }
 schemars = { version = "0.8.22", features = [
   "uuid1",
   "url",
@@ -56,7 +56,7 @@ schemars = { version = "0.8.22", features = [
   "preserve_order",
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.141"
+serde_json = "1.0.142"
 sha256 = "1.6.0"
 sea-orm = { version = "1.1.14", features = [
   "runtime-tokio-rustls",
@@ -77,7 +77,7 @@ sqlx = { version = "0.8.6", default-features = false }
 ssh-rs = "0.5.0"
 surge-ping = "0.8.2"
 time = "0.3.41"
-tokio = { version = "1.46.1", features = [
+tokio = { version = "1.47.1", features = [
   "rt-multi-thread",
   "macros",
   "process",
@@ -104,4 +104,4 @@ askama_web = { version = "0.14.5", features = ["axum-0.8"] }
 openidconnect = { version = "4.0.1", default-features = false }
 openssl = { version = "0.10.73" }
 tempfile = "3.20.0"
-testcontainers = { version = "0.24.0" }
+testcontainers = { version = "0.25.0" }
