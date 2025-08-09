@@ -24,7 +24,7 @@ axum = { version = "0.8.4", features = [
 axum-oidc = { git = "https://github.com/pfzetto/axum-oidc", branch = "pfzetto" }                               # until https://github.com/pfzetto/axum-oidc/pull/23 is merged
 axum-server = { version = "0.7.2", features = ["rustls", "tls-rustls"] }
 chrono = "0.4.41"
-clap = { version = "4.5.42", features = ["derive", "env"] }
+clap = { version = "4.5.43", features = ["derive", "env"] }
 croner = "3.0.0"
 env_logger = { version = "0.11.6", features = ["color", "default"] }
 log = { version = "0.4.27", features = ["release_max_level_debug"] }
@@ -95,10 +95,10 @@ x509-parser = "0.17.0"
 webpki = "0.22.4"
 rustls-webpki = { version = "0.103.3", features = ["aws-lc-rs"] }
 futures = "0.3.31"
-sea-query = "0.32.6"
+sea-query = "0.32.7"
 which = { version = "8.0.0", features = ["tracing"] }
 console-subscriber = "0.4.1"
-askama_web = { version = "0.14.5", features = ["axum-0.8"] }
+askama_web = { version = "0.14.6", features = ["axum-0.8"] }
 
 [dev-dependencies]
 openidconnect = { version = "4.0.1", default-features = false }

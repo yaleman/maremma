@@ -8,6 +8,7 @@ pub(crate) use askama::Template;
 pub(crate) use askama_web::WebTemplate;
 pub(crate) use axum::extract::{Path, Query, State};
 pub(crate) use axum::response::Redirect;
+#[cfg(test)]
 pub(crate) use chrono::{DateTime, Local};
 use sea_orm::EnumIter;
 pub(crate) use serde::Deserialize;
@@ -96,6 +97,7 @@ impl OrderFields {
     }
 }
 
+#[cfg(test)]
 #[derive(Eq, PartialEq)]
 /// used in Askama templates for displaying checks
 pub struct Check {
@@ -108,12 +110,14 @@ pub struct Check {
     pub last_updated: DateTime<Local>,
 }
 
+#[cfg(test)]
 impl Ord for Check {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.ordervalue.cmp(&other.ordervalue)
     }
 }
 
+#[cfg(test)]
 impl PartialOrd for Check {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
