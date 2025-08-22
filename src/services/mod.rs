@@ -82,7 +82,7 @@ impl Ord for ServiceStatus {
 
 impl PartialOrd for ServiceStatus {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(i8::from(*self).cmp(&i8::from(*other)))
+        Some(self.cmp(other))
     }
 }
 
