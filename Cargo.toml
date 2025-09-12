@@ -23,13 +23,13 @@ axum = { version = "0.8.4", features = [
 # axum-oidc = "0.6.0"
 axum-oidc = { git = "https://github.com/pfzetto/axum-oidc", branch = "pfzetto" }                               # until https://github.com/pfzetto/axum-oidc/pull/23 is merged
 axum-server = { version = "0.7.2", features = ["rustls", "tls-rustls"] }
-chrono = "0.4.41"
+chrono = "0.4.42"
 clap = { version = "4.5.47", features = ["derive", "env"] }
 croner = "3.0.0"
 env_logger = { version = "0.11.6", features = ["color", "default"] }
 log = { version = "0.4.28", features = ["release_max_level_debug"] }
-kube = { version = "1.1.0", features = ["config"] }
-k8s-openapi = { version = "0.25.0", features = ["latest"] }
+kube = { version = "2.0.0", features = ["config"] }
+k8s-openapi = { version = "0.26.0", features = ["latest"] }
 num_cpus = "1.17.0"
 opentelemetry = "0.30.0"
 opentelemetry-prometheus = { git = "https://github.com/yaleman/opentelemetry-rust.git", branch = "prom-0.26" }
@@ -58,7 +58,7 @@ schemars = { version = "0.8.22", features = [
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 sha256 = "1.6.0"
-sea-orm = { version = "1.1.15", features = [
+sea-orm = { version = "1.1.16", features = [
   "runtime-tokio-rustls",
   "sqlx-sqlite",
   "with-chrono",
@@ -67,7 +67,7 @@ sea-orm = { version = "1.1.15", features = [
   "debug-print",
   "mock",
 ] }
-sea-orm-migration = { version = "1.1.15", default-features = false, features = [
+sea-orm-migration = { version = "1.1.16", default-features = false, features = [
   "sqlx-sqlite",
   "with-chrono",
   "with-json",
@@ -103,5 +103,5 @@ askama_web = { version = "0.14.6", features = ["axum-0.8"] }
 [dev-dependencies]
 openidconnect = { version = "4.0.1", default-features = false }
 openssl = { version = "0.10.73" }
-tempfile = "3.21.0"
+tempfile = "3.22.0"
 testcontainers = { version = "0.25.0" }
