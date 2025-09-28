@@ -21,14 +21,6 @@ pub(crate) struct HostTemplate {
     csrf_token: String,
 }
 
-#[derive(Default, Deserialize, Debug)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum Order {
-    Asc,
-    #[default]
-    Desc,
-}
-
 /// Host view
 pub(crate) async fn host(
     Path(host_id): Path<Uuid>,
