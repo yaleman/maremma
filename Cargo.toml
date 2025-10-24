@@ -24,7 +24,7 @@ axum = { version = "0.8.6", features = [
 axum-oidc = { git = "https://github.com/pfzetto/axum-oidc", branch = "pfzetto" }                               # until https://github.com/pfzetto/axum-oidc/pull/23 is merged
 axum-server = { version = "0.7.2", features = ["rustls", "tls-rustls"] }
 chrono = "0.4.42"
-clap = { version = "4.5.49", features = ["derive", "env"] }
+clap = { version = "4.5.50", features = ["derive", "env"] }
 croner = "3.0.0"
 env_logger = { version = "0.11.6", features = ["color", "default"] }
 log = { version = "0.4.28", features = ["release_max_level_debug"] }
