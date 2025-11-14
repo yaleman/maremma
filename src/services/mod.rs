@@ -30,7 +30,17 @@ use serde_json::Map;
 
 use crate::errors::Error;
 #[derive(
-    Deserialize, Debug, Serialize, PartialEq, Eq, Copy, Clone, DeriveActiveEnum, EnumIter, Iden,
+    Default,
+    Deserialize,
+    Debug,
+    Serialize,
+    PartialEq,
+    Eq,
+    Copy,
+    Clone,
+    DeriveActiveEnum,
+    EnumIter,
+    Iden,
 )]
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
@@ -40,6 +50,7 @@ pub enum ServiceStatus {
     #[sea_orm(string_value = "ok")]
     Ok,
     #[sea_orm(string_value = "pending")]
+    #[default]
     Pending,
     #[sea_orm(string_value = "critical")]
     Critical,
@@ -96,12 +107,6 @@ impl Display for ServiceStatus {
                 .next_back()
                 .unwrap_or(format!("{self:?}").as_str()) // should never trigger this
         )
-    }
-}
-
-impl Default for ServiceStatus {
-    fn default() -> Self {
-        Self::Pending
     }
 }
 
