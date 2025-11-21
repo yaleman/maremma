@@ -20,7 +20,7 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: Swatinem/rust-cache@v2
 
       - name: Setup sccache
@@ -30,7 +30,7 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9
       - name: "Run fmt"
