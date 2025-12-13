@@ -344,6 +344,8 @@ fn check_certs_exist(
 /// Start and run the web server
 #[cfg(not(tarpaulin_include))]
 pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Result<(), Error> {
+    use std::net::SocketAddr;
+
     let configuration_reader = configuration.read().await;
 
     let listen_address = configuration_reader.listen_addr();
@@ -354,7 +356,7 @@ pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Res
         .await
         .map_err(|err| Error::Generic(format!("Failed to load TLS config: {err:?}")))?;
     bind_rustls(
-        listen_address.parse().map_err(|err| {
+        listen_address.parse::<SocketAddr>().map_err(|err| {
             Error::Generic(format!(
                 "Failed to parse listen address {listen_address}: {err:?}"
             ))
