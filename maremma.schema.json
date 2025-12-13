@@ -1,22 +1,13 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Configuration",
   "description": "The result of parsing the configuration file, don't instantiate this directly!",
   "type": "object",
-  "required": [
-    "cert_file",
-    "cert_key",
-    "frontend_url",
-    "hosts",
-    "max_history_entries_per_check",
-    "oidc_client_id",
-    "oidc_issuer"
-  ],
   "properties": {
     "database_file": {
       "description": "Path to the database file (or `:memory:` for in-memory)",
-      "default": "maremma.sqlite",
-      "type": "string"
+      "type": "string",
+      "default": "maremma.sqlite"
     },
     "static_path": {
       "description": "The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]",
@@ -27,8 +18,8 @@
     },
     "listen_address": {
       "description": "The listen address, eg `0.0.0.0` or `127.0.0.1``",
-      "default": "127.0.0.1",
-      "type": "string"
+      "type": "string",
+      "default": "127.0.0.1"
     },
     "listen_port": {
       "description": "Defaults to 8888",
@@ -37,33 +28,30 @@
         "null"
       ],
       "format": "uint16",
-      "minimum": 1.0
+      "minimum": 1,
+      "maximum": 65535
     },
     "hosts": {
       "description": "Host configuration",
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/definitions/Host"
+        "$ref": "#/$defs/Host"
       }
     },
     "local_services": {
       "description": "Services to run locally",
+      "$ref": "#/$defs/FakeHost",
       "default": {
         "services": []
-      },
-      "allOf": [
-        {
-          "$ref": "#/definitions/FakeHost"
-        }
-      ]
+      }
     },
     "services": {
       "description": "Service configuration",
-      "default": {},
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/definitions/Service"
-      }
+        "$ref": "#/$defs/Service"
+      },
+      "default": {}
     },
     "frontend_url": {
       "description": "The frontend URL ie `https://maremma.example.com` used for things like OIDC",
@@ -94,31 +82,36 @@
     },
     "max_concurrent_checks": {
       "description": "The maximum concurrent checks we'll run at one time",
-      "default": 10,
       "type": "integer",
       "format": "uint",
-      "minimum": 0.0
+      "minimum": 0,
+      "default": 10
     },
     "max_history_entries_per_check": {
       "description": "How many history entries to keep per check, defaults to 25000 ([crate::constants::DEFAULT_HISTORY_LIMIT]), setting this too high can cause slowdowns.",
       "type": "integer",
       "format": "uint64",
-      "minimum": 0.0
+      "minimum": 0
     }
   },
-  "definitions": {
+  "required": [
+    "hosts",
+    "frontend_url",
+    "oidc_issuer",
+    "oidc_client_id",
+    "cert_file",
+    "cert_key",
+    "max_history_entries_per_check"
+  ],
+  "$defs": {
     "Host": {
       "description": "A generic host",
       "type": "object",
       "properties": {
         "check": {
           "description": "The kind of check",
-          "default": "ping",
-          "allOf": [
-            {
-              "$ref": "#/definitions/HostCheck"
-            }
-          ]
+          "$ref": "#/$defs/HostCheck",
+          "default": "ping"
         },
         "hostname": {
           "description": "The hostname",
@@ -129,11 +122,11 @@
         },
         "host_groups": {
           "description": "Groups that this host is part of",
-          "default": [],
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "default": []
         },
         "config": {
           "description": "Extra configuration for services, the key matches the service name",
@@ -149,39 +142,28 @@
         {
           "description": "No checks done",
           "type": "string",
-          "enum": [
-            "none"
-          ]
+          "const": "none"
         },
         {
           "description": "Checks by pinging the host",
           "type": "string",
-          "enum": [
-            "ping"
-          ]
+          "const": "ping"
         },
         {
           "description": "Checks by trying to SSH to the host",
           "type": "string",
-          "enum": [
-            "ssh"
-          ]
+          "const": "ssh"
         },
         {
           "description": "Checks we can connect to the Kubernetes API",
           "type": "string",
-          "enum": [
-            "kubernetes"
-          ]
+          "const": "kubernetes"
         }
       ]
     },
     "FakeHost": {
       "description": "Used as part of local-only service checks",
       "type": "object",
-      "required": [
-        "services"
-      ],
       "properties": {
         "services": {
           "description": "Services on this host",
@@ -190,22 +172,20 @@
             "type": "string"
           }
         }
-      }
+      },
+      "required": [
+        "services"
+      ]
     },
     "Service": {
       "description": "Base service type",
       "type": "object",
-      "required": [
-        "cron_schedule",
-        "host_groups",
-        "service_type"
-      ],
       "properties": {
         "id": {
           "description": "The internal ID of the service, regenerated internally if not provided",
-          "default": "00000000-0000-0000-0000-000000000000",
           "type": "string",
-          "format": "uuid"
+          "format": "uuid",
+          "default": "00000000-0000-0000-0000-000000000000"
         },
         "name": {
           "description": "This is pulled from the config file's key",
@@ -230,17 +210,18 @@
         },
         "service_type": {
           "description": "What kind of service it is",
-          "allOf": [
-            {
-              "$ref": "#/definitions/ServiceType"
-            }
-          ]
+          "$ref": "#/$defs/ServiceType"
         },
         "cron_schedule": {
           "description": "Cron schedule for the service, eg `@hourly`, `* * * * * *` or `0 0 * * *`",
           "type": "string"
         }
       },
+      "required": [
+        "host_groups",
+        "service_type",
+        "cron_schedule"
+      ],
       "additionalProperties": true
     },
     "ServiceType": {
@@ -249,37 +230,27 @@
         {
           "description": "CLI service",
           "type": "string",
-          "enum": [
-            "cli"
-          ]
+          "const": "cli"
         },
         {
           "description": "SSH service",
           "type": "string",
-          "enum": [
-            "ssh"
-          ]
+          "const": "ssh"
         },
         {
           "description": "Ping service",
           "type": "string",
-          "enum": [
-            "ping"
-          ]
+          "const": "ping"
         },
         {
           "description": "HTTP service",
           "type": "string",
-          "enum": [
-            "http"
-          ]
+          "const": "http"
         },
         {
           "description": "TLS service",
           "type": "string",
-          "enum": [
-            "tls"
-          ]
+          "const": "tls"
         }
       ]
     }
