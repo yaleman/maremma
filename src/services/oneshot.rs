@@ -1,5 +1,7 @@
 //! Implements the `oneshot` CLI command and its related functions
 
+use schemars::Schema;
+
 use crate::cli::OneShotCmd;
 use crate::prelude::*;
 use crate::services::cli::CliService;
@@ -17,7 +19,7 @@ fn oneshot_uuid() -> Uuid {
 }
 
 fn export_config(cmd: &OneShotCmd) -> (String, String) {
-    let schema: RootSchema = match cmd.check {
+    let schema: Schema = match cmd.check {
         ServiceType::Cli => schema_for!(CliService),
         ServiceType::Ssh => schema_for!(SshService),
         ServiceType::Ping => schema_for!(PingService),

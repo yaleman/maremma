@@ -30,7 +30,6 @@ pub(crate) use sea_orm::IntoActiveModel;
 
 pub(crate) use opentelemetry::metrics::Meter;
 
-pub(crate) use schemars::schema::RootSchema;
 pub(crate) use schemars::{schema_for, JsonSchema};
 
 #[cfg(test)]

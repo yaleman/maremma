@@ -33,27 +33,7 @@ k8s-openapi = { version = "0.26.1", features = ["latest"] }
 num_cpus = "1.17.0"
 opentelemetry = "0.31.0"
 
-opentelemetry-stdout = "0.31.0"
-opentelemetry_sdk = { version = "0.31.0", features = [
-  "rt-tokio",
-  "serde",
-  "tokio",
-  "url",
-] }
-prometheus = "0.14.0"
-rand = "0.9.2"
-reqwest = { version = "0.12.25", features = [
-  "http2",
-  "json",
-  "rustls-tls",
-], default-features = false }
-rustls = { version = "0.23.35", features = ["zlib"] }
-schemars = { version = "0.8.22", features = [
-  "uuid1",
-  "url",
-  "chrono",
-  "preserve_order",
-] }
+schemars = { version = "1.1.0", features = ["uuid1", "preserve_order"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 sha256 = "1.6.0"
@@ -98,6 +78,22 @@ sea-query = "0.32.7"
 which = { version = "8.0.0", features = ["tracing"] }
 console-subscriber = "0.5.0"
 askama_web = { version = "0.14.6", features = ["axum-0.8"] }
+opentelemetry-stdout = "0.31.0"
+opentelemetry_sdk = { version = "0.31.0", features = [
+  "rt-tokio",
+  "serde",
+  "tokio",
+  "url",
+] }
+prometheus = "0.14.0"
+rand = "0.9.2"
+reqwest = { version = "0.12.25", features = [
+  "http2",
+  "json",
+  "rustls-tls",
+], default-features = false }
+rustls = { version = "0.23.35", features = ["zlib"] }
+
 
 [dev-dependencies]
 openidconnect = { version = "4.0.1", default-features = false }
