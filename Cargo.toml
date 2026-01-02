@@ -11,7 +11,7 @@ default-run = "maremma"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 
 [dependencies]
-askama = { version = "0.15.0" }
+askama = { version = "0.15.1" }
 async-trait = "0.1.89"
 axum = { version = "0.8.8", features = [
   "http2",
@@ -50,7 +50,7 @@ reqwest = { version = "0.12.28", features = [
 rustls = { version = "0.23.35", features = ["zlib"] }
 schemars = { version = "1.2.0", features = ["uuid1", "preserve_order"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.147"
+serde_json = "1.0.148"
 sha256 = "1.6.0"
 sea-orm = { version = "1.1.19", features = [
   "runtime-tokio-rustls",
