@@ -87,12 +87,12 @@ uuid = { version = "1.19.0", features = ["serde", "v4"] }
 webpki-roots = "1.0.5"
 x509-parser = "0.18.0"
 webpki = "0.22.4"
-rustls-webpki = { version = "0.103.8", features = ["aws-lc-rs"] }
+rustls-webpki = { version = "0.103.9", features = ["aws-lc-rs"] }
 futures = "0.3.31"
 sea-query = "0.32.7"
 which = { version = "8.0.0", features = ["tracing"] }
 console-subscriber = "0.5.0"
-askama_web = { version = "0.15.0", features = ["axum-0.8"] }
+askama_web = { version = "0.15.1", features = ["axum-0.8"] }
 
 [dev-dependencies]
 openidconnect = { version = "4.0.1", default-features = false }
