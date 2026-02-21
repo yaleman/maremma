@@ -312,6 +312,7 @@ impl ServiceTrait for HttpService {
                 env!("CARGO_PKG_NAME"),
                 env!("CARGO_PKG_VERSION")
             ))
+            .tls_backend_rustls()
             .danger_accept_invalid_certs(!config.validate_tls)
             .danger_accept_invalid_hostnames(!config.validate_tls)
             // don't allow us to be redirected!
@@ -394,7 +395,7 @@ mod tests {
         let host = entities::host::Model {
             id: Uuid::new_v4(),
             name: "test".to_string(),
-            hostname: "example.com".to_string(),
+            hostname: "yaleman.org".to_string(),
             check: crate::host::HostCheck::None,
             config: json!({}),
         };

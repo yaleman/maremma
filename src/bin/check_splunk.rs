@@ -197,9 +197,7 @@ async fn main() -> Result<(), String> {
     }
     let res = match res {
         Err(err) => {
-            eprint!(
-                "CRITICAL: Failed to send request to splunk at {url}: {err:?}"
-            );
+            eprint!("CRITICAL: Failed to send request to splunk at {url}: {err:?}");
             std::process::exit(1)
         }
         Ok(res) => res,
@@ -221,16 +219,14 @@ async fn main() -> Result<(), String> {
     let body = match res.text().await {
         Ok(val) => val,
         Err(err) => {
-            print!(
-                "CRITICAL: Failed to get response body from Splunk: {err:?}"
-            );
+            print!("CRITICAL: Failed to get response body from Splunk: {err:?}");
             std::process::exit(1)
         }
     };
 
     let results: Vec<SearchResult> = body
         .lines()
-        .filter_map(|l| {
+        .filter_map(|l: &str| {
             if l.trim().is_empty() {
                 None
             } else {
