@@ -29,7 +29,7 @@ croner = "3.0.1"
 env_logger = { version = "0.11.9", features = ["color", "default"] }
 log = { version = "0.4.29", features = ["release_max_level_debug"] }
 kube = { version = "3.0.1", features = ["config"] }
-k8s-openapi = { version = "0.27.0", features = ["latest"] }
+k8s-openapi = { version = "0.27.1", features = ["latest"] }
 num_cpus = "1.17.0"
 opentelemetry = "0.31.0"
 
@@ -72,7 +72,7 @@ sqlx = { version = "0.8.6", default-features = false }
 ssh-rs = "0.5.0"
 surge-ping = "0.8.4"
 time = "0.3.47"
-tokio = { version = "1.49.0", features = [
+tokio = { version = "1.50.0", features = [
   "rt-multi-thread",
   "macros",
   "process",
@@ -91,7 +91,7 @@ webpki = "0.22.4"
 rustls-webpki = { version = "0.103.9", features = ["aws-lc-rs"] }
 futures = "0.3.32"
 sea-query = "0.32.7"
-which = { version = "8.0.0", features = ["tracing"] }
+which = { version = "8.0.1", features = ["tracing"] }
 console-subscriber = "0.5.0"
 askama_web = { version = "0.15.1", features = ["axum-0.8"] }
 
