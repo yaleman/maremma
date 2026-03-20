@@ -15,7 +15,7 @@ use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri};
 use axum::response::{IntoResponse, Redirect};
-use axum::routing::{get, post};
+use axum::routing::{any, get, post};
 use axum::Router;
 use axum_oidc::error::MiddlewareError;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
@@ -175,10 +175,6 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, E
         .with_expiry(Expiry::OnInactivity(Duration::seconds(1800)));
 
     let protected_routes = Router::new()
-        .route(
-            Urls::Login.as_ref(),
-            get(Redirect::temporary(Urls::Index.as_ref())),
-        )
         .route(Urls::Profile.as_ref(), get(views::profile::profile))
         .route(Urls::Services.as_ref(), get(views::service::services))
         .route(
@@ -251,10 +247,14 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, E
         let frontend_url = config_reader.frontend_url.clone();
         drop(config_reader);
 
-        let frontend_url = Uri::from_str(&frontend_url)
-            .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {err:?}")))?;
+        let oidc_redirect_url = oidc_redirect_uri(&frontend_url)?;
         debug!("Frontend URL: {:?}", frontend_url);
+        debug!("OIDC redirect URL: {:?}", oidc_redirect_url);
         let oidc_error_handler = OidcErrorHandler::new(state.web_tx.clone());
+        let oidc_callback_routes = Router::new().route(
+            Urls::Login.as_ref(),
+            any(axum_oidc::handle_oidc_redirect::<EmptyAdditionalClaims>),
+        );
 
         let oidc_login_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
@@ -267,7 +267,7 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, E
             .with_default_http_client()
             .add_scope("openid")
             .add_scope("groups")
-            .with_redirect_url(frontend_url)
+            .with_redirect_url(oidc_redirect_url)
             .with_client_id(oidc_client_id);
 
         if let Some(oidc_client_secret) = oidc_client_secret {
@@ -294,6 +294,7 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, E
         protected_routes
             .layer(oidc_login_service)
             .merge(auth_only_routes)
+            .merge(oidc_callback_routes)
             .layer(oidc_auth_service)
     } else {
         #[cfg(test)]
@@ -313,6 +314,17 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, E
         .layer(TraceLayer::new_for_http())
         .layer(session_layer)
         .with_state(state))
+}
+
+fn oidc_redirect_uri(frontend_url: &str) -> Result<Uri, Error> {
+    let callback_url = format!(
+        "{}{}",
+        frontend_url.trim_end_matches('/'),
+        Urls::Login.as_ref()
+    );
+
+    Uri::from_str(&callback_url)
+        .map_err(|err| Error::Configuration(format!("Failed to parse OIDC callback URL: {err:?}")))
 }
 
 #[cfg(test)]
@@ -596,6 +608,17 @@ mod tests {
         let _res = OidcErrorHandler::new(Some(tx))
             .handle_oidc_error(&MiddlewareError::SessionNotFound)
             .await;
+    }
+
+    #[test]
+    fn test_oidc_redirect_uri() {
+        let redirect_uri =
+            oidc_redirect_uri("https://example.com").expect("Failed to build OIDC redirect URI");
+
+        assert_eq!(
+            redirect_uri,
+            Uri::from_static("https://example.com/auth/login")
+        );
     }
 
     #[tokio::test]
