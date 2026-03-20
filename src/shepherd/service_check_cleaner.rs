@@ -6,10 +6,9 @@ pub(crate) struct ServiceCheckCleanTask {}
 
 #[async_trait]
 impl CronTaskTrait for ServiceCheckCleanTask {
-    async fn run(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
+    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error> {
         debug!("Checking for stuck service checks...");
 
-        let db_writer = db.write().await;
         let res = entities::service_check::Entity::update_many()
             .col_expr(
                 entities::service_check::Column::Status,
@@ -23,9 +22,8 @@ impl CronTaskTrait for ServiceCheckCleanTask {
                             .lt(Utc::now() - chrono::Duration::minutes(STUCK_CHECK_MINUTES)),
                     ),
             )
-            .exec(&*db_writer)
+            .exec(db.as_ref())
             .await?;
-        drop(db_writer);
         if res.rows_affected == 0 {
             debug!("No stuck service checks found.");
         } else {

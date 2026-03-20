@@ -374,28 +374,68 @@ mod tests {
     use crate::tests::testcontainers::TestContainer;
     use crate::tests::tls_utils::TestCertificateBuilder;
     use crate::web::urls::Urls;
+    use axum::body::Body;
+    use axum::http::StatusCode as AxumStatusCode;
+    use axum::response::IntoResponse;
+    use axum::routing::get;
+    use axum::Router;
+    use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
+
+    struct TestHttpServer {
+        port: u16,
+        task: JoinHandle<()>,
+    }
+
+    impl Drop for TestHttpServer {
+        fn drop(&mut self) {
+            self.task.abort();
+        }
+    }
+
+    async fn spawn_http_server(app: Router) -> TestHttpServer {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("Failed to bind test HTTP listener");
+        let port = listener
+            .local_addr()
+            .expect("Failed to read local address for test HTTP listener")
+            .port();
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("Failed to run local test HTTP server");
+        });
+
+        TestHttpServer { port, task }
+    }
 
     #[tokio::test]
     async fn test_httpservice() {
+        let test_server = spawn_http_server(
+            Router::new().route("/", get(|| async { AxumStatusCode::OK.into_response() })),
+        )
+        .await;
+
         let service = super::HttpService {
             name: "test".to_string(),
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
-            validate_tls: true,
+            validate_tls: false,
             connect_timeout: Some(5),
-            port: None,
+            port: Some(NonZeroU16::new(test_server.port).expect("Failed to parse local test port")),
             http_uri: None,
             contains_string: None,
             http_status: None,
             ca_file: None,
             jitter: None,
-            use_http: None,
+            use_http: Some(true),
         };
 
         let host = entities::host::Model {
             id: Uuid::new_v4(),
             name: "test".to_string(),
-            hostname: "yaleman.org".to_string(),
+            hostname: "127.0.0.1".to_string(),
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
@@ -417,6 +457,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_site_contains_string() {
+        if !crate::tests::require_live_tests("test_site_contains_string") {
+            return;
+        }
+
         let _ = test_setup().await.expect("Failed to setup test");
 
         let certs = TestCertificateBuilder::new()
@@ -475,8 +519,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_github_com_status_code() {
+    async fn test_expected_status_code_with_local_server() {
         let _ = test_setup().await.expect("Failed to setup test");
+
+        let test_server = spawn_http_server(Router::new().route(
+            "/",
+            get(|| async {
+                (
+                    AxumStatusCode::MOVED_PERMANENTLY,
+                    [(axum::http::header::LOCATION, "/moved")],
+                    Body::empty(),
+                )
+                    .into_response()
+            }),
+        ))
+        .await;
 
         let service = super::HttpService {
             name: "test".to_string(),
@@ -484,9 +541,9 @@ mod tests {
             http_status: Some(NonZeroU16::new(301).expect("failed to parse 301 as non-zero u16")),
             http_method: HttpMethod::Get,
             http_uri: None,
-            validate_tls: true,
+            validate_tls: false,
             connect_timeout: None,
-            port: None,
+            port: Some(NonZeroU16::new(test_server.port).expect("Failed to parse local test port")),
             contains_string: None,
             ca_file: None,
             jitter: None,
@@ -495,7 +552,7 @@ mod tests {
         let mut host = entities::host::Model {
             id: Uuid::new_v4(),
             name: "test".to_string(),
-            hostname: "github.com".to_string(),
+            hostname: "127.0.0.1".to_string(),
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
@@ -511,7 +568,6 @@ mod tests {
             "test": {
                 "http_status": 404,
                 "connect_timeout" : 5,
-                "port" : 443,
             }
         });
 
@@ -527,6 +583,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_skip_tls_verify() {
+        if !crate::tests::require_live_tests("test_skip_tls_verify") {
+            return;
+        }
+
         let _ = test_setup().await.expect("Failed to setup test");
 
         let certs = TestCertificateBuilder::new()

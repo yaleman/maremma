@@ -81,7 +81,7 @@ impl CertReloaderTask {
 
 #[async_trait]
 impl CronTaskTrait for CertReloaderTask {
-    async fn run(&mut self, _db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
+    async fn run(&mut self, _db: Arc<DatabaseConnection>) -> Result<(), Error> {
         let (cert_time, key_time) = get_file_times(self.config.clone()).await?;
 
         if cert_time != self.cert_time || key_time != self.key_time {

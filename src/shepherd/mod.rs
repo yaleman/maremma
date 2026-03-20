@@ -11,7 +11,6 @@ use prelude::*;
 use service_check_cleaner::ServiceCheckCleanTask;
 use service_check_history_cleaner::ServiceCheckHistoryCleanerTask;
 use session_cleaner::SessionCleanTask;
-use tokio::sync::RwLock;
 
 pub(crate) struct CronTask {
     name: String,
@@ -35,7 +34,7 @@ impl CronTask {
     }
 
     #[instrument(level = "INFO", skip_all)]
-    async fn run_task(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<bool, Error> {
+    async fn run_task(&mut self, db: Arc<DatabaseConnection>) -> Result<bool, Error> {
         if self.should_run()? {
             self.task
                 .run(db)
@@ -56,12 +55,12 @@ impl CronTask {
 
 #[async_trait]
 pub(crate) trait CronTaskTrait {
-    async fn run(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error>;
+    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error>;
 }
 
 /// The shepherd wanders around making sure things are in order.
 pub async fn shepherd(
-    db: Arc<RwLock<DatabaseConnection>>,
+    db: Arc<DatabaseConnection>,
     config: SendableConfig,
     web_tx: tokio::sync::mpsc::Sender<WebServerControl>,
 ) -> Result<(), Error> {
@@ -121,6 +120,7 @@ pub async fn shepherd(
 #[cfg(test)]
 mod tests {
     use croner::Cron;
+    use sea_orm::{EntityTrait, QueryOrder};
 
     use super::*;
     use crate::db::tests::test_setup;
@@ -134,14 +134,70 @@ mod tests {
             .await
             .expect("Failed to run ServiceCheckCleanTask");
     }
+
+    #[tokio::test]
+    async fn test_servicecheckcleantask_only_resets_stale_checks() {
+        let (db, _config) = test_setup().await.expect("Failed to set up tests");
+        let service_checks = entities::service_check::Entity::find()
+            .order_by_asc(entities::service_check::Column::LastUpdated)
+            .all(db.as_ref())
+            .await
+            .expect("Failed to query service checks");
+
+        let recent_check = service_checks
+            .first()
+            .cloned()
+            .expect("Expected at least one service check");
+        let stale_check = service_checks
+            .get(1)
+            .cloned()
+            .unwrap_or_else(|| recent_check.clone());
+
+        recent_check
+            .set_status(ServiceStatus::Checking, db.as_ref())
+            .await
+            .expect("Failed to mark recent service check as checking");
+        stale_check
+            .set_status(ServiceStatus::Checking, db.as_ref())
+            .await
+            .expect("Failed to mark stale service check as checking");
+
+        entities::service_check::Entity::update_many()
+            .col_expr(
+                entities::service_check::Column::LastUpdated,
+                Expr::value(Utc::now() - chrono::Duration::minutes(STUCK_CHECK_MINUTES + 1)),
+            )
+            .filter(entities::service_check::Column::Id.eq(stale_check.id))
+            .exec(db.as_ref())
+            .await
+            .expect("Failed to age stale service check");
+
+        let mut task = ServiceCheckCleanTask {};
+        task.run(db.clone())
+            .await
+            .expect("Failed to run ServiceCheckCleanTask");
+
+        let fresh_after = entities::service_check::Entity::find_by_id(recent_check.id)
+            .one(db.as_ref())
+            .await
+            .expect("Failed to reload fresh service check")
+            .expect("Failed to find fresh service check");
+        let stale_after = entities::service_check::Entity::find_by_id(stale_check.id)
+            .one(db.as_ref())
+            .await
+            .expect("Failed to reload stale service check")
+            .expect("Failed to find stale service check");
+
+        assert_eq!(fresh_after.status, ServiceStatus::Checking);
+        assert_eq!(stale_after.status, ServiceStatus::Pending);
+    }
     #[tokio::test]
     async fn test_sessioncleantask() {
         let (db, _config) = test_setup().await.expect("Failed to set up tests");
 
         let mut crontask = CronTask::new(
             "test_task".to_string(),
-            Cron::from_str("* * * * *")
-                .expect("Failed to create cron"),
+            Cron::from_str("* * * * *").expect("Failed to create cron"),
             Box::new(SessionCleanTask {}),
         );
 

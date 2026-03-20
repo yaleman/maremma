@@ -209,7 +209,7 @@ mod tests {
     async fn test_service_entity() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_writer = db.write().await;
+        let db_writer = db.as_ref();
 
         let service = test_service();
         info!("saving service... {:?}", &service);
@@ -246,7 +246,7 @@ mod tests {
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db.write().await)
+            .one(db.as_ref())
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -258,7 +258,7 @@ mod tests {
     async fn test_config_updates() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_lock = db.write().await;
+        let db_lock = db.as_ref();
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
@@ -310,7 +310,7 @@ mod tests {
 
         let (service, groups) = super::Entity::find()
             .find_with_linked(crate::db::entities::service_group_link::ServiceToGroups)
-            .all(&*db.write().await)
+            .all(db.as_ref())
             .await
             .expect("Failed to run query looking for a service with host groups")
             .into_iter()
@@ -324,7 +324,7 @@ mod tests {
     async fn test_find_related_service_to_service_check() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_lock = db.write().await;
+        let db_lock = db.as_ref();
 
         let service = super::Entity::find()
             .one(&*db_lock)

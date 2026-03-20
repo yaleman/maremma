@@ -21,15 +21,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[derive(Debug, Clone)]
 pub struct ModelStore {
-    db: Arc<RwLock<DatabaseConnection>>,
-}
-
-impl ModelStore {
-    pub async fn get_db_lock(
-        &self,
-    ) -> tokio::sync::RwLockWriteGuard<'_, sea_orm::DatabaseConnection> {
-        self.db.write().await
-    }
+    db: Arc<DatabaseConnection>,
 }
 
 fn id_to_uuid(input: &Id) -> Result<Uuid, Error> {
@@ -79,7 +71,7 @@ impl SessionStore for ModelStore {
 
         dbrecord.expiry.set_if_not_equals(expiry);
         dbrecord
-            .insert(&*self.db.write().await)
+            .insert(self.db.as_ref())
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
         debug!("Created session with id={} uuid={}", record.id.0, id_uuid);
@@ -97,10 +89,8 @@ impl SessionStore for ModelStore {
         let id = id_to_uuid(&session_record.id)
             .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{err:?}")))?;
 
-        let db_lock = self.get_db_lock().await;
-
         let mut session = match Entity::find_by_id(id)
-            .one(&*db_lock)
+            .one(self.db.as_ref())
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?
         {
@@ -126,7 +116,7 @@ impl SessionStore for ModelStore {
 
         if session.is_changed() {
             session
-                .update(&*db_lock)
+                .update(self.db.as_ref())
                 .await
                 .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
             debug!("Saved session with id={}", session_record.id.0);
@@ -143,9 +133,8 @@ impl SessionStore for ModelStore {
     ) -> Result<Option<Record>, tower_sessions::session_store::Error> {
         let id = id_to_uuid(session_id)
             .map_err(|err| tower_sessions::session_store::Error::Decode(format!("{err:?}")))?;
-        let db_lock = self.get_db_lock().await;
         let session = match Entity::find_by_id(id)
-            .one(&*db_lock)
+            .one(self.db.as_ref())
             .await
             .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?
         {
@@ -155,8 +144,6 @@ impl SessionStore for ModelStore {
                 return Ok(None);
             }
         };
-        drop(db_lock);
-
         let id = session.id.as_u128();
 
         let session_expiry_nanos = session.expiry.timestamp_nanos_opt().ok_or(
@@ -177,11 +164,10 @@ impl SessionStore for ModelStore {
     #[instrument(level = "debug", skip(self))]
     async fn delete(&self, session_id: &Id) -> Result<(), tower_sessions::session_store::Error> {
         Entity::delete_by_id(
-            id_to_uuid(session_id).map_err(|err| {
-                tower_sessions::session_store::Error::Encode(format!("{err:?}"))
-            })?,
+            id_to_uuid(session_id)
+                .map_err(|err| tower_sessions::session_store::Error::Encode(format!("{err:?}")))?,
         )
-        .exec(&*self.db.write().await)
+        .exec(self.db.as_ref())
         .await
         .map_err(|err| tower_sessions::session_store::Error::Backend(err.to_string()))?;
         Ok(())
@@ -189,18 +175,18 @@ impl SessionStore for ModelStore {
 }
 
 impl ModelStore {
-    pub fn new(db: Arc<RwLock<DatabaseConnection>>) -> Self {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
 
     /// Cleans up old/expired sessions
-    pub async fn cleanup(&self, db: Arc<RwLock<DatabaseConnection>>) -> Result<u64, Error> {
+    pub async fn cleanup(&self, db: Arc<DatabaseConnection>) -> Result<u64, Error> {
         let res = Entity::delete_many()
             .filter(
                 Column::Expiry
                     .lt(chrono::Utc::now() - chrono::Duration::hours(SESSION_EXPIRY_WINDOW_HOURS)),
             )
-            .exec(&*db.write().await)
+            .exec(db.as_ref())
             .await?;
         Ok(res.rows_affected)
     }
@@ -230,7 +216,7 @@ mod tests {
 
         session
             .into_active_model()
-            .insert(&*db.write().await)
+            .insert(db.as_ref())
             .await
             .expect("Failed to insert test session!");
 

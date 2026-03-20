@@ -54,7 +54,7 @@ mod tests {
         user.claim_json.set_if_not_equals(json!({}));
 
         let user = user
-            .insert(&*db.write().await)
+            .insert(db.as_ref())
             .await
             .expect("Failed to insert test user!");
 

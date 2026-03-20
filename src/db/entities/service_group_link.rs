@@ -133,14 +133,14 @@ mod tests {
     async fn test_update_db_from_config() {
         let (db, config) = test_setup().await.expect("Failed to start test harness");
 
-        super::super::host_group::Model::update_db_from_config(&*db.write().await, config.clone())
+        super::super::host_group::Model::update_db_from_config(db.as_ref(), config.clone())
             .await
             .expect("Failed to update services from config");
-        super::super::service::Model::update_db_from_config(&*db.write().await, config.clone())
+        super::super::service::Model::update_db_from_config(db.as_ref(), config.clone())
             .await
             .expect("Failed to update services from config");
 
-        super::Model::update_db_from_config(&*db.write().await, config)
+        super::Model::update_db_from_config(db.as_ref(), config)
             .await
             .expect("Failed to load config");
     }
@@ -150,7 +150,7 @@ mod tests {
         // this should error
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let res = super::Model::find_by_name("test", &*db.write().await).await;
+        let res = super::Model::find_by_name("test", db.as_ref()).await;
 
         assert!(res.is_err());
         assert_eq!(res.expect_err("failed to run"), Error::NotImplemented);
@@ -180,7 +180,7 @@ mod tests {
 
         let services = super::super::service::Entity::find()
             .find_with_linked(super::ServiceToGroups)
-            .all(&*db.write().await)
+            .all(db.as_ref())
             .await
             .expect("Failed to query group to hosts relation");
 
@@ -203,7 +203,7 @@ mod tests {
 
         let groups = super::super::host_group::Entity::find()
             .find_with_linked(super::GroupToServices)
-            .all(&*db.write().await)
+            .all(db.as_ref())
             .await
             .expect("Failed to query group to hosts relation");
 

@@ -154,15 +154,13 @@ mod tests {
     async fn test_ping_service_localhost() {
         let _ = setup_logging(true, true, false);
 
-        if std::env::var("CI").is_ok() {
-            eprintln!("Skipping test because it fails in CI");
+        if !crate::tests::require_live_tests("test_ping_service_localhost") {
             return;
         }
 
         let test_service = super::PingService {
             name: "test".to_string(),
-            cron_schedule: std::str::FromStr::from_str("* * * * *")
-                .expect("Failed to parse cron"),
+            cron_schedule: std::str::FromStr::from_str("* * * * *").expect("Failed to parse cron"),
             jitter: None,
             count: Some(5),
             address: None,
@@ -183,14 +181,12 @@ mod tests {
     async fn test_ping_service_127_0_0_1() {
         let _ = setup_logging(true, true, false);
 
-        if std::env::var("CI").is_ok() {
-            eprintln!("Skipping test because it fails in CI");
+        if !crate::tests::require_live_tests("test_ping_service_127_0_0_1") {
             return;
         }
         let test_service = super::PingService {
             name: "test".to_string(),
-            cron_schedule: std::str::FromStr::from_str("* * * * *")
-                .expect("Failed to parse cron"),
+            cron_schedule: std::str::FromStr::from_str("* * * * *").expect("Failed to parse cron"),
             jitter: None,
             count: Some(5),
             address: Some("127.0.0.1".to_string()),

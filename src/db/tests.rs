@@ -7,51 +7,50 @@ use crate::log::setup_logging;
 async fn test_next_service_check() {
     let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-    let next_check = get_next_service_check(&*db.write().await)
+    let next_check = get_next_service_check(db.as_ref())
         .await
         .expect("Failed to get next check");
     dbg!(&next_check);
     assert!(next_check.is_some());
 }
 
-pub(crate) async fn test_setup() -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error>
-{
+pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
     test_setup_harness(true, false).await
 }
 
 pub(crate) async fn test_setup_harness(
     debug: bool,
     db_debug: bool,
-) -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error> {
+) -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
     // make sure logging is happening
 
     let _ = setup_logging(debug, db_debug, false);
     // enable the rustls crypto provider
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
-    let db = Arc::new(RwLock::new(
+    let db = Arc::new(
         crate::db::test_connect()
             .await
             .expect("Failed to connect to database"),
-    ));
+    );
 
     let config = Configuration::load_test_config().await;
 
-    crate::db::update_db_from_config(&*db.write().await, config.clone())
+    crate::db::update_db_from_config(db.as_ref(), config.clone())
         .await
         .expect("Failed to update DB from config");
     Ok((db, config))
 }
 
-pub(crate) async fn test_setup_quieter(
-) -> Result<(Arc<RwLock<DatabaseConnection>>, SendableConfig), Error> {
+pub(crate) async fn test_setup_quieter() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error>
+{
     test_setup_harness(false, false).await
 }
 
 pub(crate) async fn test_setup_with_real_db() -> Result<
     (
         tempfile::NamedTempFile,
-        Arc<RwLock<DatabaseConnection>>,
+        Arc<DatabaseConnection>,
         SendableConfig,
     ),
     Error,
@@ -72,13 +71,13 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
         .expect("Failed to get filepath")
         .to_string();
 
-    let db = Arc::new(RwLock::new(
+    let db = Arc::new(
         crate::db::connect(config.clone())
             .await
             .expect("Failed to connect to database"),
-    ));
+    );
 
-    crate::db::update_db_from_config(&*db.write().await, config.clone())
+    crate::db::update_db_from_config(db.as_ref(), config.clone())
         .await
         .expect("Failed to update DB from config");
     Ok((tempfile, db, config))
@@ -88,10 +87,8 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
 async fn test_get_related() {
     let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-    let db_lock: tokio::sync::RwLockWriteGuard<'_, DatabaseConnection> = db.write().await;
-
     for host in entities::host::Entity::find()
-        .all(&*db_lock)
+        .all(db.as_ref())
         .await
         .expect("Failed to query hosts")
         .into_iter()
@@ -99,7 +96,7 @@ async fn test_get_related() {
         info!("Found host: {:?}", host);
 
         let host_group_members = entities::host_group_members::Entity::find()
-            .all(&*db_lock)
+            .all(db.as_ref())
             .await
             .expect("Failed to query host_group_members");
 
@@ -107,7 +104,7 @@ async fn test_get_related() {
 
         let linked = host
             .find_linked(entities::host_group_members::HostToGroups)
-            .all(&*db_lock)
+            .all(db.as_ref())
             .await
             .expect("Failed to find linked");
         println!("linked {linked:?}");

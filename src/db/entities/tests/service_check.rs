@@ -13,7 +13,7 @@ async fn test_service_check_entity() {
     let service = service::test_service();
     let host = host::test_host();
     info!("saving service...");
-    let db_writer = db.write().await;
+    let db_writer = db.as_ref();
     let service_am = service.into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
         .exec(&*db_writer)
@@ -78,7 +78,7 @@ async fn test_service_check_entity() {
 async fn test_service_check_fk_host() {
     let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-    let db_writer = db.write().await;
+    let db_writer = db.as_ref();
 
     let service = service::test_service();
     let host = host::test_host();
@@ -138,7 +138,7 @@ async fn test_service_check_fk_service() {
     let service = service::test_service();
     let host = host::test_host();
     info!("saving service...");
-    let db_writer = db.write().await;
+    let db_writer = db.as_ref();
 
     let service_am = service.clone().into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
@@ -193,7 +193,7 @@ async fn test_full_service_check() {
     let (db, _config) = test_setup().await.expect("Failed to set up test config");
 
     let known_service_check_service_id = entities::service_check::Entity::find()
-        .all(&*db.write().await)
+        .all(db.as_ref())
         .await
         .expect("Failed to query DB")
         .into_iter()
@@ -209,12 +209,12 @@ async fn test_full_service_check() {
     let query = entities::service_check::FullServiceCheck::get_by_service_id_query(
         known_service_check_service_id,
     )
-    .build((*db.read().await).get_database_backend());
+    .build(db.get_database_backend());
     info!("Query: {}", query);
 
     let service_check = entities::service_check::FullServiceCheck::get_by_service_id(
         known_service_check_service_id,
-        &*db.write().await,
+        db.as_ref(),
     )
     .await
     .expect("Failed to get service_check");
@@ -229,16 +229,16 @@ async fn test_get_urgent_service_check() {
     let (db, _config) = test_setup().await.expect("Failed to setup test db");
 
     let sc = entities::service_check::Entity::find()
-        .one(&*db.write().await)
+        .one(db.as_ref())
         .await
         .expect("Failed to query DB")
         .expect("Failed to get service check");
 
-    sc.set_status(ServiceStatus::Urgent, &*db.write().await)
+    sc.set_status(ServiceStatus::Urgent, db.as_ref())
         .await
         .expect("Failed to set status to urgent");
 
-    let urgent = get_next_service_check(&*db.write().await)
+    let urgent = get_next_service_check(db.as_ref())
         .await
         .expect("Failed to query DB");
     assert!(urgent.is_some());
@@ -252,16 +252,16 @@ async fn test_get_next_pending_service_check() {
     let (db, _config) = test_setup().await.expect("Failed to setup test db");
 
     let sc = entities::service_check::Entity::find()
-        .one(&*db.write().await)
+        .one(db.as_ref())
         .await
         .expect("Failed to query DB")
         .expect("Failed to get service check");
 
-    sc.set_status(ServiceStatus::Pending, &*db.write().await)
+    sc.set_status(ServiceStatus::Pending, db.as_ref())
         .await
         .expect("Failed to set status to pending");
 
-    let urgent = get_next_service_check(&*db.write().await)
+    let urgent = get_next_service_check(db.as_ref())
         .await
         .expect("Failed to query DB");
     assert!(urgent.is_some());

@@ -144,7 +144,7 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to setup test");
 
         let host: Host = entities::host::Entity::find()
-            .one(&*db.write().await)
+            .one(db.as_ref())
             .await
             .expect("Failed to query host")
             .expect("Failed to find test host")

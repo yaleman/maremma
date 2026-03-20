@@ -82,9 +82,7 @@ impl TestContainer {
             .start()
             .await
             .map_err(|err| {
-                panic!(
-                    "Failed to start container is docker running? Error:\n{err:?}"
-                );
+                panic!("Failed to start container is docker running? Error:\n{err:?}");
             })
             .expect("Failed!");
         let ports = handle_err_or_shutdown_container(&container, container.ports().await).await;
@@ -133,6 +131,10 @@ impl TestContainer {
 async fn test_httpbin_testcontainer() {
     use crate::prelude::*;
 
+    if !crate::tests::require_live_tests("test_httpbin_testcontainer") {
+        return;
+    }
+
     let (_db, _config) = test_setup().await.expect("Failed to set up test");
 
     let client = reqwest::Client::builder()
@@ -166,6 +168,10 @@ async fn test_httpbin_testcontainer() {
 #[tokio::test]
 async fn test_basic_testcontainer() {
     use crate::prelude::*;
+
+    if !crate::tests::require_live_tests("test_basic_testcontainer") {
+        return;
+    }
 
     let (_db, _config) = test_setup().await.expect("Failed to set up test");
 

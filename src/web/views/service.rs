@@ -26,7 +26,7 @@ pub(crate) async fn service(
 ) -> Result<ServiceTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
-    let db_lock = state.get_db_lock().await;
+    let db_lock = state.db();
 
     let service = match entities::service::Entity::find_by_id(service_id)
         .one(&*db_lock)
@@ -43,7 +43,6 @@ pub(crate) async fn service(
     };
 
     let service_checks = FullServiceCheck::get_by_service_id(service_id, &db_lock).await?;
-    drop(db_lock);
     Ok(ServiceTemplate {
         title: service.name.clone(),
         service,
@@ -82,7 +81,7 @@ pub(crate) async fn services(
 
     let services = services
         .order_by(entities::service::Column::Name, order.into())
-        .all(&*state.get_db_lock().await)
+        .all(state.db())
         .await
         .map_err(Error::from)?;
 
@@ -103,7 +102,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service = entities::service::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -128,7 +127,7 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
         let service = entities::service::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -152,7 +151,7 @@ mod tests {
 
         let mut service_id = Uuid::new_v4();
         while entities::service::Entity::find_by_id(service_id)
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to search for service")
             .is_some()

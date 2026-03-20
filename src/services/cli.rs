@@ -70,9 +70,7 @@ impl ServiceTrait for CliService {
 
         if !which_cmd.exists() {
             // check if the command exists
-            return Err(Error::CommandNotFound(format!(
-                "Command not found: {cmd}"
-            )));
+            return Err(Error::CommandNotFound(format!("Command not found: {cmd}")));
         }
 
         let args = cmd_split.collect::<Vec<&str>>();

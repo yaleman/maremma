@@ -28,7 +28,7 @@ pub(crate) async fn service_check_get(
 ) -> Result<ServiceCheckTemplate, (StatusCode, String)> {
     let user = check_login(claims)?;
 
-    let db_lock = state.get_db_lock().await;
+    let db_lock = state.db();
 
     let res = entities::service_check::Entity::find_by_id(service_check_id)
         .one(&*db_lock)
@@ -94,9 +94,7 @@ pub(crate) async fn service_check_get(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                format!(
-                    "Service check with id={service_check_id} service not found"
-                ),
+                format!("Service check with id={service_check_id} service not found"),
             )
         })?;
 
@@ -109,7 +107,6 @@ pub(crate) async fn service_check_get(
             );
             Error::Configuration("Failed to parse service definition".to_string())
         })?;
-    drop(db_lock);
 
     parsed_service.parse_config().map_err(|err| {
         error!(
@@ -176,7 +173,7 @@ pub(crate) async fn set_service_check_status(
     status: ServiceStatus,
     form: RedirectTo,
 ) -> Result<Redirect, (StatusCode, String)> {
-    let db_lock = state.get_db_lock().await;
+    let db_lock = state.db();
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
         .one(&*db_lock)
         .await
@@ -215,7 +212,6 @@ pub(crate) async fn set_service_check_status(
             Error::from(err)
         })?;
     };
-    drop(db_lock);
 
     // TODO: make it so we can redirect to... elsewhere based on a query string?
     if let Some(redirect_to) = &form.redirect_to {
@@ -254,7 +250,7 @@ pub(crate) async fn service_check_delete(
             "You must be logged in to view this page".to_string(),
         )
     })?;
-    let db_lock = state.get_db_lock().await;
+    let db_lock = state.db();
     entities::service_check::Entity::delete_by_id(service_check_id)
         .exec(&*db_lock)
         .await
@@ -265,7 +261,6 @@ pub(crate) async fn service_check_delete(
             );
             Error::from(err)
         })?;
-    drop(db_lock);
 
     if let Some(redirect_to) = redirect_form.redirect_to {
         Ok(Redirect::to(&redirect_to))
@@ -288,7 +283,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -302,7 +297,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -329,7 +324,7 @@ mod tests {
         let state = WebState::new(db, config, None, None, PathBuf::new());
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -367,7 +362,7 @@ mod tests {
         let state = WebState::test().await;
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -394,7 +389,7 @@ mod tests {
         let state = WebState::new(db, config, None, None, PathBuf::new());
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -422,7 +417,7 @@ mod tests {
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to search for service_check")
             .is_some()
@@ -450,7 +445,7 @@ mod tests {
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to search for service_check")
             .is_some()
@@ -476,7 +471,7 @@ mod tests {
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to search for service_check")
             .is_some()
@@ -497,7 +492,7 @@ mod tests {
 
         // find a valid service check
         let service_check = entities::service_check::Entity::find()
-            .one(&*db.write().await)
+            .one(db.as_ref())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");

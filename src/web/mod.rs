@@ -32,6 +32,11 @@ use tower_sessions::{
     Expiry, SessionManagerLayer,
 };
 
+#[cfg(test)]
+use axum::extract::Request;
+#[cfg(test)]
+use axum::middleware::{from_fn, Next};
+
 use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
 use crate::prelude::*;
 use controller::WebServerControl;
@@ -43,7 +48,7 @@ use views::service_check::{service_check_delete, service_check_get};
 
 #[derive(Clone)]
 pub(crate) struct WebState {
-    db: Arc<RwLock<DatabaseConnection>>,
+    db: Arc<DatabaseConnection>,
     pub configuration: SendableConfig,
     registry: Option<Arc<Registry>>,
     pub web_tx: Option<Sender<WebServerControl>>,
@@ -52,7 +57,7 @@ pub(crate) struct WebState {
 
 impl WebState {
     pub fn new(
-        db: Arc<RwLock<DatabaseConnection>>,
+        db: Arc<DatabaseConnection>,
         configuration: SendableConfig,
         registry: Option<Arc<Registry>>,
         web_tx: Option<Sender<WebServerControl>>,
@@ -67,10 +72,8 @@ impl WebState {
         }
     }
 
-    pub async fn get_db_lock(
-        &self,
-    ) -> tokio::sync::RwLockWriteGuard<'_, sea_orm::DatabaseConnection> {
-        self.db.write().await
+    pub fn db(&self) -> &DatabaseConnection {
+        self.db.as_ref()
     }
 
     #[cfg(test)]
@@ -120,7 +123,7 @@ async fn up(State(_state): State<WebState>) -> impl IntoResponse {
 }
 
 /// Create the database-backed session store
-pub fn get_session_store(db: &Arc<RwLock<DatabaseConnection>>) -> entities::session::ModelStore {
+pub fn get_session_store(db: &Arc<DatabaseConnection>) -> entities::session::ModelStore {
     crate::db::entities::session::ModelStore::new(db.clone())
 }
 
@@ -130,6 +133,8 @@ struct OidcErrorHandler {
 }
 
 const RELOAD_TIME: u64 = 1000;
+#[cfg(test)]
+const TEST_OIDC_SESSION_KEY: &str = "maremma-test-oidc-authenticated";
 
 impl OidcErrorHandler {
     pub fn new(web_tx: Option<Sender<WebServerControl>>) -> Self {
@@ -149,16 +154,17 @@ impl OidcErrorHandler {
 
 #[cfg(not(tarpaulin_include))]
 pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
-    // get all the config variables we need, quickly, so we can drop the lock
+    build_app_inner(state, true).await
+}
 
-    use axum_oidc::OidcClient;
-
-    let config_reader = state.configuration.read().await;
-    let oidc_issuer = config_reader.oidc_issuer.clone();
-    let oidc_client_id = config_reader.oidc_client_id.clone();
-    let oidc_client_secret = config_reader.oidc_client_secret.clone();
-    let frontend_url = config_reader.frontend_url.clone();
-    drop(config_reader);
+async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, Error> {
+    let static_path = state
+        .configuration
+        .read()
+        .await
+        .static_path
+        .clone()
+        .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH));
 
     let session_store = get_session_store(&state.db);
 
@@ -168,77 +174,7 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
         .with_http_only(true)
         .with_expiry(Expiry::OnInactivity(Duration::seconds(1800)));
 
-    let frontend_url = Uri::from_str(&frontend_url)
-        .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {err:?}")))?;
-    debug!("Frontend URL: {:?}", frontend_url);
-    let oidc_error_handler = OidcErrorHandler::new(state.web_tx.clone());
-
-    let oidc_login_service = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
-            error!("Failed to handle OIDC logout: {:?}", e);
-            e.into_response()
-        }))
-        .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
-
-    let mut oidc_client = OidcClient::builder()
-        .with_default_http_client()
-        .add_scope("openid")
-        .add_scope("groups")
-        .with_redirect_url(frontend_url)
-        .with_client_id(oidc_client_id);
-
-    if let Some(oidc_client_secret) = oidc_client_secret {
-        oidc_client = oidc_client.with_client_secret(oidc_client_secret);
-    }
-
-    let oidc_client: OidcClient<EmptyAdditionalClaims> =
-        oidc_client.discover(oidc_issuer).await?.build();
-
-    let oidc_auth_layer: OidcAuthLayer<EmptyAdditionalClaims> =
-        OidcAuthLayer::<EmptyAdditionalClaims>::new(oidc_client);
-
-    let oidc_auth_service = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
-            if let MiddlewareError::SessionNotFound = e {
-                error!("No OIDC session found, redirecting to logout to clear it client-side");
-            } else {
-                oidc_error_handler.handle_oidc_error(&e).await;
-            }
-            Redirect::to(Urls::Logout.as_ref()).into_response()
-        }))
-        .layer(oidc_auth_layer);
-
-    // let oidc_auth_layer = ServiceBuilder::new()
-    //     .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
-    //         match e {
-    //             MiddlewareError::SessionNotFound => {
-    //                 error!("No OIDC session found, redirecting to logout to clear it client-side");
-    //             }
-    //             _ => {
-    //                 oidc_error_handler.handle_oidc_error(&e).await;
-    //             }
-    //         }
-    //         Redirect::to(Urls::Logout.as_ref()).into_response()
-    //     }))
-    //     .layer(
-    //         OidcAuthLayer::<EmptyAdditionalClaims>::di(
-    //             frontend_url,
-    //             oidc_issuer,
-    //             oidc_client_id,
-    //             oidc_client_secret,
-    //             vec!["openid", "groups"]
-    //                 .into_iter()
-    //                 .map(|s| s.to_string())
-    //                 .collect(),
-    //         )
-    //         .await
-    //         .map_err(|err| {
-    //             error!("Failed to set up OIDC: {:?}", err);
-    //             Error::from(err)
-    //         })?,
-    //     );
-
-    let app = Router::new()
+    let protected_routes = Router::new()
         .route(
             Urls::Login.as_ref(),
             get(Redirect::temporary(Urls::Index.as_ref())),
@@ -293,33 +229,141 @@ pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
             get(views::tools::tools).post(views::tools::tools),
         )
         .route(Urls::ToolsExportDb.as_ref(), post(views::tools::export_db))
-        .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout))
-        .layer(oidc_login_service)
-        // after here, the routers don't *require* auth
-        .route(Urls::Index.as_ref(), get(views::index::index))
-        .layer(oidc_auth_service)
+        .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout));
+    let auth_only_routes = Router::new().route(Urls::Index.as_ref(), get(views::index::index));
+    let public_routes = Router::new()
         .route(Urls::Metrics.as_ref(), get(views::metrics::metrics))
-        // after here, the URLs cannot have auth
         .route(Urls::HealthCheck.as_ref(), get(up))
         .route(Urls::Logout.as_ref(), get(oidc::logout))
         .nest_service(
             Urls::Static.as_ref(),
-            ServeDir::new(
-                state
-                    .configuration
-                    .read()
-                    .await
-                    .static_path
-                    .clone()
-                    .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH)),
-            )
-            .precompressed_br(),
+            ServeDir::new(static_path).precompressed_br(),
         )
-        .fallback(handler_404)
+        .fallback(handler_404);
+
+    let app = if enable_oidc {
+        use axum_oidc::OidcClient;
+
+        let config_reader = state.configuration.read().await;
+        let oidc_issuer = config_reader.oidc_issuer.clone();
+        let oidc_client_id = config_reader.oidc_client_id.clone();
+        let oidc_client_secret = config_reader.oidc_client_secret.clone();
+        let frontend_url = config_reader.frontend_url.clone();
+        drop(config_reader);
+
+        let frontend_url = Uri::from_str(&frontend_url)
+            .map_err(|err| Error::Configuration(format!("Failed to parse base_url: {err:?}")))?;
+        debug!("Frontend URL: {:?}", frontend_url);
+        let oidc_error_handler = OidcErrorHandler::new(state.web_tx.clone());
+
+        let oidc_login_service = ServiceBuilder::new()
+            .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
+                error!("Failed to handle OIDC logout: {:?}", e);
+                e.into_response()
+            }))
+            .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
+
+        let mut oidc_client = OidcClient::builder()
+            .with_default_http_client()
+            .add_scope("openid")
+            .add_scope("groups")
+            .with_redirect_url(frontend_url)
+            .with_client_id(oidc_client_id);
+
+        if let Some(oidc_client_secret) = oidc_client_secret {
+            oidc_client = oidc_client.with_client_secret(oidc_client_secret);
+        }
+
+        let oidc_client: OidcClient<EmptyAdditionalClaims> =
+            oidc_client.discover(oidc_issuer).await?.build();
+
+        let oidc_auth_layer: OidcAuthLayer<EmptyAdditionalClaims> =
+            OidcAuthLayer::<EmptyAdditionalClaims>::new(oidc_client);
+
+        let oidc_auth_service = ServiceBuilder::new()
+            .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
+                if let MiddlewareError::SessionNotFound = e {
+                    error!("No OIDC session found, redirecting to logout to clear it client-side");
+                } else {
+                    oidc_error_handler.handle_oidc_error(&e).await;
+                }
+                Redirect::to(Urls::Logout.as_ref()).into_response()
+            }))
+            .layer(oidc_auth_layer);
+
+        protected_routes
+            .layer(oidc_login_service)
+            .merge(auth_only_routes)
+            .layer(oidc_auth_service)
+    } else {
+        #[cfg(test)]
+        {
+            protected_routes
+                .merge(auth_only_routes)
+                .layer(from_fn(test_auth_middleware))
+        }
+        #[cfg(not(test))]
+        {
+            protected_routes.merge(auth_only_routes)
+        }
+    };
+
+    Ok(app
+        .merge(public_routes)
         .layer(TraceLayer::new_for_http())
-        .layer(session_layer);
-    // here... we... go!
-    Ok(app.with_state(state))
+        .layer(session_layer)
+        .with_state(state))
+}
+
+#[cfg(test)]
+/// Builds the web app without performing OIDC discovery.
+pub(crate) async fn build_test_app(state: WebState) -> Result<Router, Error> {
+    build_app_inner(state, false).await
+}
+
+#[cfg(test)]
+async fn test_auth_middleware(mut request: Request, next: Next) -> axum::response::Response {
+    if let Some(session) = request
+        .extensions()
+        .get::<tower_sessions::Session>()
+        .cloned()
+    {
+        match session.get::<String>(TEST_OIDC_SESSION_KEY).await {
+            Ok(Some(_)) => {
+                request
+                    .extensions_mut()
+                    .insert(crate::web::views::tools::test_user_claims());
+            }
+            Ok(None) => {}
+            Err(err) => error!("Failed to load test auth session: {:?}", err),
+        }
+    }
+
+    next.run(request).await
+}
+
+#[cfg(test)]
+/// Creates a cookie header value for a backend-persisted authenticated test session.
+pub(crate) async fn test_auth_cookie(state: &WebState) -> String {
+    let session_store = get_session_store(&state.db);
+    let session = tower_sessions::Session::new(
+        None,
+        std::sync::Arc::new(session_store),
+        Some(Expiry::OnInactivity(Duration::seconds(1800))),
+    );
+    session
+        .insert(TEST_OIDC_SESSION_KEY, "testuser@example.com")
+        .await
+        .expect("Failed to seed test auth session");
+    session
+        .save()
+        .await
+        .expect("Failed to save test auth session");
+
+    format!(
+        "id={}",
+        session.id().expect("Failed to get test session ID")
+    )
 }
 
 fn check_certs_exist(
@@ -373,7 +417,7 @@ pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Res
 pub async fn run_web_server(
     config_filepath: PathBuf,
     configuration: SendableConfig,
-    db: Arc<RwLock<DatabaseConnection>>,
+    db: Arc<DatabaseConnection>,
     registry: Arc<Registry>,
     web_tx: Sender<WebServerControl>,
     mut web_server_controller: Receiver<WebServerControl>,
@@ -446,66 +490,66 @@ mod tests {
     use crate::db::tests::test_setup;
     use crate::tests::tls_utils::TestCertificateBuilder;
     use axum::body::Body;
+    use axum::http::header;
     use entities::host;
     use tower::util::ServiceExt;
     use urls::Urls;
 
     #[tokio::test]
     async fn test_app_requests() {
-        if std::env::var("CI").is_ok() {
-            eprintln!("Skipping test because it fails in CI");
-            return;
-        }
         let (db, config) = test_setup().await.expect("Failed to set up test");
-        let app = build_app(WebState::new(
-            db.clone(),
-            config.clone(),
-            None,
-            None,
-            PathBuf::new(),
-        ))
-        .await
-        .expect("Failed to build app");
+        let state = WebState::new(db.clone(), config.clone(), None, None, PathBuf::new());
+        let auth_cookie = test_auth_cookie(&state).await;
+        let app = build_test_app(state).await.expect("Failed to build app");
 
-        app.clone()
+        let res = app
+            .clone()
             .oneshot(
                 axum::http::Request::get(Urls::Index.as_ref())
+                    .header(header::COOKIE, &auth_cookie)
                     .body(Body::empty())
                     .expect("failed to build empty body for request"),
             )
             .await
             .expect("Failed to run app");
+        assert_eq!(res.status(), StatusCode::OK);
 
         let host = host::Entity::find()
-            .one(&*db.write().await)
+            .one(db.as_ref())
             .await
             .expect("Failed to query db for host")
             .expect("Failed to find host");
 
         let url = format!("{}/{}", Urls::Host, host.id);
-        app.clone()
+        let res = app
+            .clone()
             .oneshot(
                 axum::http::Request::get(&url)
+                    .header(header::COOKIE, &auth_cookie)
                     .body(Body::empty())
                     .expect("Failed to get the host ID"),
             )
             .await
             .unwrap_or_else(|err| panic!("Failed to GET {url} {err:?}"));
+        assert_eq!(res.status(), StatusCode::OK);
 
         let service_check = entities::service_check::Entity::find()
-            .one(&*db.write().await)
+            .one(db.as_ref())
             .await
             .expect("Failed to query db for service_check")
             .expect("Failed to find service_check");
 
         let url = format!("{}/{}", Urls::ServiceCheck, service_check.id);
-        app.oneshot(
-            axum::http::Request::get(&url)
-                .body(Body::empty())
-                .expect("failed to build empty body for request"),
-        )
-        .await
-        .unwrap_or_else(|err| panic!("Failed to get {url} {err:?}"));
+        let res = app
+            .oneshot(
+                axum::http::Request::get(&url)
+                    .header(header::COOKIE, &auth_cookie)
+                    .body(Body::empty())
+                    .expect("failed to build empty body for request"),
+            )
+            .await
+            .unwrap_or_else(|err| panic!("Failed to get {url} {err:?}"));
+        assert_eq!(res.status(), StatusCode::OK);
     }
 
     // #[tokio::test]

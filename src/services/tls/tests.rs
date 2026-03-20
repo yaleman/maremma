@@ -16,6 +16,10 @@ async fn test_working_tls_service() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
 
+    if !crate::tests::require_live_tests("test_working_tls_service") {
+        return;
+    }
+
     let _ = test_setup().await.expect("Failed to set up test");
 
     let certs = TestCertificateBuilder::new()
@@ -62,6 +66,10 @@ async fn test_expired_tls_service() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
 
+    if !crate::tests::require_live_tests("test_expired_tls_service") {
+        return;
+    }
+
     let _ = test_setup().await.expect("Failed to set up test");
 
     let certs = TestCertificateBuilder::new()
@@ -99,6 +107,10 @@ async fn test_expired_tls_service() {
 async fn test_wrong_cert_host_name() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
+
+    if !crate::tests::require_live_tests("test_wrong_cert_host_name") {
+        return;
+    }
 
     let _ = test_setup().await.expect("Failed to set up test");
 
@@ -188,6 +200,10 @@ async fn test_tls_sha1_intermediate() {
     use crate::prelude::*;
     use crate::tests::tls_utils::TestCertificateBuilder;
 
+    if !crate::tests::require_live_tests("test_tls_sha1_intermediate") {
+        return;
+    }
+
     let _ = test_setup().await.expect("Failed to set up test");
 
     let certs = TestCertificateBuilder::new()
@@ -223,6 +239,10 @@ async fn test_tls_sha1_intermediate() {
 #[tokio::test]
 async fn test_tls_no_subject() {
     use crate::prelude::*;
+
+    if !crate::tests::require_live_tests("test_tls_no_subject") {
+        return;
+    }
 
     let _ = test_setup().await.expect("Failed to set up test");
 
@@ -286,7 +306,7 @@ async fn test_timeout() {
     }};
 
     let service: TlsService = serde_json::from_value(service_def).expect("Failed to parse service");
-    let bad_hostname = "example.com".to_string();
+    let bad_hostname = "192.0.2.1".to_string();
     let host = entities::host::Model {
         name: bad_hostname.clone(),
         check: crate::host::HostCheck::None,
@@ -326,7 +346,7 @@ async fn test_service_parser() {
     let _ = service.parse_config().expect("Failed to parse config!");
 
     let host = entities::host::Entity::find()
-        .one(&*db.write().await)
+        .one(db.as_ref())
         .await
         .expect("Failed to search for host")
         .expect("Failed to find host");

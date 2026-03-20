@@ -54,16 +54,14 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
 
     // in case we need it, get the connect string
     let connect_string = get_connect_string(config.clone()).await;
-    let db = Arc::new(RwLock::new(
-        maremma::db::connect(config.clone()).await.map_err(|err| {
-            error!("Failed to start up db from '{}' {:?}", connect_string, err);
-            ExitCode::FAILURE
-        })?,
-    ));
+    let db = Arc::new(maremma::db::connect(config.clone()).await.map_err(|err| {
+        error!("Failed to start up db from '{}' {:?}", connect_string, err);
+        ExitCode::FAILURE
+    })?);
 
     match cli.action {
         Actions::Run(_) => {
-            if update_db_from_config(&*db.write().await, config.clone())
+            if update_db_from_config(db.as_ref(), config.clone())
                 .await
                 .is_err()
             {

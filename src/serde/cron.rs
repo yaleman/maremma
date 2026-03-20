@@ -41,8 +41,7 @@ mod tests {
 
         let res: CronTest = serde_json::from_value(test).expect("Failed to deserialize");
 
-        let expected_cron = Cron::from_str("0 * * * *")
-            .expect("Failed to build cron expression");
+        let expected_cron = Cron::from_str("0 * * * *").expect("Failed to build cron expression");
 
         let time = chrono::Local::now()
             .with_minute(59)

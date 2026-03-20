@@ -257,6 +257,13 @@ impl Configuration {
                 Host::new(LOCAL_SERVICE_HOST_NAME.to_string(), HostCheck::None),
             );
         }
+
+        res.frontend_url
+            .get_or_insert_with(|| "https://maremma.example.test".to_string());
+        res.oidc_issuer
+            .get_or_insert_with(|| "https://issuer.example.test".to_string());
+        res.oidc_client_id
+            .get_or_insert_with(|| "maremma-test-client".to_string());
         res.try_into().expect("Failed to convert test config")
     }
 
@@ -293,13 +300,11 @@ impl Configuration {
     }
 
     /// Prune the configuration based on the database, so we can serialize it back
-    pub async fn prune(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
+    pub async fn prune(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error> {
         // TODO: prune config
 
-        let db_writer = db.write().await;
-
         // check the hosts against the config file
-        let db_hosts = entities::host::Entity::find().all(&*db_writer).await?;
+        let db_hosts = entities::host::Entity::find().all(db.as_ref()).await?;
         let config_hosts = self.hosts.keys().cloned().collect::<HashSet<String>>();
 
         // keep a record of the ones we find in the db
@@ -315,7 +320,7 @@ impl Configuration {
 
         // check the groups against the config file
         let db_host_groups = entities::host_group::Entity::find()
-            .all(&*db_writer)
+            .all(db.as_ref())
             .await?;
         let config_groups = self.groups();
         for host_group in db_host_groups {
@@ -326,7 +331,7 @@ impl Configuration {
         }
 
         // check the services against the config file
-        let db_services = entities::service::Entity::find().all(&*db_writer).await?;
+        let db_services = entities::service::Entity::find().all(db.as_ref()).await?;
         let config_services = self.services.keys().cloned().collect::<HashSet<String>>();
         for service in db_services {
             debug!("Service: {:?}", service);

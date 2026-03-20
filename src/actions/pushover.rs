@@ -91,9 +91,7 @@ impl Action for PushOver {
         let data: PushoverResponse = match serde_json::from_str(&response_body) {
             Ok(data) => data,
             Err(err) => {
-                error!(
-                    "Failed to parse pushover response: {err:?} body={response_body:?}"
-                );
+                error!("Failed to parse pushover response: {err:?} body={response_body:?}");
                 return Err(Error::Generic(format!(
                     "Failed to parse pushover response: {err:?}"
                 )));

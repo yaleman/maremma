@@ -49,7 +49,7 @@ pub(crate) async fn host(
         OrderFields::NextCheck => entities::service_check::Column::NextCheck,
     };
 
-    let db_lock = state.get_db_lock().await;
+    let db_lock = state.db();
 
     let (host, host_groups) = match entities::host::Entity::find_by_id(host_id)
         .find_with_linked(entities::host_group_members::HostToGroups)
@@ -78,7 +78,6 @@ pub(crate) async fn host(
             error!("Failed to look up service checks for host={host_id} error={err:?}");
             Error::from(err)
         })?;
-    drop(db_lock);
 
     Ok(HostTemplate {
         title: host.hostname.to_owned(),
@@ -136,14 +135,13 @@ pub(crate) async fn hosts(
         OrderFields::Status => entities::host::Column::Check,
         OrderFields::Check => entities::host::Column::Check,
     };
-    let db_lock = state.get_db_lock().await;
+    let db_lock = state.db();
 
     let hosts = hosts
         .order_by(order_column, ord.into())
         .all(&*db_lock)
         .await
         .map_err(Error::from)?;
-    drop(db_lock);
 
     Ok(HostsTemplate {
         title: "Hosts".to_string(),
@@ -189,7 +187,7 @@ pub(crate) async fn delete_host(
         return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()));
     }
 
-    let db_writer = state.get_db_lock().await;
+    let db_writer = state.db();
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(&*db_writer)
         .await
@@ -221,7 +219,7 @@ mod tests {
         let state = WebState::test().await;
 
         let host = entities::host::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -263,7 +261,7 @@ mod tests {
         let _ = test_setup().await.expect("Failed to set up test");
         let state = WebState::test().await;
         let host = entities::host::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -289,7 +287,7 @@ mod tests {
 
         let mut host_id = Uuid::new_v4();
         while entities::host::Entity::find_by_id(host_id)
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to search for host")
             .is_some()
@@ -352,7 +350,7 @@ mod tests {
         let state = WebState::test().await;
 
         let host = entities::host::Entity::find()
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to search for host")
             .expect("No host found");
@@ -388,7 +386,7 @@ mod tests {
 
         let mut nonexistent_host_id = Uuid::new_v4();
         while entities::host::Entity::find_by_id(nonexistent_host_id)
-            .one(&*state.get_db_lock().await)
+            .one(state.db())
             .await
             .expect("Failed to search for host")
             .is_some()

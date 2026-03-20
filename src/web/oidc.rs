@@ -74,12 +74,13 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
+    use axum::http::header;
     use axum::response::IntoResponse;
     use tower::ServiceExt;
 
     use crate::db::tests::test_setup;
-    use crate::web::build_app;
     use crate::web::urls::Urls;
+    use crate::web::{build_test_app, test_auth_cookie};
 
     use super::*;
 
@@ -107,26 +108,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_logout() {
-        if std::env::var("CI").is_ok() {
-            eprintln!("Skipping test because it fails in CI");
-            return;
-        }
-
         let (db, config) = test_setup().await.expect("Failed to setup test");
+        let state = crate::web::WebState::new(db.clone(), config, None, None, PathBuf::new());
+        let auth_cookie = test_auth_cookie(&state).await;
 
-        let app = build_app(crate::web::WebState::new(
-            db.clone(),
-            config,
-            None,
-            None,
-            PathBuf::new(),
-        ))
-        .await
-        .expect("Failed to build app");
+        let app = build_test_app(state).await.expect("Failed to build app");
 
         let res = app
             .oneshot(
                 axum::http::Request::get(Urls::Logout.as_ref())
+                    .header(header::COOKIE, &auth_cookie)
                     .body(axum::body::Body::empty())
                     .expect("Failed to build request"),
             )

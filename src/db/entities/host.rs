@@ -142,7 +142,7 @@ mod tests {
     async fn test_host_entity() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_writer = db.write().await;
+        let db_writer = db.as_ref();
 
         let host = super::test_host();
         info!("saving host...");
@@ -176,14 +176,14 @@ mod tests {
     #[tokio::test]
     async fn test_update_db_from_config() {
         let (db, config) = test_setup().await.expect("Failed to start test harness");
-        super::Model::update_db_from_config(&*db.write().await, config)
+        super::Model::update_db_from_config(db.as_ref(), config)
             .await
             .expect("Failed to load config");
     }
     #[tokio::test]
     async fn test_create_then_search() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
-        let db_writer = db.write().await;
+        let db_writer = db.as_ref();
         let inserted_host = super::Entity::insert(super::test_host().into_active_model())
             .exec_with_returning(&*db_writer)
             .await

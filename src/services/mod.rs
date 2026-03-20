@@ -520,7 +520,7 @@ mod tests {
         let (db, _config) = test_setup()
             .await
             .expect("Failed to set up test environment");
-        let db_lock = db.write().await;
+        let db_lock = db.as_ref();
         let service_model = entities::service::Entity::find()
             .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
             .one(&*db_lock)

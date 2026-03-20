@@ -39,11 +39,10 @@ fn sch_counts_query() -> sea_orm::Select<entities::service_check_history::Entity
 
 #[async_trait]
 impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
-    async fn run(&mut self, db: Arc<RwLock<DatabaseConnection>>) -> Result<(), Error> {
-        let db_writer = db.write().await;
+    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error> {
         let sch_counts: Vec<SimpleSchCounts> = sch_counts_query()
             .into_model::<SimpleSchCounts>()
-            .all(&*db_writer)
+            .all(db.as_ref())
             .await
             .inspect_err(|err| error!("Service check history cleaner failed: {:?}", err))?;
 
@@ -63,12 +62,12 @@ impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
                 continue;
             }
             match entities::service_check::Entity::find_by_id(id)
-                .one(&*db_writer)
+                .one(db.as_ref())
                 .await?
             {
                 Some(target_service_check) => {
                     let res = entities::service_check_history::Entity::head(
-                        &db_writer,
+                        db.as_ref(),
                         Some(target_service_check.id),
                         target_num,
                     )
@@ -99,7 +98,7 @@ mod tests {
     async fn test_service_check_history_cleaner() {
         let (db, config) = test_setup_quieter().await.expect("Failed to do test setup");
         config.write().await.max_history_entries_per_check = 1;
-        let db_writer = db.write().await;
+        let db_writer = db.as_ref();
         let valid_service_check = entities::service_check::Entity::find()
             .one(&*db_writer)
             .await
@@ -122,7 +121,6 @@ mod tests {
             .await
             .expect("Failed to insert service check history for check 1");
         }
-        drop(db_writer);
 
         let mut task = ServiceCheckHistoryCleanerTask::new(config);
 
@@ -133,7 +131,7 @@ mod tests {
     async fn test_sch_counts_query() {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let query_as_string = sch_counts_query()
-            .build(db.write().await.get_database_backend())
+            .build(db.get_database_backend())
             .to_string();
         println!("{query_as_string}");
 

@@ -8,7 +8,6 @@ pub(crate) use sea_orm::{
 };
 pub(crate) use std::str::FromStr;
 pub(crate) use std::sync::Arc;
-pub(crate) use tokio::sync::RwLock;
 pub(crate) use tracing::{debug, error, info, instrument, warn};
 pub(crate) use uuid::Uuid;
 

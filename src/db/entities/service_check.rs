@@ -2,7 +2,7 @@ use crate::prelude::*;
 use entities::host::test_host;
 use entities::host_group;
 use rand::seq::IteratorRandom;
-use sea_orm::{FromQueryResult, JoinType, QuerySelect, Set, TryIntoModel};
+use sea_orm::{sea_query::Expr, FromQueryResult, JoinType, QuerySelect, Set, TryIntoModel};
 use std::str::FromStr;
 
 use super::{host, host_group_members, service, service_check_history, service_group_link};
@@ -75,6 +75,7 @@ impl Model {
     ) -> Result<Self, Error> {
         let mut model = self.clone().into_active_model();
         model.status.set_if_not_equals(status);
+        model.last_updated.set_if_not_equals(chrono::Utc::now());
         model
             .save(db)
             .await
@@ -90,35 +91,49 @@ impl Model {
     }
 }
 
-#[instrument(skip_all, fields(service_check_id = model.id.to_string(), status=format!("{}", status)))]
+fn next_check_for_service(service: &service::Model, jitter: u32) -> Result<DateTime<Utc>, Error> {
+    // Keep next-check calculation in one place so success and error paths schedule consistently.
+    let jitter: i64 = (0..jitter).choose(&mut rand::rng()).unwrap_or(0) as i64;
+
+    Ok(
+        Cron::from_str(&service.cron_schedule)?.find_next_occurrence(&chrono::Utc::now(), false)?
+            + chrono::Duration::seconds(jitter),
+    )
+}
+
+#[instrument(skip_all, fields(service_check_id = service_check_id.to_string(), status=format!("{}", status)))]
 pub async fn set_check_result(
-    model: Model,
+    service_check_id: Uuid,
     service: &service::Model,
     last_check: chrono::DateTime<chrono::Utc>,
     status: ServiceStatus,
     db: &DatabaseConnection,
     jitter: u32,
 ) -> Result<(), Error> {
-    let mut model = model.into_active_model();
-    model.last_check.set_if_not_equals(last_check);
-    model.status.set_if_not_equals(status);
-
-    // get a number between 0 and jitter
-    let jitter: i64 = (0..jitter).choose(&mut rand::rng()).unwrap_or(0) as i64;
-
-    let next_check = Cron::from_str(&service.cron_schedule)?
-        .find_next_occurrence(&chrono::Utc::now(), false)?
-        + chrono::Duration::seconds(jitter);
-    model.next_check.set_if_not_equals(next_check);
-
-    if model.is_changed() {
-        debug!("Saving {:?}", model);
-        model.save(db).await.map_err(|err| {
-            error!("{} error saving {:?}", service.id.hyphenated(), err);
+    let next_check = next_check_for_service(service, jitter)?;
+    let rows_affected = Entity::update_many()
+        .col_expr(Column::LastCheck, Expr::value(last_check))
+        .col_expr(Column::Status, Expr::value(status))
+        .col_expr(Column::NextCheck, Expr::value(next_check))
+        .col_expr(Column::LastUpdated, Expr::value(chrono::Utc::now()))
+        .filter(Column::Id.eq(service_check_id))
+        .exec(db)
+        .await
+        .map_err(|err| {
+            error!(
+                "{} error saving service_check result {:?}",
+                service.id.hyphenated(),
+                err
+            );
             Error::from(err)
-        })?;
-    } else {
-        error!("set_check_result with no change? {:?}", model);
+        })?
+        .rows_affected;
+
+    if rows_affected != 1 {
+        error!(
+            "set_check_result updated {} rows for service_check_id={}",
+            rows_affected, service_check_id
+        );
     }
     Ok(())
 }
@@ -273,25 +288,6 @@ impl MaremmaEntity for Model {
                         }
                         Some(service_check) => {
                             debug!("Found existing service check: {:?}", service_check);
-                            let mut service_check = service_check.into_active_model();
-                            // if the service has been in checking for more than 10 seconds, we'll reset it.
-                            if let sea_orm::ActiveValue::Set(last_check) =
-                                service_check.last_check.clone()
-                            {
-                                if last_check + chrono::Duration::seconds(5) < chrono::Utc::now() {
-                                    if let sea_orm::ActiveValue::Set(ServiceStatus::Checking) =
-                                        service_check.status
-                                    {
-                                        service_check
-                                            .status
-                                            .set_if_not_equals(ServiceStatus::Unknown);
-                                    }
-                                }
-
-                                if service_check.is_changed() {
-                                    service_check.save(db).await.map_err(Error::from)?;
-                                }
-                            }
                         }
                     }
                 }
@@ -356,20 +352,22 @@ impl FullServiceCheck {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{EntityTrait, ModelTrait};
+    use sea_orm::sea_query::Expr;
+    use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter};
     use uuid::Uuid;
 
     use crate::config::Configuration;
     use crate::db::tests::test_setup;
     use crate::db::{entities, MaremmaEntity};
     use crate::errors::Error;
+    use crate::services::ServiceStatus;
 
     #[tokio::test]
     async fn test_find_by_name() {
         // this should error
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let res = super::Model::find_by_name("test", &*db.write().await).await;
+        let res = super::Model::find_by_name("test", db.as_ref()).await;
 
         assert!(res.is_err());
         assert_eq!(res.expect_err("Failed to run"), Error::NotImplemented);
@@ -380,10 +378,9 @@ mod tests {
     async fn test_delete_service_checks_when_service_deleted() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_lock = db.write().await;
         let (service_check, services) = entities::service_check::Entity::find()
             .find_with_related(entities::service::Entity)
-            .all(&*db_lock)
+            .all(db.as_ref())
             .await
             .expect("Failed to find service")
             .into_iter()
@@ -396,12 +393,12 @@ mod tests {
 
         let service_check_id = service_check.id;
         service
-            .delete(&*db_lock)
+            .delete(db.as_ref())
             .await
             .expect("Failed to delete service");
 
         let res = entities::service_check::Entity::find_by_id(service_check_id)
-            .one(&*db_lock)
+            .one(db.as_ref())
             .await
             .expect("Failed to find service_check");
 
@@ -432,20 +429,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_update_db_from_config_does_not_reset_checking() {
+        let (db, config) = test_setup().await.expect("Failed to start test harness");
+
+        let service_check = entities::service_check::Entity::find()
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query service check")
+            .expect("Failed to find service check");
+
+        service_check
+            .set_status(ServiceStatus::Checking, db.as_ref())
+            .await
+            .expect("Failed to mark service check as checking");
+
+        super::Entity::update_many()
+            .col_expr(
+                super::Column::LastCheck,
+                Expr::value(chrono::Utc::now() - chrono::Duration::minutes(10)),
+            )
+            .filter(super::Column::Id.eq(service_check.id))
+            .exec(db.as_ref())
+            .await
+            .expect("Failed to age service check");
+
+        super::Model::update_db_from_config(db.as_ref(), config)
+            .await
+            .expect("Failed to update DB from config");
+
+        let updated = entities::service_check::Entity::find_by_id(service_check.id)
+            .one(db.as_ref())
+            .await
+            .expect("Failed to reload service check")
+            .expect("Failed to find updated service check");
+
+        assert_eq!(updated.status, ServiceStatus::Checking);
+    }
+
+    #[tokio::test]
     async fn test_from_host_to_service_checks() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_lock = db.write().await;
-
         let host = entities::host::Entity::find()
-            .one(&*db_lock)
+            .one(db.as_ref())
             .await
             .expect("Failed to query db")
             .expect("Failed to find host");
 
         let service_checks = host
             .find_related(super::Entity)
-            .all(&*db_lock)
+            .all(db.as_ref())
             .await
             .expect("Failed to query host to service checks relation");
 

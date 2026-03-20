@@ -108,19 +108,16 @@ async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
                 ActionStatus::Error,
             ))
         })?;
-    update_db_from_config(
-        &*state.get_db_lock().await,
-        Arc::new(RwLock::new(new_config)),
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to reload config: {:?}", e);
-        Redirect::to(&format!(
-            "{}?result=Failed to reload config&status={}",
-            Urls::Tools,
-            ActionStatus::Error,
-        ))
-    })?;
+    update_db_from_config(state.db(), Arc::new(RwLock::new(new_config)))
+        .await
+        .map_err(|e| {
+            error!("Failed to reload config: {:?}", e);
+            Redirect::to(&format!(
+                "{}?result=Failed to reload config&status={}",
+                Urls::Tools,
+                ActionStatus::Error,
+            ))
+        })?;
 
     info!("Reloaded config");
     // not really an error but we're doing this to show the user that the config was reloaded
@@ -176,7 +173,7 @@ pub(crate) async fn tools(
         match action {
             FormAction::SetAllToUrgent => {
                 info!("Asked to set all to urgent");
-                let db_lock = state.get_db_lock().await;
+                let db_lock = state.db();
                 entities::service_check::Entity::update_many()
                     .col_expr(
                         entities::service_check::Column::Status,
@@ -193,7 +190,6 @@ pub(crate) async fn tools(
                         ))
                         .into_response()
                     })?;
-                drop(db_lock);
                 return Err(Redirect::to(&format!(
                     "{}?result=Set all tasks to urgent&status={}",
                     Urls::Tools,
@@ -280,7 +276,6 @@ mod tests {
 
     use crate::db::tests::test_setup;
     use std::io::Write;
-    use std::path::PathBuf;
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -431,8 +426,16 @@ mod tests {
 
         // test a valid reload
         let mut state = WebState::test().await;
-        state.config_filepath =
-            PathBuf::from_str("maremma.example.json").expect("failed to pathbuf test config");
+        let config = Configuration::load_test_config_bare().await;
+        let mut tempfile = NamedTempFile::new().expect("Failed to create tempfile");
+        tempfile
+            .write_all(
+                serde_json::to_string(&config)
+                    .expect("Failed to serialize test config")
+                    .as_bytes(),
+            )
+            .expect("Failed to write test config");
+        state.config_filepath = tempfile.path().to_path_buf();
 
         let res = tools_reload_config(&state).await;
         if let Err(err) = res {
