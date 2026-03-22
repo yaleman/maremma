@@ -523,7 +523,7 @@ mod tests {
         let db_lock = db.as_ref();
         let service_model = entities::service::Entity::find()
             .filter(entities::service::Column::ServiceType.eq(ServiceType::Ping))
-            .one(&*db_lock)
+            .one(db_lock)
             .await
             .expect("Failed to do query")
             .expect("Failed to find service_model");

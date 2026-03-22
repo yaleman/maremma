@@ -69,7 +69,7 @@ pub(crate) async fn index(
     debug!("got reader");
     let mut checks = checks
         .into_model()
-        .all(&*db_lock)
+        .all(db_lock)
         .await
         .map_err(Error::from)?;
     debug!("query done");

@@ -262,7 +262,7 @@ mod tests {
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db_lock)
+            .one(db_lock)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -295,7 +295,7 @@ mod tests {
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db_lock)
+            .one(db_lock)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -327,14 +327,14 @@ mod tests {
         let db_lock = db.as_ref();
 
         let service = super::Entity::find()
-            .one(&*db_lock)
+            .one(db_lock)
             .await
             .expect("Failed to select service")
             .expect("Failed to find service");
 
         let service_checks = service
             .find_related(service_check::Entity)
-            .all(&*db_lock)
+            .all(db_lock)
             .await
             .expect("Failed to search for service_checks");
 

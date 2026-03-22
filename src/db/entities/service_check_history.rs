@@ -8,7 +8,7 @@ use crate::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
     pub service_check_id: Uuid,
     pub status: ServiceStatus,
     pub time_elapsed: i64,

@@ -41,7 +41,7 @@ pub(crate) async fn host_groups(
     let res = host_group::Entity::find()
         .order_by_asc(host_group::Column::Name)
         .find_with_linked(host_group_members::GroupToHosts)
-        .all(&*db_lock)
+        .all(db_lock)
         .await
         .map_err(|e| {
             error!("Failed to fetch host groups: {}", e);
@@ -95,7 +95,7 @@ pub(crate) async fn host_group(
     let host_group = host_group::Entity::find()
         .filter(host_group::Column::Id.eq(id))
         .find_with_linked(host_group_members::GroupToHosts)
-        .all(&*db_lock)
+        .all(db_lock)
         .await
         .map_err(|e| {
             error!("Failed to fetch host groups: {}", e);
@@ -144,7 +144,7 @@ pub(crate) async fn host_group_member_delete(
                 .eq(group_id)
                 .and(host_group_members::Column::HostId.eq(host_id)),
         )
-        .one(&*db_lock)
+        .one(db_lock)
         .await
         .map_err(|e| {
             error!("Failed to fetch host group membership: {}", e);
@@ -160,7 +160,7 @@ pub(crate) async fn host_group_member_delete(
         }
     };
 
-    let res = hgm.delete(&*db_lock).await.map_err(|e| {
+    let res = hgm.delete(db_lock).await.map_err(|e| {
         error!("Failed to delete host group membership: {}", e);
         Error::from(e)
     })?;
@@ -189,7 +189,7 @@ pub(crate) async fn host_group_delete(
     };
     let db_lock = state.db();
     let res = host_group::Entity::delete_by_id(group_id)
-        .exec(&*db_lock)
+        .exec(db_lock)
         .await
         .map_err(|e| {
             error!("Failed to delete host group: {}", e);
@@ -258,7 +258,7 @@ mod tests {
         test_setup().await.expect("Failed to setup test harness");
         let db_lock = state.db();
         let host_group = host_group::Entity::find()
-            .one(&*db_lock)
+            .one(db_lock)
             .await
             .expect("Failed to search for host group")
             .expect("No host group found");
@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let db_lock = state.db();
         let host_group = host_group::Entity::find()
-            .one(&*db_lock)
+            .one(db_lock)
             .await
             .expect("Failed to search for host group")
             .expect("No host group found");
@@ -344,7 +344,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         let db_lock = state.db();
         let host_group = host_group::Entity::find()
-            .one(&*db_lock)
+            .one(db_lock)
             .await
             .expect("Failed to search for host group")
             .expect("No host group found");

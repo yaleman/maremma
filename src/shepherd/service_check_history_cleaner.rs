@@ -117,7 +117,7 @@ mod tests {
                 result_text: Set(valid_service_check.id.to_string()),
                 time_elapsed: Set(0_i64),
             }
-            .insert(&*db_writer)
+            .insert(db_writer)
             .await
             .expect("Failed to insert service check history for check 1");
         }
