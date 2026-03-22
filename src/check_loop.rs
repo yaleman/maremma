@@ -14,7 +14,7 @@ const MAX_BACKOFF: std::time::Duration = tokio::time::Duration::from_secs(1);
 /// The end result of a service check
 pub struct CheckResult {
     /// When the check finished
-    pub timestamp: chrono::DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
     /// How long it took
     pub time_elapsed: Duration,
     /// The result
@@ -26,7 +26,7 @@ pub struct CheckResult {
 impl Default for CheckResult {
     fn default() -> Self {
         Self {
-            timestamp: chrono::Utc::now(),
+            timestamp: Utc::now(),
             time_elapsed: Duration::zero(),
             status: ServiceStatus::Unknown,
             result_text: String::new(),
@@ -41,7 +41,7 @@ pub(crate) async fn run_service_check(
     service_check: &entities::service_check::Model,
     service: entities::service::Model,
 ) -> Result<CheckResult, Error> {
-    let start_time = chrono::Utc::now();
+    let start_time = Utc::now();
     let check = match Service::try_from_service_model(&service, db.as_ref()).await {
         Ok(check) => check,
         Err(err) => {
@@ -52,7 +52,7 @@ pub(crate) async fn run_service_check(
             error!(errmsg);
             let result = CheckResult {
                 status: ServiceStatus::Error,
-                time_elapsed: chrono::Utc::now() - start_time,
+                time_elapsed: Utc::now() - start_time,
                 result_text: errmsg,
                 ..Default::default()
             };
@@ -66,7 +66,7 @@ pub(crate) async fn run_service_check(
             entities::service_check::set_check_result(
                 service_check.id,
                 &service,
-                chrono::Utc::now(),
+                Utc::now(),
                 result.status,
                 db.as_ref(),
                 0,
@@ -90,7 +90,7 @@ pub(crate) async fn run_service_check(
             error!(errmsg);
             let result = CheckResult {
                 status: ServiceStatus::Error,
-                time_elapsed: chrono::Utc::now() - start_time,
+                time_elapsed: Utc::now() - start_time,
                 result_text: errmsg,
                 ..Default::default()
             };
@@ -104,7 +104,7 @@ pub(crate) async fn run_service_check(
             entities::service_check::set_check_result(
                 service_check.id,
                 &service,
-                chrono::Utc::now(),
+                Utc::now(),
                 result.status,
                 db.as_ref(),
                 0,
@@ -129,7 +129,7 @@ pub(crate) async fn run_service_check(
         Ok(val) => val,
         Err(err) => CheckResult {
             status: ServiceStatus::Error,
-            time_elapsed: chrono::Utc::now() - start_time,
+            time_elapsed: Utc::now() - start_time,
             result_text: format!("Error: {err:?}"),
             ..Default::default()
         },
@@ -147,7 +147,7 @@ pub(crate) async fn run_service_check(
     entities::service_check::set_check_result(
         service_check.id,
         &service,
-        chrono::Utc::now(),
+        Utc::now(),
         result.status,
         db.as_ref(),
         max_jitter,
@@ -390,7 +390,7 @@ mod tests {
 
         assert_eq!(updated_check.status, result.status);
         assert!(updated_check.last_updated > initial_last_updated);
-        assert!(updated_check.next_check > chrono::Utc::now());
+        assert!(updated_check.next_check > Utc::now());
         assert!(!history.is_empty());
     }
 
@@ -477,9 +477,9 @@ mod tests {
                 service_id: Set(sleep_service.id),
                 host_id: Set(host_id),
                 status: Set(ServiceStatus::Pending),
-                last_check: Set(chrono::Utc::now() - chrono::Duration::minutes(1)),
-                next_check: Set(chrono::Utc::now() - chrono::Duration::minutes(1)),
-                last_updated: Set(chrono::Utc::now() - chrono::Duration::minutes(1)),
+                last_check: Set(Utc::now() - Duration::minutes(1)),
+                next_check: Set(Utc::now() - Duration::minutes(1)),
+                last_updated: Set(Utc::now() - Duration::minutes(1)),
             }
             .insert(db.as_ref())
             .await

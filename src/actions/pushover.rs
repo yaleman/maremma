@@ -172,7 +172,7 @@ struct PushoverResponse {
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeDelta;
+    use chrono::{TimeDelta, Utc};
 
     use crate::actions::{test_setup, Action, CheckResult, ServiceStatus};
 
@@ -200,7 +200,7 @@ mod tests {
             user,
             device: None,
             title: None,
-            message: Some(format!("test {}", chrono::Utc::now().timestamp())),
+            message: Some(format!("test {}", Utc::now().timestamp())),
             run_states: vec![ServiceStatus::Critical],
             retry_count: 0,
         };
@@ -208,7 +208,7 @@ mod tests {
         let check_result = CheckResult {
             status: ServiceStatus::Critical,
             result_text: "result_text".to_string(),
-            timestamp: chrono::Utc::now(),
+            timestamp: Utc::now(),
             time_elapsed: TimeDelta::seconds(1),
         };
 

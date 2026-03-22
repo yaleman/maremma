@@ -202,7 +202,7 @@ pub(crate) async fn delete_host(
         }
     };
 
-    host.delete(&*db_writer).await.map_err(Error::from)?;
+    host.delete(db_writer).await.map_err(Error::from)?;
     Ok(Redirect::to(Urls::Hosts.as_ref()))
 }
 

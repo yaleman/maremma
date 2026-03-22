@@ -15,9 +15,9 @@ pub struct Model {
     pub service_id: Uuid,
     pub host_id: Uuid,
     pub status: ServiceStatus,
-    pub last_check: chrono::DateTime<chrono::Utc>,
-    pub next_check: chrono::DateTime<chrono::Utc>,
-    pub last_updated: chrono::DateTime<chrono::Utc>,
+    pub last_check: DateTime<chrono::Utc>,
+    pub next_check: DateTime<chrono::Utc>,
+    pub last_updated: DateTime<chrono::Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
@@ -105,7 +105,7 @@ fn next_check_for_service(service: &service::Model, jitter: u32) -> Result<DateT
 pub async fn set_check_result(
     service_check_id: Uuid,
     service: &service::Model,
-    last_check: chrono::DateTime<chrono::Utc>,
+    last_check: DateTime<chrono::Utc>,
     status: ServiceStatus,
     db: &DatabaseConnection,
     jitter: u32,
@@ -197,9 +197,9 @@ async fn update_local_services_from_db(
                     service_id,
                     host_id: local_host_id,
                     status: ServiceStatus::Unknown,
-                    last_check: chrono::Utc::now(),
-                    next_check: chrono::Utc::now(),
-                    last_updated: chrono::Utc::now(),
+                    last_check: Utc::now(),
+                    next_check: Utc::now(),
+                    last_updated: Utc::now(),
                 }
                 .into_active_model(),
             )
@@ -352,6 +352,7 @@ impl FullServiceCheck {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use sea_orm::sea_query::Expr;
     use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter};
     use uuid::Uuid;
@@ -415,9 +416,9 @@ mod tests {
                 service_id: Uuid::new_v4(),
                 host_id: Uuid::new_v4(),
                 status: super::ServiceStatus::Unknown,
-                last_check: chrono::Utc::now(),
-                next_check: chrono::Utc::now(),
-                last_updated: chrono::Utc::now(),
+                last_check: Utc::now(),
+                next_check: Utc::now(),
+                last_updated: Utc::now(),
             }]])
             .into_connection();
 

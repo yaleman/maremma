@@ -154,7 +154,7 @@ mod tests {
 
         let new_host = super::Entity::find()
             .filter(super::Column::Id.eq(host.id))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query host")
             .expect("Failed to find host");
@@ -167,7 +167,7 @@ mod tests {
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq(new_host.id))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query host")
             .is_none());

@@ -8,7 +8,7 @@ use crate::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp: DateTime<chrono::Utc>,
     pub service_check_id: Uuid,
     pub status: ServiceStatus,
     pub time_elapsed: i64,
@@ -152,14 +152,14 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.as_ref();
         let service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query service check")
             .expect("Failed to find service check");
 
         let result = CheckResult {
             timestamp: Utc::now(),
-            time_elapsed: chrono::Duration::milliseconds(145),
+            time_elapsed: Duration::milliseconds(145),
             status: ServiceStatus::Ok,
             result_text: "test".to_string(),
         };
@@ -232,14 +232,14 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.as_ref();
         let valid_service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to find service check")
             .expect("Failed to find service check");
 
         let result = CheckResult {
             timestamp: Utc::now(),
-            time_elapsed: chrono::Duration::milliseconds(145),
+            time_elapsed: Duration::milliseconds(145),
             status: ServiceStatus::Ok,
             result_text: "test".to_string(),
         };
@@ -271,7 +271,7 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.as_ref();
         let valid_service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to find service check")
             .expect("Failed to find service check");
@@ -280,7 +280,7 @@ mod tests {
 
         let result = CheckResult {
             timestamp: Utc::now(),
-            time_elapsed: chrono::Duration::milliseconds(145),
+            time_elapsed: Duration::milliseconds(145),
             status: ServiceStatus::Ok,
             result_text: "test".to_string(),
         };

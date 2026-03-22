@@ -124,7 +124,7 @@ impl ServiceTrait for PingService {
                     avg_duration.as_millis()
                 ),
                 status: ServiceStatus::Ok,
-                time_elapsed: chrono::Utc::now() - start_time,
+                time_elapsed: Utc::now() - start_time,
             })
         } else {
             Err(Error::Generic(format!(

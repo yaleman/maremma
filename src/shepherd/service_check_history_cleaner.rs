@@ -100,7 +100,7 @@ mod tests {
         config.write().await.max_history_entries_per_check = 1;
         let db_writer = db.as_ref();
         let valid_service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query DB for service check")
             .expect("Failed to find service check");

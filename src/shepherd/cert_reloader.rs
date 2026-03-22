@@ -153,8 +153,8 @@ mod tests {
         let mut task = CertReloaderTask {
             tx,
             config: Arc::new(RwLock::new(bad_config)),
-            cert_time: chrono::Utc::now(),
-            key_time: chrono::Utc::now(),
+            cert_time: Utc::now(),
+            key_time: Utc::now(),
         };
 
         let res = task.run(db.clone()).await;
@@ -180,8 +180,8 @@ mod tests {
         let mut task = CertReloaderTask {
             tx,
             config: Arc::new(RwLock::new(good_config)),
-            cert_time: chrono::Utc::now(),
-            key_time: chrono::Utc::now(),
+            cert_time: Utc::now(),
+            key_time: Utc::now(),
         };
 
         let res = task.run(db).await;

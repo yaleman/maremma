@@ -45,7 +45,7 @@ async fn test_service_check_entity() {
 
     let service_check = entities::service_check::Entity::find()
         .filter(entities::service_check::Column::Id.eq(service_check_id))
-        .one(&*db_writer)
+        .one(db_writer)
         .await
         .expect("Failed to query DB")
         .expect("Failed to find service check");
@@ -60,14 +60,14 @@ async fn test_service_check_entity() {
     #[allow(clippy::unwrap_used)]
     let hamid = host_am.id.unwrap();
     assert!(host::Entity::find_by_id(hamid)
-        .one(&*db_writer)
+        .one(db_writer)
         .await
         .expect("Failed to query DB")
         .is_some());
     #[allow(clippy::unwrap_used)]
     let scamid = service_am.id.unwrap();
     assert!(service::Entity::find_by_id(scamid)
-        .one(&*db_writer)
+        .one(db_writer)
         .await
         .expect("Failed to query DB")
         .is_some());
@@ -112,7 +112,7 @@ async fn test_service_check_fk_host() {
 
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id)
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query DB")
             .is_some()
@@ -124,7 +124,7 @@ async fn test_service_check_fk_host() {
     // Check we delete the service check when deleting the host
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id)
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query DB")
             .is_none()
@@ -170,7 +170,7 @@ async fn test_service_check_fk_service() {
     #[allow(clippy::unwrap_used)]
     let scamid = service_check_am.id.clone().unwrap();
     assert!(entities::service_check::Entity::find_by_id(scamid)
-        .one(&*db_writer)
+        .one(db_writer)
         .await
         .expect("Failed to query DB")
         .is_some());
@@ -181,7 +181,7 @@ async fn test_service_check_fk_service() {
     // Check we delete the service check when deleting the service
     assert!(
         entities::service_check::Entity::find_by_id(service_check_am.id.unwrap())
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query DB")
             .is_none()

@@ -24,9 +24,14 @@ pub(crate) use crate::host::GenericHost;
 pub(crate) use crate::host::Host;
 pub(crate) use crate::services::{Service, ServiceStatus, ServiceTrait, ServiceType};
 
-pub(crate) use sea_orm::entity::prelude::*;
+pub use sea_orm::prelude::{
+    ActiveModelBehavior, ActiveModelTrait, ColumnTrait, ColumnTypeTrait, ConnectionTrait,
+    DeriveActiveEnum, DeriveDisplay, DeriveEntityModel, DerivePrimaryKey, DeriveRelation,
+    EntityTrait, EnumIter, Expr, Json, Linked, ModelTrait, PrimaryKeyToColumn, PrimaryKeyTrait,
+    QueryFilter, Related, RelationDef, RelationTrait, Select, StringLen,
+};
 pub(crate) use sea_orm::DatabaseConnection;
-pub(crate) use sea_orm::IntoActiveModel;
+pub use sea_orm::IntoActiveModel;
 
 pub(crate) use opentelemetry::metrics::Meter;
 

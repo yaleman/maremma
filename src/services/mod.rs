@@ -528,7 +528,7 @@ mod tests {
             .expect("Failed to do query")
             .expect("Failed to find service_model");
 
-        let service_from_model = Service::try_from_service_model(&service_model, &db_lock)
+        let service_from_model = Service::try_from_service_model(&service_model, db_lock)
             .await
             .expect("Failed to convert model to service");
 
@@ -541,7 +541,7 @@ mod tests {
         };
 
         let service_without_host_groups_model =
-            Service::try_from_service_model(&model_without_host_groups, &db_lock)
+            Service::try_from_service_model(&model_without_host_groups, db_lock)
                 .await
                 .expect("Failed to take service without groups from model");
         dbg!(&service_without_host_groups_model.host_groups);

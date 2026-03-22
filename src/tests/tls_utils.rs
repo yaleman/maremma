@@ -1,5 +1,5 @@
 //! Code for generating test certs, and doing crypto-crimes.
-
+use crate::prelude::*;
 use chrono::TimeDelta;
 use openssl::ec::{EcGroup, EcKey};
 use openssl::error::ErrorStack;
@@ -15,7 +15,6 @@ use openssl::x509::{
 };
 use openssl::{asn1, bn, hash, pkey};
 use tempfile::NamedTempFile;
-use tracing::*;
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -502,8 +501,8 @@ pub struct TestCertificateBuilder {
 impl TestCertificateBuilder {
     pub fn new() -> Self {
         Self {
-            issue_time: chrono::Utc::now().timestamp() - TimeDelta::days(30).num_seconds(),
-            expiry_time: chrono::Utc::now().timestamp() + TimeDelta::days(30).num_seconds(),
+            issue_time: Utc::now().timestamp() - TimeDelta::days(30).num_seconds(),
+            expiry_time: Utc::now().timestamp() + TimeDelta::days(30).num_seconds(),
             hostname: "maremma_test".to_string(),
             use_sha1_intermediate: false,
             skip_cert_name: false,

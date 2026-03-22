@@ -221,7 +221,7 @@ mod tests {
 
         let service = super::Entity::find()
             .filter(super::Column::Id.eq(service.id))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find service");
@@ -234,7 +234,7 @@ mod tests {
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq("test_service".to_string()))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query db")
             .is_none());

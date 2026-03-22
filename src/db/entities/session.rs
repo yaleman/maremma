@@ -1,4 +1,3 @@
-use sea_orm::entity::prelude::*;
 use tower_sessions::session::{Id, Record};
 use tower_sessions::SessionStore;
 
@@ -10,7 +9,7 @@ use crate::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false, name = "id")]
     pub id: Uuid,
-    pub expiry: chrono::DateTime<Utc>,
+    pub expiry: DateTime<Utc>,
     pub data: Json,
 }
 
@@ -194,6 +193,7 @@ impl ModelStore {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::collections::HashMap;
 
     use sea_orm::{ActiveModelTrait, IntoActiveModel};
@@ -210,7 +210,7 @@ mod tests {
 
         let session = crate::db::entities::session::Model {
             id: uuid::Uuid::new_v4(),
-            expiry: chrono::Utc::now() - chrono::Duration::hours(10),
+            expiry: Utc::now() - chrono::Duration::hours(10),
             data: serde_json::json!({}),
         };
 

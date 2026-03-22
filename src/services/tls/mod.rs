@@ -101,7 +101,7 @@ impl ServiceTrait for TlsService {
                 let timestamp = chrono::Utc::now();
                 return Ok(CheckResult {
                     time_elapsed: start_time - timestamp,
-                    timestamp: chrono::Utc::now(),
+                    timestamp: Utc::now(),
                     status: ServiceStatus::Critical,
                     result_text: format!("Invalid hostname '{}'", host.hostname),
                 });
@@ -125,7 +125,7 @@ impl ServiceTrait for TlsService {
                     let timestamp = chrono::Utc::now();
                     return Ok(CheckResult {
                         time_elapsed: start_time - timestamp,
-                        timestamp: chrono::Utc::now(),
+                        timestamp: Utc::now(),
                         status: ServiceStatus::Critical,
                         result_text: format!(
                             "Failed to connect to hostname=\"{}\" error=\"{}\"",

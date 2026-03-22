@@ -114,7 +114,7 @@ impl ServiceTrait for SshService {
                     timestamp: start_time,
                     result_text: format!("SSH key not found: {}", ssh_key.display()),
                     status: ServiceStatus::Critical,
-                    time_elapsed: chrono::Utc::now() - start_time,
+                    time_elapsed: Utc::now() - start_time,
                 });
             }
 
