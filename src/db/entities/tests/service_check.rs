@@ -16,12 +16,12 @@ async fn test_service_check_entity() {
     let db_writer = db.as_ref();
     let service_am = service.into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to save service");
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.to_owned())
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to save host");
 
@@ -37,7 +37,7 @@ async fn test_service_check_entity() {
     let am = service_check.into_active_model();
 
     if let Err(err) = entities::service_check::Entity::insert(am)
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
     {
         panic!("Failed to insert service check: {:?}", err);
@@ -53,7 +53,7 @@ async fn test_service_check_entity() {
     info!("found it: {:?}", service_check);
 
     entities::service_check::Entity::delete_by_id(service_check_id)
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to delete service check");
     // Check we didn't delete the host when deleting the service check
@@ -86,13 +86,13 @@ async fn test_service_check_fk_host() {
 
     let service_am = service.into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to save service");
     let host_am_id = host.id;
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.to_owned())
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to save host");
 
@@ -118,7 +118,7 @@ async fn test_service_check_fk_host() {
             .is_some()
     );
     host::Entity::delete_by_id(host_am_id)
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to delete host");
     // Check we delete the service check when deleting the host
@@ -142,12 +142,12 @@ async fn test_service_check_fk_service() {
 
     let service_am = service.clone().into_active_model();
     let _service = service::Entity::insert(service_am.to_owned())
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to save service");
     let host_am = host.into_active_model();
     let _host = host::Entity::insert(host_am.clone())
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to save host");
 
@@ -161,7 +161,7 @@ async fn test_service_check_fk_service() {
     let service_check_am = service_check.into_active_model();
     dbg!(&service_check_am);
     if let Err(err) = entities::service_check::Entity::insert(service_check_am.to_owned())
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
     {
         panic!("Failed to insert service check: {:?}", err);
@@ -175,7 +175,7 @@ async fn test_service_check_fk_service() {
         .expect("Failed to query DB")
         .is_some());
     service::Entity::delete_by_id(service.id)
-        .exec(&*db_writer)
+        .exec(db_writer)
         .await
         .expect("Failed to delete service");
     // Check we delete the service check when deleting the service

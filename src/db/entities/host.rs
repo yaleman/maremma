@@ -148,7 +148,7 @@ mod tests {
         info!("saving host...");
         let am = host.clone().into_active_model();
         super::Entity::insert(am)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to insert host");
 
@@ -161,7 +161,7 @@ mod tests {
         info!("found it: {:?}", new_host);
 
         super::Entity::delete_by_id(new_host.id)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to delete host");
 

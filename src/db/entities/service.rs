@@ -215,7 +215,7 @@ mod tests {
         info!("saving service... {:?}", &service);
         let am = service.clone().into_active_model();
         super::Entity::insert(am)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to insert service");
 
@@ -228,7 +228,7 @@ mod tests {
         info!("found it: {:?}", service);
 
         super::Entity::delete_by_id(service.id)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to delete service");
 
