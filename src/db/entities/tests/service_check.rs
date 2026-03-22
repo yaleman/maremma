@@ -104,7 +104,7 @@ async fn test_service_check_fk_host() {
     };
     let service_check_am = service_check
         .into_active_model()
-        .insert(&*db_writer)
+        .insert(db_writer)
         .await
         .expect("Failed to save service check")
         .try_into_model()

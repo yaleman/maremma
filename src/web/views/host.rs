@@ -187,9 +187,12 @@ pub(crate) async fn delete_host(
         return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()));
     }
 
-    let db_writer = state.db();
+    let db_writer = state.db().begin().await.map_err(|e| {
+        error!("Failed to begin DB transaction: {}", e);
+        Error::from(e)
+    })?;
     let host = match entities::host::Entity::find_by_id(host_id)
-        .one(db_writer)
+        .one(&db_writer)
         .await
         .map_err(Error::from)?
     {
@@ -202,7 +205,11 @@ pub(crate) async fn delete_host(
         }
     };
 
-    host.delete(db_writer).await.map_err(Error::from)?;
+    host.delete(&db_writer).await.map_err(Error::from)?;
+    db_writer.commit().await.map_err(|e| {
+        error!("Failed to commit DB transaction: {}", e);
+        Error::from(e)
+    })?;
     Ok(Redirect::to(Urls::Hosts.as_ref()))
 }
 

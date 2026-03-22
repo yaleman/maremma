@@ -1,20 +1,18 @@
 //! Host Group Related views
 //!
 
+use super::prelude::*;
+use crate::db::entities::{host, host_group, host_group_members};
+use crate::web::oidc::User;
+use crate::web::{Error, WebState};
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
 use serde::Deserialize;
 use tracing::{debug, info};
 use uuid::Uuid;
-
-use super::prelude::*;
-
-use crate::db::entities::{host, host_group, host_group_members};
-use crate::web::oidc::User;
-use crate::web::{Error, WebState};
 
 #[derive(Template, WebTemplate)]
 #[template(path = "host_groups.html")]
@@ -136,7 +134,10 @@ pub(crate) async fn host_group_member_delete(
 
     debug!("looking for group {:?} host {:?}", group_id, host_id);
 
-    let db_lock = state.db();
+    let db_txn = state.db().begin().await.map_err(|e| {
+        error!("Failed to start DB transaction: {}", e);
+        Error::from(e)
+    })?;
 
     let hgm = host_group_members::Entity::find()
         .filter(
@@ -144,7 +145,7 @@ pub(crate) async fn host_group_member_delete(
                 .eq(group_id)
                 .and(host_group_members::Column::HostId.eq(host_id)),
         )
-        .one(db_lock)
+        .one(&db_txn)
         .await
         .map_err(|e| {
             error!("Failed to fetch host group membership: {}", e);
@@ -160,8 +161,12 @@ pub(crate) async fn host_group_member_delete(
         }
     };
 
-    let res = hgm.delete(db_lock).await.map_err(|e| {
+    let res = hgm.delete(&db_txn).await.map_err(|e| {
         error!("Failed to delete host group membership: {}", e);
+        Error::from(e)
+    })?;
+    db_txn.commit().await.map_err(|e| {
+        error!("Failed to commit DB transaction: {}", e);
         Error::from(e)
     })?;
     info!(

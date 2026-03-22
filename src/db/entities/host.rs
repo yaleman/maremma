@@ -185,11 +185,11 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
         let db_writer = db.as_ref();
         let inserted_host = super::Entity::insert(super::test_host().into_active_model())
-            .exec_with_returning(&*db_writer)
+            .exec_with_returning(db_writer)
             .await
             .expect("Failed to insert host");
 
-        let found_host = super::Model::find_by_name(&super::test_host().name, &db_writer)
+        let found_host = super::Model::find_by_name(&super::test_host().name, db_writer)
             .await
             .expect("Failed to query host");
 
