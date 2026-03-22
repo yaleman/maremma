@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use schemars::JsonSchema;
 
 use crate::constants::{
-    web_server_default_port, DEFAULT_SERVICE_CHECK_HISTORY_STORAGE, WEB_SERVER_DEFAULT_STATIC_PATH,
+    web_server_default_port, DEFAULT_SERVICE_CHECK_HISTORY_STORAGE,
 };
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
@@ -149,15 +149,17 @@ impl TryFrom<ConfigurationParser> for Configuration {
             })
             .collect::<Result<HashMap<String, Service>, Error>>()?;
 
-        let static_path = value
-            .static_path
-            .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH));
-
-        if !static_path.exists() {
-            return Err(Error::Configuration(
-                "Static path does not exist".to_string(),
-            ));
-        }
+        let static_path = match value.static_path {
+            Some(static_path) => {
+                if !static_path.exists() {
+                    return Err(Error::Configuration(
+                        "Static path does not exist".to_string(),
+                    ));
+                }
+                Some(static_path)
+            }
+            None => None,
+        };
 
         let listen_port: Option<NonZeroU16> = value
             .listen_port
@@ -205,7 +207,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_file: value.cert_file,
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
-            static_path: Some(static_path),
+            static_path,
             max_history_entries_per_check: value
                 .max_history_entries_per_check
                 .unwrap_or(DEFAULT_SERVICE_CHECK_HISTORY_STORAGE),
