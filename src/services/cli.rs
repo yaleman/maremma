@@ -94,7 +94,7 @@ impl ServiceTrait for CliService {
             let mut combined = res.stderr.to_vec();
             combined.extend(res.stdout);
             return Ok(CheckResult {
-                timestamp: chrono::Utc::now(),
+                timestamp: Utc::now(),
                 result_text: String::from_utf8_lossy(&combined)
                     .to_string()
                     .replace(r#"\\n"#, " "),
@@ -104,7 +104,7 @@ impl ServiceTrait for CliService {
         }
 
         Ok(CheckResult {
-            timestamp: chrono::Utc::now(),
+            timestamp: Utc::now(),
             result_text: String::from_utf8_lossy(&res.stdout)
                 .to_string()
                 .replace(r#"\\n"#, " "),

@@ -148,26 +148,26 @@ mod tests {
         info!("saving host...");
         let am = host.clone().into_active_model();
         super::Entity::insert(am)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to insert host");
 
         let new_host = super::Entity::find()
             .filter(super::Column::Id.eq(host.id))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query host")
             .expect("Failed to find host");
         info!("found it: {:?}", new_host);
 
         super::Entity::delete_by_id(new_host.id)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to delete host");
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq(new_host.id))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query host")
             .is_none());
@@ -185,11 +185,11 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
         let db_writer = db.as_ref();
         let inserted_host = super::Entity::insert(super::test_host().into_active_model())
-            .exec_with_returning(&*db_writer)
+            .exec_with_returning(db_writer)
             .await
             .expect("Failed to insert host");
 
-        let found_host = super::Model::find_by_name(&super::test_host().name, &db_writer)
+        let found_host = super::Model::find_by_name(&super::test_host().name, db_writer)
             .await
             .expect("Failed to query host");
 

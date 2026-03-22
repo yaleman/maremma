@@ -31,7 +31,7 @@ pub(crate) async fn service_check_get(
     let db_lock = state.db();
 
     let res = entities::service_check::Entity::find_by_id(service_check_id)
-        .one(&*db_lock)
+        .one(db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -52,7 +52,7 @@ pub(crate) async fn service_check_get(
         .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
         .order_by_desc(entities::service_check_history::Column::Timestamp)
         .limit(DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES)
-        .all(&*db_lock)
+        .all(db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -64,7 +64,7 @@ pub(crate) async fn service_check_get(
 
     let host = service_check
         .find_related(entities::host::Entity)
-        .one(&*db_lock)
+        .one(db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -82,7 +82,7 @@ pub(crate) async fn service_check_get(
 
     let service = service_check
         .find_related(entities::service::Entity)
-        .one(&*db_lock)
+        .one(db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -98,7 +98,7 @@ pub(crate) async fn service_check_get(
             )
         })?;
 
-    let mut parsed_service = crate::services::Service::try_from_service_model(&service, &db_lock)
+    let mut parsed_service = crate::services::Service::try_from_service_model(&service, db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -175,7 +175,7 @@ pub(crate) async fn set_service_check_status(
 ) -> Result<Redirect, (StatusCode, String)> {
     let db_lock = state.db();
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
-        .one(&*db_lock)
+        .one(db_lock)
         .await
         .map_err(|err| {
             error!(
@@ -204,7 +204,7 @@ pub(crate) async fn set_service_check_status(
     let host_id = service_check.host_id.clone().unwrap();
 
     if service_check.is_changed() {
-        service_check.save(&*db_lock).await.map_err(|err| {
+        service_check.save(db_lock).await.map_err(|err| {
             error!(
                 "Failed to set service_check_id={} to status={}: {:?}",
                 service_check_id, status, err
@@ -252,7 +252,7 @@ pub(crate) async fn service_check_delete(
     })?;
     let db_lock = state.db();
     entities::service_check::Entity::delete_by_id(service_check_id)
-        .exec(&*db_lock)
+        .exec(db_lock)
         .await
         .map_err(|err| {
             error!(

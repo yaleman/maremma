@@ -179,7 +179,7 @@ pub(crate) async fn tools(
                         entities::service_check::Column::Status,
                         Expr::value(ServiceStatus::Urgent),
                     )
-                    .exec(&*db_lock)
+                    .exec(db_lock)
                     .await
                     .map_err(|e| {
                         error!("Failed to set all to urgent: {:?}", e);

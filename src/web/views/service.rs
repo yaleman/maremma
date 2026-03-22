@@ -29,7 +29,7 @@ pub(crate) async fn service(
     let db_lock = state.db();
 
     let service = match entities::service::Entity::find_by_id(service_id)
-        .one(&*db_lock)
+        .one(db_lock)
         .await
         .map_err(Error::from)?
     {
@@ -42,7 +42,7 @@ pub(crate) async fn service(
         }
     };
 
-    let service_checks = FullServiceCheck::get_by_service_id(service_id, &db_lock).await?;
+    let service_checks = FullServiceCheck::get_by_service_id(service_id, db_lock).await?;
     Ok(ServiceTemplate {
         title: service.name.clone(),
         service,

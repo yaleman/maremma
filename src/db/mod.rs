@@ -137,7 +137,7 @@ pub async fn get_next_service_check(
                 entities::service_check::Column::Status
                     .ne(ServiceStatus::Disabled)
                     .and(entities::service_check::Column::Status.ne(ServiceStatus::Checking))
-                    .and(entities::service_check::Column::NextCheck.lte(chrono::Utc::now())),
+                    .and(entities::service_check::Column::NextCheck.lte(Utc::now())),
             )
             .distinct();
         // check for pending ones

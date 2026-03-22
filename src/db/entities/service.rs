@@ -215,26 +215,26 @@ mod tests {
         info!("saving service... {:?}", &service);
         let am = service.clone().into_active_model();
         super::Entity::insert(am)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to insert service");
 
         let service = super::Entity::find()
             .filter(super::Column::Id.eq(service.id))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find service");
         info!("found it: {:?}", service);
 
         super::Entity::delete_by_id(service.id)
-            .exec(&*db_writer)
+            .exec(db_writer)
             .await
             .expect("Failed to delete service");
 
         assert!(super::Entity::find()
             .filter(super::Column::Id.eq("test_service".to_string()))
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query db")
             .is_none());
@@ -258,11 +258,11 @@ mod tests {
     async fn test_config_updates() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_lock = db.as_ref();
+        let db_conn = db.as_ref();
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db_lock)
+            .one(db_conn)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -289,13 +289,13 @@ mod tests {
             ),
         );
 
-        super::Model::update_db_from_config(&db_lock, Arc::new(RwLock::new(config)))
+        super::Model::update_db_from_config(db_conn, Arc::new(RwLock::new(config)))
             .await
             .expect("Failed to update db from config");
 
         let service = super::Entity::find()
             .filter(super::Column::Name.eq("local_lslah".to_string()))
-            .one(&*db_lock)
+            .one(db_conn)
             .await
             .expect("Failed to query db")
             .expect("Couldn't find local_lslah");
@@ -324,17 +324,17 @@ mod tests {
     async fn test_find_related_service_to_service_check() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 
-        let db_lock = db.as_ref();
+        let db_connection = db.as_ref();
 
         let service = super::Entity::find()
-            .one(&*db_lock)
+            .one(db_connection)
             .await
             .expect("Failed to select service")
             .expect("Failed to find service");
 
         let service_checks = service
             .find_related(service_check::Entity)
-            .all(&*db_lock)
+            .all(db_connection)
             .await
             .expect("Failed to search for service_checks");
 

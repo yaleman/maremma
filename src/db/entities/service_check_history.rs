@@ -8,7 +8,7 @@ use crate::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: DateTime<chrono::Utc>,
     pub service_check_id: Uuid,
     pub status: ServiceStatus,
     pub time_elapsed: i64,
@@ -152,14 +152,14 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.as_ref();
         let service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to query service check")
             .expect("Failed to find service check");
 
         let result = CheckResult {
             timestamp: Utc::now(),
-            time_elapsed: chrono::Duration::milliseconds(145),
+            time_elapsed: Duration::milliseconds(145),
             status: ServiceStatus::Ok,
             result_text: "test".to_string(),
         };
@@ -168,7 +168,7 @@ mod tests {
         let res = service_check_history
             .clone()
             .into_active_model()
-            .insert(&*db_writer)
+            .insert(db_writer)
             .await
             .expect("Failed to save service check history");
 
@@ -176,7 +176,7 @@ mod tests {
 
         let res = Entity::find_by_id(service_check_history.id)
             .find_with_related(entities::service_check::Entity)
-            .all(&*db_writer)
+            .all(db_writer)
             .await
             .expect("Failed to find service check history");
 
@@ -185,7 +185,7 @@ mod tests {
         assert!(!related_model.is_empty());
 
         let res = Entity::prune(
-            &db_writer,
+            db_writer,
             chrono::Utc::now() - TimeDelta::days(1),
             Some(service_check.id),
         )
@@ -232,14 +232,14 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.as_ref();
         let valid_service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to find service check")
             .expect("Failed to find service check");
 
         let result = CheckResult {
             timestamp: Utc::now(),
-            time_elapsed: chrono::Duration::milliseconds(145),
+            time_elapsed: Duration::milliseconds(145),
             status: ServiceStatus::Ok,
             result_text: "test".to_string(),
         };
@@ -249,17 +249,17 @@ mod tests {
         service_check_history
             .clone()
             .into_active_model()
-            .insert(&*db_writer)
+            .insert(db_writer)
             .await
             .expect("Failed to save service check history");
 
-        let res = Entity::head(&db_writer, Some(valid_service_check.id), 0)
+        let res = Entity::head(db_writer, Some(valid_service_check.id), 0)
             .await
             .expect("Failed to prune a valid SCID");
 
         assert_eq!(res, 1);
 
-        let res = Entity::head(&db_writer, Some(Uuid::new_v4()), 0)
+        let res = Entity::head(db_writer, Some(Uuid::new_v4()), 0)
             .await
             .expect("Failed to prune nothing");
 
@@ -271,7 +271,7 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to do test setup");
         let db_writer = db.as_ref();
         let valid_service_check = entities::service_check::Entity::find()
-            .one(&*db_writer)
+            .one(db_writer)
             .await
             .expect("Failed to find service check")
             .expect("Failed to find service check");
@@ -280,7 +280,7 @@ mod tests {
 
         let result = CheckResult {
             timestamp: Utc::now(),
-            time_elapsed: chrono::Duration::milliseconds(145),
+            time_elapsed: Duration::milliseconds(145),
             status: ServiceStatus::Ok,
             result_text: "test".to_string(),
         };
@@ -293,14 +293,14 @@ mod tests {
                 Model::from_service_check_result(valid_sc_id, &result).into_active_model();
 
             sch.id.set_if_not_equals(Uuid::new_v4());
-            sch.insert(&*db_writer)
+            sch.insert(db_writer)
                 .await
                 .expect("Failed to save service check history");
         }
 
         let res = Entity::find()
             .filter(Column::ServiceCheckId.eq(valid_sc_id))
-            .all(&*db_writer)
+            .all(db_writer)
             .await
             .expect("Failed to find service check history");
         assert_eq!(res.len() as u64, things_to_create);
@@ -310,7 +310,7 @@ mod tests {
             valid_sc_id
         );
 
-        let res = Entity::head(&db_writer, Some(valid_service_check.id), num_to_delete)
+        let res = Entity::head(db_writer, Some(valid_service_check.id), num_to_delete)
             .await
             .expect("Failed to prune nothing");
 

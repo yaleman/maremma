@@ -136,6 +136,15 @@ const RELOAD_TIME: u64 = 1000;
 #[cfg(test)]
 const TEST_OIDC_SESSION_KEY: &str = "maremma-test-oidc-authenticated";
 
+fn default_static_path() -> PathBuf {
+    let container_static_path = PathBuf::from("/static");
+    if container_static_path.exists() {
+        container_static_path
+    } else {
+        PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH)
+    }
+}
+
 impl OidcErrorHandler {
     pub fn new(web_tx: Option<Sender<WebServerControl>>) -> Self {
         Self { web_tx }
@@ -164,7 +173,7 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, E
         .await
         .static_path
         .clone()
-        .unwrap_or(PathBuf::from(WEB_SERVER_DEFAULT_STATIC_PATH));
+        .unwrap_or_else(default_static_path);
 
     let session_store = get_session_store(&state.db);
 
