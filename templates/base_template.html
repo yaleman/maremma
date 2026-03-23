@@ -24,10 +24,10 @@
                         </div>
                     </a>
                     <nav class="app-nav" aria-label="Primary">
-                        <a href="{{Urls::Tools}}" class="app-nav-link">Tools</a>
-                        <a href="{{Urls::Services}}" class="app-nav-link">Services</a>
-                        <a href="{{Urls::HostGroups}}" class="app-nav-link">Groups</a>
                         <a href="{{Urls::Hosts}}" class="app-nav-link">Hosts</a>
+                        <a href="{{Urls::HostGroups}}" class="app-nav-link">Groups</a>
+                        <a href="{{Urls::Services}}" class="app-nav-link">Services</a>
+                        <a href="{{Urls::Tools}}" class="app-nav-link">Tools</a>
                     </nav>
                     <div class="flex items-center gap-2">
                         {% if let Some(username) = username %}
