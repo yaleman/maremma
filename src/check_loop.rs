@@ -5,6 +5,7 @@ use crate::prelude::*;
 use futures::FutureExt;
 use opentelemetry::metrics::Counter;
 use opentelemetry::KeyValue;
+use std::cmp::{max, min};
 use tokio::task::JoinSet;
 
 const DEFAULT_BACKOFF: std::time::Duration = tokio::time::Duration::from_millis(50);
@@ -264,9 +265,7 @@ pub async fn run_check_loop(
 ) -> Result<(), MaremmaError> {
     // Create a Counter Instrument.
 
-    use std::cmp::min;
-
-    let max_permits = std::cmp::max(max_permits, 1);
+    let max_permits = max(max_permits, 1);
     let checks_run_since_startup = metrics_meter
         .u64_counter("checks_run_since_startup")
         .build();
