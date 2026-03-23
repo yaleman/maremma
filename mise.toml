@@ -1,10 +1,13 @@
 [tools]
 pnpm = "latest"
 
+[tasks.build-check-splunk]
+run = "cargo build --bin check_splunk"
+
 
 [tasks.frontend-build]
 run = "pnpm run build:css"
 
 [tasks.start]
-depends = ["frontend-build"]
+depends = ["frontend-build", "build-check-splunk"]
 run = "cargo run run"
