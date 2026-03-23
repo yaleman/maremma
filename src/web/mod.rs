@@ -1,7 +1,7 @@
 //! Web server related functionality
 //!
 
-pub(crate) mod controller;
+pub mod controller;
 pub(crate) mod middleware;
 pub(crate) mod oidc;
 pub(crate) mod urls;
@@ -447,7 +447,7 @@ pub async fn run_web_server(
             db,
             configuration.clone(),
             Some(registry),
-            Some(web_tx),
+            Some(web_tx.clone()),
             config_filepath,
         ),
     )
@@ -463,6 +463,21 @@ pub async fn run_web_server(
 
     loop {
         tokio::select! {
+              biased;
+
+            _ = tokio::signal::ctrl_c() => {
+                info!("Received Ctrl-C, shutting down");
+                return Ok(())
+            }
+            Some(()) = async move {
+                let sigterm = tokio::signal::unix::SignalKind::alarm();
+                #[allow(clippy::unwrap_used)]
+                tokio::signal::unix::signal(sigterm).unwrap().recv().await
+            } => {
+                info!("Server shut down gracefully");
+                return Ok(())
+
+            }
             server_result = start_web_server(configuration.clone(), app.clone()) => {
                 match server_result {Ok(_) => {
                     error!("Web server exited cleanly");
