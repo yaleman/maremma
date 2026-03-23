@@ -1,6 +1,7 @@
 use super::prelude::*;
 use crate::constants::SESSION_CSRF_TOKEN;
 use crate::db::update_db_from_config;
+use crate::web::views::csrf::{check_csrf_token, issue_csrf_token, CsrfTokenForm};
 use crate::web::{Configuration, MaremmaError};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue};
@@ -138,29 +139,6 @@ async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
     )))
 }
 
-async fn check_csrf_token(csrf_token: &str, session: &Session) -> Result<(), MaremmaError> {
-    let session_csrf_token = session
-        .get::<String>(SESSION_CSRF_TOKEN)
-        .await
-        .map_err(MaremmaError::from)?;
-
-    if session_csrf_token.is_none() {
-        debug!("CSRF token not found in session");
-        return Err(MaremmaError::CsrfTokenMissing);
-    }
-    if let Some(token) = &session_csrf_token {
-        if token != csrf_token {
-            debug!(
-                "CSRF token mismatch: session={} form={}",
-                &token, csrf_token
-            );
-            return Err(MaremmaError::CsrfValidationFailed);
-        }
-    }
-
-    Ok(())
-}
-
 /// Seen at `/tools`
 pub(crate) async fn tools(
     State(state): State<WebState>,
@@ -214,11 +192,9 @@ pub(crate) async fn tools(
             }
         }
     }
-    let csrf_token = state.new_csrf_token();
-    session
-        .insert(SESSION_CSRF_TOKEN, &csrf_token)
+    let csrf_token = issue_csrf_token(&state, &session)
         .await
-        .map_err(|err| MaremmaError::from(err).into_response())?;
+        .map_err(|err| err.into_response())?;
 
     Ok(ToolsTemplate {
         title: "Tools".to_string(),
@@ -227,11 +203,6 @@ pub(crate) async fn tools(
         status: results.status,
         csrf_token,
     })
-}
-
-#[derive(Deserialize)]
-pub(crate) struct CsrfTokenForm {
-    csrf_token: String,
 }
 
 pub(crate) async fn export_db(
@@ -249,7 +220,9 @@ pub(crate) async fn export_db(
 
     let db_filename = state.configuration.read().await.database_file.clone();
 
-    let file_contents = tokio::fs::read(&db_filename).await.map_err(MaremmaError::from)?;
+    let file_contents = tokio::fs::read(&db_filename)
+        .await
+        .map_err(MaremmaError::from)?;
 
     let filename = db_filename.split("/").last().unwrap_or("db.sqlite3");
 
@@ -285,6 +258,8 @@ pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
 mod tests {
 
     use crate::db::tests::test_setup;
+    use sea_orm::{ColumnTrait, QueryFilter};
+    use serde_json::json;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -467,6 +442,58 @@ mod tests {
                 "Expected a failed reload"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_tools_reload_config_updates_service_command_line() {
+        let mut state = WebState::test().await;
+        let mut config = Configuration::load_test_config_bare().await;
+
+        config
+            .services
+            .get_mut("local_lslah")
+            .expect("Failed to find local_lslah in test config")
+            .extra_config
+            .insert("command_line".to_string(), json!("echo updated"));
+
+        let mut tempfile = NamedTempFile::new().expect("Failed to create tempfile");
+        tempfile
+            .write_all(
+                serde_json::to_string(&config)
+                    .expect("Failed to serialize updated test config")
+                    .as_bytes(),
+            )
+            .expect("Failed to write updated test config");
+        state.config_filepath = tempfile.path().to_path_buf();
+
+        let res = tools_reload_config(&state).await;
+        assert!(res.is_err());
+
+        let service = entities::service::Entity::find()
+            .filter(entities::service::Column::Name.eq("local_lslah"))
+            .one(state.db())
+            .await
+            .expect("Failed to query updated service")
+            .expect("Failed to find updated service");
+        assert_eq!(service.extra_config["command_line"], json!("echo updated"));
+
+        let service_check = entities::service_check::Entity::find()
+            .filter(entities::service_check::Column::ServiceId.eq(service.id))
+            .one(state.db())
+            .await
+            .expect("Failed to query service check")
+            .expect("Failed to find service check");
+
+        let rendered = crate::web::views::service_check::service_check_get(
+            Path(service_check.id),
+            State(state.clone()),
+            state.get_session(),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Failed to render service check after reload")
+        .to_string();
+        assert!(rendered.contains("echo updated"));
     }
 
     #[tokio::test]

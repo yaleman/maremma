@@ -3,7 +3,8 @@ use axum::Form;
 use chrono::{DateTime, Local, Utc};
 use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
-use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES;
+use crate::constants::{DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES, SESSION_CSRF_TOKEN};
+use crate::web::views::csrf::{check_csrf_token, issue_csrf_token, CsrfRedirectToForm};
 use crate::web::MaremmaError;
 
 use super::prelude::*;
@@ -25,6 +26,7 @@ pub(crate) struct ServiceCheckTemplate {
     last_check_relative: String,
     next_check_display: String,
     next_check_relative: String,
+    csrf_token: String,
 }
 
 fn format_absolute_time(value: DateTime<Utc>) -> String {
@@ -65,12 +67,16 @@ fn format_relative_time(value: DateTime<Utc>, now: DateTime<Utc>) -> String {
 }
 
 fn format_time_fields(value: DateTime<Utc>, now: DateTime<Utc>) -> (String, String) {
-    (format_absolute_time(value), format_relative_time(value, now))
+    (
+        format_absolute_time(value),
+        format_relative_time(value, now),
+    )
 }
 
 pub(crate) async fn service_check_get(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
+    session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<ServiceCheckTemplate, MaremmaError> {
     let user = check_login(claims)?;
@@ -179,6 +185,7 @@ pub(crate) async fn service_check_get(
         format_time_fields(service_check.last_check, now);
     let (next_check_display, next_check_relative) =
         format_time_fields(service_check.next_check, now);
+    let csrf_token = issue_csrf_token(&state, &session).await?;
 
     Ok(ServiceCheckTemplate {
         title: format!("Service Check: {}", &service.name),
@@ -194,38 +201,74 @@ pub(crate) async fn service_check_get(
         last_check_relative,
         next_check_display,
         next_check_relative,
+        csrf_token,
     })
 }
 
 pub(crate) async fn set_service_check_urgent(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
-    Form(form): Form<RedirectTo>,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Urgent, form).await
+    set_service_check_status(
+        service_check_id,
+        state,
+        session,
+        claims,
+        ServiceStatus::Urgent,
+        form,
+    )
+    .await
 }
 pub(crate) async fn set_service_check_disabled(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
-    Form(form): Form<RedirectTo>,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Disabled, form).await
+    set_service_check_status(
+        service_check_id,
+        state,
+        session,
+        claims,
+        ServiceStatus::Disabled,
+        form,
+    )
+    .await
 }
 
 pub(crate) async fn set_service_check_enabled(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
-    Form(form): Form<RedirectTo>,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Pending, form).await
+    set_service_check_status(
+        service_check_id,
+        state,
+        session,
+        claims,
+        ServiceStatus::Pending,
+        form,
+    )
+    .await
 }
 
 pub(crate) async fn set_service_check_status(
     service_check_id: Uuid,
     state: WebState,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     status: ServiceStatus,
-    form: RedirectTo,
+    form: CsrfRedirectToForm,
 ) -> Result<Redirect, MaremmaError> {
+    let _user = check_login(claims)?;
+    check_csrf_token(&form.csrf_token, &session).await?;
+
     let db_lock = state.db();
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
         .one(db_lock)
@@ -273,26 +316,16 @@ pub(crate) async fn set_service_check_status(
     }
 }
 
-/// For when you want to redirect people back to where they came from
-#[derive(Deserialize, Debug)]
-pub(crate) struct RedirectTo {
-    redirect_to: Option<String>,
-}
-
-impl From<Option<String>> for RedirectTo {
-    fn from(redirect_to: Option<String>) -> Self {
-        Self { redirect_to }
-    }
-}
-
 /// Want to delete a service check? Woo!
 pub(crate) async fn service_check_delete(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
+    session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-    Form(redirect_form): Form<RedirectTo>,
+    Form(redirect_form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, MaremmaError> {
-    let _user = claims.ok_or_else(|| MaremmaError::Unauthorized)?;
+    let _user = check_login(claims)?;
+    check_csrf_token(&redirect_form.csrf_token, &session).await?;
     let db_lock = state.db();
     entities::service_check::Entity::delete_by_id(service_check_id)
         .exec(db_lock)
@@ -322,6 +355,20 @@ mod tests {
 
     use super::*;
 
+    async fn csrf_form(
+        state: &WebState,
+        session: &Session,
+        redirect_to: Option<String>,
+    ) -> CsrfRedirectToForm {
+        let csrf_token = issue_csrf_token(state, session)
+            .await
+            .expect("Failed to issue CSRF token");
+        CsrfRedirectToForm {
+            redirect_to,
+            csrf_token,
+        }
+    }
+
     #[tokio::test]
     async fn test_view_service_check_without_auth() {
         let state = WebState::test().await;
@@ -331,7 +378,13 @@ mod tests {
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
-        let res = service_check_get(Path(service_check.id), State(state.clone()), None).await;
+        let res = service_check_get(
+            Path(service_check.id),
+            State(state.clone()),
+            state.get_session(),
+            None,
+        )
+        .await;
 
         assert!(res.is_err()); // because authentication failed
     }
@@ -349,6 +402,7 @@ mod tests {
         let res = service_check_get(
             Path(service_check.id),
             State(state.clone()),
+            state.get_session(),
             Some(test_user_claims()),
         )
         .await
@@ -384,6 +438,7 @@ mod tests {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
+        let session = state.get_session();
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db())
@@ -394,16 +449,18 @@ mod tests {
         let res = set_service_check_urgent(
             Path(service_check.id),
             State(state.clone()),
-            Form(RedirectTo::from(None)),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
         assert!(res.is_ok());
         let res = set_service_check_urgent(
             Path(Uuid::new_v4()),
             State(state.clone()),
-            Form(RedirectTo {
-                redirect_to: Some("/test".to_string()),
-            }),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&state, &session, Some("/test".to_string())).await),
         )
         .await;
         assert!(res.is_err());
@@ -411,9 +468,9 @@ mod tests {
         let res = set_service_check_urgent(
             Path(Uuid::new_v4()),
             State(state.clone()),
-            Form(RedirectTo {
-                redirect_to: Some("/test".to_string()),
-            }),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&state, &session, Some("/test".to_string())).await),
         )
         .await;
 
@@ -422,6 +479,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_service_check_disabled() {
         let state = WebState::test().await;
+        let session = state.get_session();
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db())
@@ -432,14 +490,18 @@ mod tests {
         let res = set_service_check_disabled(
             Path(service_check.id),
             State(state.clone()),
-            Form(RedirectTo::from(None)),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
         assert!(res.is_ok());
         let res = set_service_check_disabled(
             Path(Uuid::new_v4()),
-            State(state),
-            Form(RedirectTo::from(None)),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
         assert!(res.is_err());
@@ -449,6 +511,7 @@ mod tests {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
+        let session = state.get_session();
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db())
@@ -459,14 +522,18 @@ mod tests {
         let res = set_service_check_enabled(
             Path(service_check.id),
             State(state.clone()),
-            Form(RedirectTo::from(None)),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
         assert!(res.is_ok());
         let res = set_service_check_enabled(
             Path(Uuid::new_v4()),
-            State(state),
-            Form(RedirectTo::from(None)),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
         assert!(res.is_err());
@@ -489,6 +556,7 @@ mod tests {
         let res = super::service_check_get(
             Path(service_check_id),
             State(state.clone()),
+            state.get_session(),
             Some(test_user_claims()),
         )
         .await;
@@ -504,6 +572,7 @@ mod tests {
         let (_db, _config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
+        let session = state.get_session();
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
@@ -517,8 +586,9 @@ mod tests {
         let res = super::service_check_delete(
             Path(service_check_id),
             State(state.clone()),
+            session.clone(),
             None,
-            Form(RedirectTo { redirect_to: None }),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
         assert!(res.is_err());
@@ -530,6 +600,7 @@ mod tests {
         let (db, _config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
+        let session = state.get_session();
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
@@ -543,8 +614,9 @@ mod tests {
         let res = super::service_check_delete(
             Path(service_check_id),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
-            Form(RedirectTo { redirect_to: None }),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
 
@@ -562,10 +634,63 @@ mod tests {
         let res = service_check_delete(
             Path(service_check.id),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
-            Form(RedirectTo { redirect_to: None }),
+            Form(csrf_form(&state, &session, None).await),
         )
         .await;
         assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_service_check_actions_require_valid_csrf() {
+        let state = WebState::test().await;
+        let session = state.get_session();
+        let service_check = entities::service_check::Entity::find()
+            .one(state.db())
+            .await
+            .expect("Failed to query service check")
+            .expect("No service checks found");
+
+        let res = set_service_check_urgent(
+            Path(service_check.id),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(CsrfRedirectToForm {
+                redirect_to: None,
+                csrf_token: "wrong".to_string(),
+            }),
+        )
+        .await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.expect_err("Expected csrf error")
+                .into_response()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+
+        let csrf_token = issue_csrf_token(&state, &session)
+            .await
+            .expect("Failed to issue CSRF token");
+        let res = set_service_check_urgent(
+            Path(service_check.id),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(CsrfRedirectToForm {
+                redirect_to: None,
+                csrf_token: format!("{csrf_token}-wrong"),
+            }),
+        )
+        .await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.expect_err("Expected csrf mismatch")
+                .into_response()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
     }
 }

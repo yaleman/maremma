@@ -1,4 +1,5 @@
 use sea_orm::entity::prelude::*;
+use sea_orm::Set;
 use sea_orm::TryIntoModel;
 
 use crate::prelude::*;
@@ -75,7 +76,6 @@ impl MaremmaEntity for Model {
         config: SendableConfig,
     ) -> Result<(), MaremmaError> {
         for (service_name, service) in &config.read().await.services {
-            // this is janky but we need to flatten it using serde to get the "extra" fields
             let extra_config: Json = serde_json::to_value(service.extra_config.clone())
                 .inspect_err(|err| {
                     error!(
@@ -83,35 +83,10 @@ impl MaremmaEntity for Model {
                         service_name, err
                     )
                 })?;
-
-            let mut service_value = serde_json::to_value(service).inspect_err(|err| {
-                error!(
-                    "Failed to convert service into JsonValue for {} error={:?}",
-                    service_name, err
-                )
-            })?;
-
-            if let Some(service_object) = service_value.as_object_mut() {
-                if !service_object.contains_key("id")
-                    || Some(&serde_json::Value::Null) == service_object.get("id")
-                {
-                    debug!("Adding ID to service: {}", service_name);
-                    if let Some(id) = service_object.get_mut("id") {
-                        *id = json!(Uuid::new_v4());
-                    } else {
-                        return Err(MaremmaError::Configuration(format!(
-                            "Failed to add ID to service '{service_name}', check the configuration!"
-                        )));
-                    };
-                }
-                service_object.insert("name".to_string(), json!(service_name));
-                service_object.insert("extra_config".to_string(), json!(extra_config));
-            } else {
-                error!("Failed to convert service to object: {:?}", service_value);
-                return Err(MaremmaError::Configuration(format!(
-                    "Failed to convert service '{service_name}' to object, check the configuration!"
-                )));
-            }
+            let service_id = service.id;
+            let description = service.description.clone();
+            let service_type = service.service_type.clone();
+            let cron_schedule = service.cron_schedule.to_string();
 
             debug!("Looking for {}", service_name);
             // check if we have one and add it if not
@@ -124,10 +99,10 @@ impl MaremmaEntity for Model {
                     debug!("found it!");
                     let mut res = res.into_active_model();
                     res.name.set_if_not_equals(service_name.clone());
-                    res.set_from_json(service_value).map_err(|err| {
-                        error!("Error setting service from json: {:?}", err);
-                        MaremmaError::from(err)
-                    })?;
+                    res.description.set_if_not_equals(description.clone());
+                    res.service_type.set_if_not_equals(service_type.clone());
+                    res.cron_schedule.set_if_not_equals(cron_schedule.clone());
+                    res.extra_config.set_if_not_equals(extra_config.clone());
 
                     if res.is_changed() {
                         debug!("Updating service with {:?}", res);
@@ -141,26 +116,14 @@ impl MaremmaEntity for Model {
                 }
                 Ok(None) => {
                     info!("Didn't find service name='{}' will create it", service_name);
-                    // insert the service if we can't find it
-                    let mut am = ActiveModel::new();
-
-                    let jsonvalue = serde_json::to_value(&service_value).inspect_err(|err| {
-                        error!(
-                            "Failed to turn {} into json value? err={:?}",
-                            service_name, err
-                        )
-                    })?;
-
-                    am.set_from_json(jsonvalue.clone()).inspect_err(|err| {
-                        error!(
-                            "Failed to set model values for {} from JSON {:?} error={:?}",
-                            service_name, jsonvalue, err
-                        )
-                    })?;
-                    if am.id.is_not_set() {
-                        am.id.set_if_not_equals(Uuid::new_v4());
-                    }
-                    am.extra_config.set_if_not_equals(json!(extra_config));
+                    let am = ActiveModel {
+                        id: Set(service_id),
+                        name: Set(service_name.clone()),
+                        description: Set(description.clone()),
+                        service_type: Set(service_type.clone()),
+                        cron_schedule: Set(cron_schedule.clone()),
+                        extra_config: Set(extra_config.clone()),
+                    };
 
                     #[cfg(any(test, debug_assertions))]
                     debug!("about to update this: {:?}", am);
@@ -268,11 +231,10 @@ mod tests {
         info!("found it: {:?}", service);
 
         let mut config = Configuration::load_test_config_bare().await;
-
-        let extra_config_json = json!({"extra_config" : { "url": "http://localhost:12345" }});
-        let extra_config: HashMap<String, Value> =
-            serde_json::from_value(extra_config_json.clone())
-                .expect("Failed to deserialize JSON into hashmap");
+        let extra_config: HashMap<String, Value> = HashMap::from_iter([
+            ("command_line".to_string(), json!("echo updated")),
+            ("run_in_shell".to_string(), json!(true)),
+        ]);
 
         config.services.insert(
             "local_lslah".to_string(),
@@ -280,11 +242,10 @@ mod tests {
                 service.id,
                 Some(service.name.clone()),
                 Some("New Description".to_string()),
-                vec!["test".to_string()],
+                vec!["local_lslah".to_string()],
                 ServiceType::Cli,
-                std::str::FromStr::from_str(&service.cron_schedule)
-                    .expect("couldn't parse cron schedule"),
-                extra_config,
+                std::str::FromStr::from_str("*/15 * * * *").expect("couldn't parse cron schedule"),
+                extra_config.clone(),
             ),
         );
 
@@ -300,7 +261,9 @@ mod tests {
             .expect("Couldn't find local_lslah");
         info!("found it: {:?}", service);
         assert_eq!(service.description, Some("New Description".to_string()));
-        assert_eq!(service.extra_config, json!(extra_config_json))
+        assert_eq!(service.service_type, ServiceType::Cli);
+        assert_eq!(service.cron_schedule, "*/15 * * * *");
+        assert_eq!(service.extra_config, json!(extra_config));
     }
 
     #[tokio::test]

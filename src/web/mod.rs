@@ -41,7 +41,7 @@ use tower_sessions::{
 use urls::Urls;
 use views::handler_404;
 use views::host_group::{host_group, host_group_delete, host_group_member_delete, host_groups};
-use views::service::service;
+use views::service::{service, service_delete};
 use views::service_check::{service_check_delete, service_check_get};
 
 #[derive(Clone)]
@@ -210,6 +210,10 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
             post(views::host::delete_host),
         )
         .route(&format!("{}/{{service_id}}", Urls::Service), get(service))
+        .route(
+            &format!("{}/{{service_id}}/delete", Urls::Service),
+            post(service_delete),
+        )
         .route(
             &format!("{}/{{group_id}}", Urls::HostGroup),
             get(host_group),
