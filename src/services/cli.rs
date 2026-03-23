@@ -66,11 +66,20 @@ impl ServiceTrait for CliService {
             None => return Err(MaremmaError::Generic("No command specified!".to_string())),
         };
 
-        let which_cmd = which::which(cmd).map_err(|err| MaremmaError::CommandNotFound(err.to_string()))?;
+        let which_cmd = which::which(cmd).map_err(|err| {
+            MaremmaError::CommandNotFound(format!(
+                "Couldn't find {}, error: {}",
+                cmd,
+                err.to_string()
+            ))
+        })?;
 
         if !which_cmd.exists() {
             // check if the command exists
-            return Err(MaremmaError::CommandNotFound(format!("Command not found: {cmd}")));
+            return Err(MaremmaError::CommandNotFound(format!(
+                "Command not found: {}",
+                which_cmd.display()
+            )));
         }
 
         let args = cmd_split.collect::<Vec<&str>>();
