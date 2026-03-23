@@ -6,7 +6,7 @@ use crate::constants::SESSION_CSRF_TOKEN;
 use crate::db::entities::service_check::FullServiceCheck;
 use axum::Form;
 use entities::host_group;
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
 
 #[derive(Template, Debug, WebTemplate)]
 #[template(path = "host.html")]
@@ -153,11 +153,7 @@ pub(crate) async fn hosts(
     sort_host_list_items(
         &mut hosts,
         queries.queries.field.unwrap_or_default(),
-        queries
-            .queries
-            .ord
-            .unwrap_or(super::prelude::Order::Asc)
-            .into(),
+        queries.queries.ord.unwrap_or(super::prelude::Order::Asc),
     );
 
     Ok(HostsTemplate {
@@ -255,9 +251,9 @@ pub(crate) async fn delete_host(
         return Err(MaremmaError::CsrfValidationFailed);
     }
 
-    let db_writer = state.db();
+    let db_writer = state.db().begin().await.map_err(MaremmaError::from)?;
     let host = match entities::host::Entity::find_by_id(host_id)
-        .one(&*db_writer)
+        .one(&db_writer)
         .await
         .map_err(MaremmaError::from)?
     {
@@ -267,7 +263,9 @@ pub(crate) async fn delete_host(
         }
     };
 
-    host.delete(&*db_writer).await.map_err(MaremmaError::from)?;
+    host.delete(&db_writer).await.map_err(MaremmaError::from)?;
+    db_writer.commit().await.map_err(MaremmaError::from)?;
+
     Ok(Redirect::to(Urls::Hosts.as_ref()))
 }
 
