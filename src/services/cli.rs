@@ -67,11 +67,7 @@ impl ServiceTrait for CliService {
         };
 
         let which_cmd = which::which(cmd).map_err(|err| {
-            MaremmaError::CommandNotFound(format!(
-                "Couldn't find {}, error: {}",
-                cmd,
-                err.to_string()
-            ))
+            MaremmaError::CommandNotFound(format!("Couldn't find {}, error: {}", cmd, err))
         })?;
 
         if !which_cmd.exists() {
