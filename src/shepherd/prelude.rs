@@ -15,6 +15,6 @@ pub(crate) use super::CronTaskTrait;
 pub(crate) use crate::config::SendableConfig;
 pub(crate) use crate::constants::{SESSION_EXPIRY_WINDOW_HOURS, STUCK_CHECK_MINUTES};
 pub(crate) use crate::db::entities;
-pub(crate) use crate::errors::Error;
+pub(crate) use crate::errors::MaremmaError;
 pub(crate) use crate::prelude::ServiceStatus;
 pub(crate) use crate::web::controller::WebServerControl;

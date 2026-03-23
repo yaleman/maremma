@@ -2,7 +2,7 @@ use askama_web::WebTemplate;
 use entities::service_check::FullServiceCheck;
 use sea_orm::{ColumnTrait, Order as SeaOrmOrder, QueryFilter, QueryOrder};
 
-use crate::errors::Error;
+use crate::errors::MaremmaError;
 
 use super::prelude::*;
 
@@ -31,7 +31,7 @@ pub(crate) async fn index(
     Query(queries): Query<SortQueries>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<IndexTemplate, (StatusCode, String)> {
+) -> Result<IndexTemplate, MaremmaError> {
     let sort_order: SeaOrmOrder = queries.ord.unwrap_or_default().into();
     let order_field = queries.field.unwrap_or(OrderFields::Status);
     debug!("Sorting home page by: {:?} {:?}", order_field, sort_order);
@@ -71,7 +71,7 @@ pub(crate) async fn index(
         .into_model()
         .all(db_lock)
         .await
-        .map_err(Error::from)?;
+        .map_err(MaremmaError::from)?;
     debug!("query done");
 
     if order_field == OrderFields::Status {

@@ -3,9 +3,10 @@ use axum::Form;
 use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES;
-use crate::web::Error;
+use crate::web::MaremmaError;
 
 use super::prelude::*;
+use crate::web::views::tools::ActionStatus;
 
 #[derive(Template, Debug, WebTemplate)]
 #[template(path = "service_check.html")]
@@ -13,7 +14,7 @@ pub(crate) struct ServiceCheckTemplate {
     title: String,
     username: Option<String>, // for the header
     message: Option<String>,
-    status: String,
+    status: ActionStatus,
     service_check: entities::service_check::Model,
     host: entities::host::Model,
     service: entities::service::Model,
@@ -25,7 +26,7 @@ pub(crate) async fn service_check_get(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<ServiceCheckTemplate, (StatusCode, String)> {
+) -> Result<ServiceCheckTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
     let db_lock = state.db();
@@ -38,15 +39,9 @@ pub(crate) async fn service_check_get(
                 "Failed to search for service check {}: {:?}",
                 service_check_id, err
             );
-            (
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} not found"),
-            )
+            MaremmaError::ServiceCheckNotFound(service_check_id)
         })?;
-    let service_check = res.ok_or((
-        StatusCode::NOT_FOUND,
-        format!("Service check with id={service_check_id} not found"),
-    ))?;
+    let service_check = res.ok_or(MaremmaError::ServiceCheckNotFound(service_check_id))?;
 
     let service_check_history = entities::service_check_history::Entity::find()
         .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
@@ -59,7 +54,7 @@ pub(crate) async fn service_check_get(
                 "Failed to search for service check history {}: {:?}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
 
     let host = service_check
@@ -71,13 +66,14 @@ pub(crate) async fn service_check_get(
                 "Failed to search for service check {}: {:?}",
                 service_check.id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?
         .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} host not found"),
-            )
+            error!(
+                "Host not found in DB for service check id {}",
+                service_check_id
+            );
+            MaremmaError::ServiceCheckNotFound(service_check_id)
         })?;
 
     let service = service_check
@@ -89,13 +85,14 @@ pub(crate) async fn service_check_get(
                 "Error querying service for service_check={} error={}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?
         .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} service not found"),
-            )
+            error!(
+                "Service not found in DB for service check id {}",
+                service_check_id
+            );
+            MaremmaError::ServiceCheckNotFound(service_check_id)
         })?;
 
     let mut parsed_service = crate::services::Service::try_from_service_model(&service, db_lock)
@@ -105,7 +102,7 @@ pub(crate) async fn service_check_get(
                 "Failed to render service_check {} into service {:?}",
                 service_check_id, err
             );
-            Error::Configuration("Failed to parse service definition".to_string())
+            MaremmaError::Configuration("Failed to parse service definition".to_string())
         })?;
 
     parsed_service.parse_config().map_err(|err| {
@@ -113,7 +110,7 @@ pub(crate) async fn service_check_get(
             "Failed to render service_check {} into service {:?}",
             service_check_id, err
         );
-        Error::Configuration("Failed to parse service definition to config".to_string())
+        MaremmaError::Configuration("Failed to parse service definition to config".to_string())
     })?;
 
     let parsed_config = parsed_service.config().map(|liveservice| {
@@ -124,7 +121,7 @@ pub(crate) async fn service_check_get(
                     "Failed to render service_check {} into service {:?}",
                     service_check_id, err
                 );
-                Error::Configuration("Failed to overlay host config".to_string())
+                MaremmaError::Configuration("Failed to overlay host config".to_string())
             })
             .unwrap_or("Failed to render config".to_string());
         debug!("Parsed config: {}", res);
@@ -135,7 +132,7 @@ pub(crate) async fn service_check_get(
         title: format!("Service Check: {}", &service.name),
         username: Some(user.username()),
         message: None,
-        status: "".to_string(),
+        status: ActionStatus::Unknown,
         service_check,
         host,
         service,
@@ -172,7 +169,7 @@ pub(crate) async fn set_service_check_status(
     state: WebState,
     status: ServiceStatus,
     form: RedirectTo,
-) -> Result<Redirect, (StatusCode, String)> {
+) -> Result<Redirect, MaremmaError> {
     let db_lock = state.db();
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
         .one(db_lock)
@@ -182,17 +179,12 @@ pub(crate) async fn set_service_check_status(
                 "Failed to search for service check {}: {:?}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
 
     let service_check = match service_check {
         Some(service_check) => service_check,
-        None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} not found"),
-            ))
-        }
+        None => return Err(MaremmaError::ServiceCheckNotFound(service_check_id)),
     };
 
     let mut service_check = service_check.into_active_model();
@@ -209,7 +201,7 @@ pub(crate) async fn set_service_check_status(
                 "Failed to set service_check_id={} to status={}: {:?}",
                 service_check_id, status, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
     };
 
@@ -243,13 +235,8 @@ pub(crate) async fn service_check_delete(
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     Form(redirect_form): Form<RedirectTo>,
-) -> Result<Redirect, (StatusCode, String)> {
-    let _user = claims.ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
-    })?;
+) -> Result<Redirect, MaremmaError> {
+    let _user = claims.ok_or_else(|| MaremmaError::Unauthorized)?;
     let db_lock = state.db();
     entities::service_check::Entity::delete_by_id(service_check_id)
         .exec(db_lock)
@@ -259,7 +246,7 @@ pub(crate) async fn service_check_delete(
                 "Failed to delete service check {}: {:?}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
 
     if let Some(redirect_to) = redirect_form.redirect_to {

@@ -1,0 +1,10 @@
+[tools]
+pnpm = "latest"
+
+
+[tasks.frontend-build]
+run = "pnpm run build:css"
+
+[tasks.start]
+depends = ["frontend-build"]
+run = "cargo run run"

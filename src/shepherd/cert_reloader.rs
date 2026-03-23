@@ -12,7 +12,7 @@ pub(crate) struct CertReloaderTask {
 
 /// Get the last modified time of a file
 #[instrument(level = "debug")]
-fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
+fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, MaremmaError> {
     let file = file.canonicalize().inspect_err(|err| {
         error!(
             "Failed to get canonical path for {} error={:?}",
@@ -27,7 +27,7 @@ fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, Error> {
 }
 
 #[instrument(level = "debug", skip(config))]
-async fn get_file_times(config: SendableConfig) -> Result<(DateTime<Utc>, DateTime<Utc>), Error> {
+async fn get_file_times(config: SendableConfig) -> Result<(DateTime<Utc>, DateTime<Utc>), MaremmaError> {
     let config_reader = config.read().await;
 
     let cert_time = get_file_time(&config_reader.cert_file).inspect_err(|err| {
@@ -51,18 +51,18 @@ impl CertReloaderTask {
     pub(crate) async fn new(
         tx: tokio::sync::mpsc::Sender<WebServerControl>,
         config: SendableConfig,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, MaremmaError> {
         // get the time for the cert
         let config_reader = config.read().await;
 
         if !config_reader.cert_file.exists() {
-            return Err(Error::Configuration(format!(
+            return Err(MaremmaError::Configuration(format!(
                 "Couldn't find cert file at {}",
                 config_reader.cert_file.display()
             )));
         }
         if !config_reader.cert_key.exists() {
-            return Err(Error::Configuration(format!(
+            return Err(MaremmaError::Configuration(format!(
                 "Couldn't find cert key file at {}",
                 config_reader.cert_key.display()
             )));
@@ -81,7 +81,7 @@ impl CertReloaderTask {
 
 #[async_trait]
 impl CronTaskTrait for CertReloaderTask {
-    async fn run(&mut self, _db: Arc<DatabaseConnection>) -> Result<(), Error> {
+    async fn run(&mut self, _db: Arc<DatabaseConnection>) -> Result<(), MaremmaError> {
         let (cert_time, key_time) = get_file_times(self.config.clone()).await?;
 
         if cert_time != self.cert_time || key_time != self.key_time {
@@ -90,7 +90,7 @@ impl CronTaskTrait for CertReloaderTask {
             self.key_time = key_time;
             if self.tx.send(WebServerControl::Reload).await.is_err() {
                 error!("Tried to tell the web server to reload but couldn't!");
-                return Err(Error::IoError(
+                return Err(MaremmaError::IoError(
                     "Tried to tell the web server to reload but couldn't!".to_string(),
                 ));
             }

@@ -2,18 +2,20 @@
 //!
 
 pub(crate) mod controller;
+pub(crate) mod middleware;
 pub(crate) mod oidc;
 pub(crate) mod urls;
 pub(crate) mod views;
-#[cfg(test)]
-use tempfile::NamedTempFile;
 
-use std::path::PathBuf;
-use std::str::FromStr;
-
+use crate::constants::{CONTAINER_DEFAULT_STATIC_PATH, WEB_SERVER_DEFAULT_STATIC_PATH};
+use crate::prelude::*;
 use axum::error_handling::HandleErrorLayer;
+#[cfg(test)]
+use axum::extract::Request;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri};
+#[cfg(test)]
+use axum::middleware::{from_fn, Next};
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::{any, get, post};
 use axum::Router;
@@ -21,7 +23,12 @@ use axum_oidc::error::MiddlewareError;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
 use axum_server::bind_rustls;
 use axum_server::tls_rustls::RustlsConfig;
+use controller::WebServerControl;
 use prometheus::Registry;
+use std::path::PathBuf;
+use std::str::FromStr;
+#[cfg(test)]
+use tempfile::NamedTempFile;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLockReadGuard;
 use tower::ServiceBuilder;
@@ -31,15 +38,6 @@ use tower_sessions::{
     cookie::{time::Duration, SameSite},
     Expiry, SessionManagerLayer,
 };
-
-#[cfg(test)]
-use axum::extract::Request;
-#[cfg(test)]
-use axum::middleware::{from_fn, Next};
-
-use crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH;
-use crate::prelude::*;
-use controller::WebServerControl;
 use urls::Urls;
 use views::handler_404;
 use views::host_group::{host_group, host_group_delete, host_group_member_delete, host_groups};
@@ -114,10 +112,6 @@ impl WebState {
     }
 }
 
-// async fn notimplemented(State(_state): State<WebState>) -> Result<(), impl IntoResponse> {
-//     Err((StatusCode::NOT_FOUND, "Not Implemented yet!"))
-// }
-
 async fn up(State(_state): State<WebState>) -> impl IntoResponse {
     (StatusCode::OK, "OK")
 }
@@ -137,7 +131,7 @@ const RELOAD_TIME: u64 = 1000;
 const TEST_OIDC_SESSION_KEY: &str = "maremma-test-oidc-authenticated";
 
 fn default_static_path() -> PathBuf {
-    let container_static_path = PathBuf::from("/static");
+    let container_static_path = PathBuf::from(CONTAINER_DEFAULT_STATIC_PATH);
     if container_static_path.exists() {
         container_static_path
     } else {
@@ -162,11 +156,11 @@ impl OidcErrorHandler {
 }
 
 #[cfg(not(tarpaulin_include))]
-pub(crate) async fn build_app(state: WebState) -> Result<Router, Error> {
+pub(crate) async fn build_app(state: WebState) -> Result<Router, MaremmaError> {
     build_app_inner(state, true).await
 }
 
-async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, Error> {
+async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, MaremmaError> {
     let static_path = state
         .configuration
         .read()
@@ -325,20 +319,21 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, E
         .with_state(state))
 }
 
-fn oidc_redirect_uri(frontend_url: &str) -> Result<Uri, Error> {
+fn oidc_redirect_uri(frontend_url: &str) -> Result<Uri, MaremmaError> {
     let callback_url = format!(
         "{}{}",
         frontend_url.trim_end_matches('/'),
         Urls::Login.as_ref()
     );
 
-    Uri::from_str(&callback_url)
-        .map_err(|err| Error::Configuration(format!("Failed to parse OIDC callback URL: {err:?}")))
+    Uri::from_str(&callback_url).map_err(|err| {
+        MaremmaError::Configuration(format!("Failed to parse OIDC callback URL: {err:?}"))
+    })
 }
 
 #[cfg(test)]
 /// Builds the web app without performing OIDC discovery.
-pub(crate) async fn build_test_app(state: WebState) -> Result<Router, Error> {
+pub(crate) async fn build_test_app(state: WebState) -> Result<Router, MaremmaError> {
     build_app_inner(state, false).await
 }
 
@@ -389,17 +384,17 @@ pub(crate) async fn test_auth_cookie(state: &WebState) -> String {
 
 fn check_certs_exist(
     config_reader: &RwLockReadGuard<'_, Configuration>,
-) -> Result<(PathBuf, PathBuf), Error> {
+) -> Result<(PathBuf, PathBuf), MaremmaError> {
     let cert_file = config_reader.cert_file.clone();
     let cert_key = config_reader.cert_key.clone();
     if !cert_file.exists() {
-        return Err(Error::Generic(format!(
+        return Err(MaremmaError::Generic(format!(
             "TLS is enabled but cert_file {cert_file:?} does not exist"
         )));
     }
 
     if !cert_key.exists() {
-        return Err(Error::Generic(format!(
+        return Err(MaremmaError::Generic(format!(
             "TLS is enabled but cert_key {cert_key:?} does not exist"
         )));
     };
@@ -408,7 +403,10 @@ fn check_certs_exist(
 
 /// Start and run the web server
 #[cfg(not(tarpaulin_include))]
-pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Result<(), Error> {
+pub async fn start_web_server(
+    configuration: SendableConfig,
+    app: Router,
+) -> Result<(), MaremmaError> {
     use std::net::SocketAddr;
 
     let configuration_reader = configuration.read().await;
@@ -419,10 +417,10 @@ pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Res
 
     let tls_config = RustlsConfig::from_pem_file(&cert_file.as_path(), &cert_key.as_path())
         .await
-        .map_err(|err| Error::Generic(format!("Failed to load TLS config: {err:?}")))?;
+        .map_err(|err| MaremmaError::Generic(format!("Failed to load TLS config: {err:?}")))?;
     bind_rustls(
         listen_address.parse::<SocketAddr>().map_err(|err| {
-            Error::Generic(format!(
+            MaremmaError::Generic(format!(
                 "Failed to parse listen address {listen_address}: {err:?}"
             ))
         })?,
@@ -430,7 +428,7 @@ pub async fn start_web_server(configuration: SendableConfig, app: Router) -> Res
     )
     .serve(app.into_make_service())
     .await
-    .map_err(|err| Error::Generic(format!("Web server failed: {err:?}")))
+    .map_err(|err| MaremmaError::Generic(format!("Web server failed: {err:?}")))
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -442,7 +440,7 @@ pub async fn run_web_server(
     registry: Arc<Registry>,
     web_tx: Sender<WebServerControl>,
     mut web_server_controller: Receiver<WebServerControl>,
-) -> Result<(), Error> {
+) -> Result<(), MaremmaError> {
     let app = build_app(
         // TODO web_tx impl
         WebState::new(

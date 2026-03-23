@@ -130,7 +130,7 @@ pub struct HttpService {
 
 impl HttpService {
     /// Get the expected status code for the service and throw an error if it's bad
-    fn expected_status_code(&self, client_config: &Self) -> Result<reqwest::StatusCode, Error> {
+    fn expected_status_code(&self, client_config: &Self) -> Result<reqwest::StatusCode, MaremmaError> {
         reqwest::StatusCode::from_u16(
             client_config
                 .http_status
@@ -138,7 +138,7 @@ impl HttpService {
                 .into(),
         )
         .map_err(|_| {
-            Error::Generic(format!(
+            MaremmaError::Generic(format!(
                 "Invalid status code {} in service check",
                 client_config
                     .http_status
@@ -150,7 +150,7 @@ impl HttpService {
         &self,
         response: Response,
         client_config: Box<HttpService>,
-    ) -> Result<(String, ServiceStatus), Error> {
+    ) -> Result<(String, ServiceStatus), MaremmaError> {
         let expected_status_code = self.expected_status_code(&client_config)?;
 
         if response.status() != expected_status_code {
@@ -233,7 +233,7 @@ async fn test_overlay_host_config() {
 }
 
 impl ConfigOverlay for HttpService {
-    fn overlay_host_config(&self, value: &Map<String, Value>) -> Result<Box<Self>, Error> {
+    fn overlay_host_config(&self, value: &Map<String, Value>) -> Result<Box<Self>, MaremmaError> {
         let name = self.extract_string(value, "name", &self.name);
 
         let http_status: Option<NonZeroU16> = match value.get("http_status") {
@@ -242,7 +242,7 @@ impl ConfigOverlay for HttpService {
                 None => match val.as_str() {
                     Some(val) => val.parse().ok(),
                     None => {
-                        return Err(Error::Configuration(
+                        return Err(MaremmaError::Configuration(
                             "Couldn't parse http_status as valid number".to_string(),
                         ))
                     }
@@ -270,10 +270,10 @@ impl ConfigOverlay for HttpService {
 
 #[async_trait]
 impl ServiceTrait for HttpService {
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), MaremmaError> {
         if let Some(http_status) = self.http_status {
             if StatusCode::try_from(u16::from(http_status)).is_err() {
-                return Err(Error::Configuration(format!(
+                return Err(MaremmaError::Configuration(format!(
                     "Invalid HTTP status code: {http_status}"
                 )));
             }
@@ -281,7 +281,7 @@ impl ServiceTrait for HttpService {
         Ok(())
     }
 
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
 
         // get the client config
@@ -322,7 +322,7 @@ impl ServiceTrait for HttpService {
             debug!("adding CA file");
             client = client.add_root_certificate(reqwest::Certificate::from_pem(
                 &std::fs::read(ca_file).map_err(|e| {
-                    Error::Generic(format!(
+                    MaremmaError::Generic(format!(
                         "Failed to read CA file {}: {}",
                         ca_file.display(),
                         e
@@ -355,7 +355,7 @@ impl ServiceTrait for HttpService {
         })
     }
 
-    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, MaremmaError> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }

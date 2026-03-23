@@ -75,25 +75,25 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        Err(Error::NotImplemented)
+    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
+        Err(MaremmaError::NotImplemented)
     }
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: SendableConfig,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MaremmaError> {
         for (service_name, service) in &config.read().await.services {
             let service_model = service::Model::find_by_name(service_name, db)
                 .await?
-                .ok_or(Error::ServiceNotFoundByName(service_name.to_string()))?;
+                .ok_or(MaremmaError::ServiceNotFoundByName(service_name.to_string()))?;
 
             for group_name in service.host_groups.iter() {
                 debug!("Service: {} Group: {}", service_name, group_name);
 
                 let group_model = host_group::Model::find_by_name(group_name, db)
                     .await?
-                    .ok_or(Error::HostGroupNotFoundByName(group_name.to_string()))?;
+                    .ok_or(MaremmaError::HostGroupNotFoundByName(group_name.to_string()))?;
 
                 if Entity::find()
                     .filter(
@@ -153,7 +153,7 @@ mod tests {
         let res = super::Model::find_by_name("test", db.as_ref()).await;
 
         assert!(res.is_err());
-        assert_eq!(res.expect_err("failed to run"), Error::NotImplemented);
+        assert_eq!(res.expect_err("failed to run"), MaremmaError::NotImplemented);
     }
     #[tokio::test]
     async fn test_failing_update_db_from_config_service_group_link() {

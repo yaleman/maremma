@@ -28,7 +28,7 @@ pub struct CliService {
 }
 
 impl ConfigOverlay for CliService {
-    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, MaremmaError> {
         let cron_schedule = self.extract_cron(value, "cron_schedule", &self.cron_schedule)?;
         let hostname = self.extract_value(value, "hostname", &self.hostname)?;
         let name = self.extract_string(value, "name", &self.name);
@@ -47,7 +47,7 @@ impl ConfigOverlay for CliService {
 
 #[async_trait]
 impl ServiceTrait for CliService {
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
         // run the command line and capture the exit code and stdout
 
@@ -63,14 +63,14 @@ impl ServiceTrait for CliService {
         let mut cmd_split = command_line.split(" ");
         let cmd = match cmd_split.next() {
             Some(c) => c,
-            None => return Err(Error::Generic("No command specified!".to_string())),
+            None => return Err(MaremmaError::Generic("No command specified!".to_string())),
         };
 
-        let which_cmd = which::which(cmd).map_err(|err| Error::CommandNotFound(err.to_string()))?;
+        let which_cmd = which::which(cmd).map_err(|err| MaremmaError::CommandNotFound(err.to_string()))?;
 
         if !which_cmd.exists() {
             // check if the command exists
-            return Err(Error::CommandNotFound(format!("Command not found: {cmd}")));
+            return Err(MaremmaError::CommandNotFound(format!("Command not found: {cmd}")));
         }
 
         let args = cmd_split.collect::<Vec<&str>>();
@@ -81,12 +81,12 @@ impl ServiceTrait for CliService {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|err| Error::Generic(err.to_string()))?;
+            .map_err(|err| MaremmaError::Generic(err.to_string()))?;
 
         let res = child
             .wait_with_output()
             .await
-            .map_err(|err| Error::Generic(err.to_string()))?;
+            .map_err(|err| MaremmaError::Generic(err.to_string()))?;
 
         let time_elapsed = chrono::Utc::now() - start_time;
 
@@ -113,7 +113,7 @@ impl ServiceTrait for CliService {
         })
     }
 
-    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, MaremmaError> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }

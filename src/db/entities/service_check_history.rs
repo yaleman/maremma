@@ -43,7 +43,7 @@ impl Entity {
         db: &DatabaseConnection,
         service_check_id: Option<Uuid>,
         leave_remaining: u64,
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, MaremmaError> {
         let mut trimmed = 0;
 
         // find all the service checks
@@ -110,9 +110,9 @@ impl Entity {
         db: &DatabaseConnection,
         after_time: DateTime<Utc>,
         service_check_id: Option<Uuid>,
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, MaremmaError> {
         if after_time > Utc::now() {
-            return Err(Error::DateIsInTheFuture);
+            return Err(MaremmaError::DateIsInTheFuture);
         }
         let mut query = Entity::delete_many().filter(Column::Timestamp.lt(after_time));
         if let Some(service_check_id) = service_check_id {
@@ -201,7 +201,7 @@ mod tests {
 
         let res = Entity::prune(db.as_ref(), chrono::Utc::now() + TimeDelta::days(1), None).await;
 
-        assert!(matches!(res, Err(Error::DateIsInTheFuture)));
+        assert!(matches!(res, Err(MaremmaError::DateIsInTheFuture)));
     }
     #[tokio::test]
     async fn test_prune_service_check_id() {

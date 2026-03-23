@@ -72,7 +72,7 @@ impl Model {
         &self,
         status: ServiceStatus,
         db: &DatabaseConnection,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, MaremmaError> {
         let mut model = self.clone().into_active_model();
         model.status.set_if_not_equals(status);
         model.last_updated.set_if_not_equals(chrono::Utc::now());
@@ -84,14 +84,14 @@ impl Model {
                     "Failed to set_status service_check_id={}, status={} error={:?}",
                     self.id, status, err
                 );
-                Error::from(err)
+                MaremmaError::from(err)
             })?
             .try_into_model()
-            .map_err(Error::from)
+            .map_err(MaremmaError::from)
     }
 }
 
-fn next_check_for_service(service: &service::Model, jitter: u32) -> Result<DateTime<Utc>, Error> {
+fn next_check_for_service(service: &service::Model, jitter: u32) -> Result<DateTime<Utc>, MaremmaError> {
     // Keep next-check calculation in one place so success and error paths schedule consistently.
     let jitter: i64 = (0..jitter).choose(&mut rand::rng()).unwrap_or(0) as i64;
 
@@ -109,7 +109,7 @@ pub async fn set_check_result(
     status: ServiceStatus,
     db: &DatabaseConnection,
     jitter: u32,
-) -> Result<(), Error> {
+) -> Result<(), MaremmaError> {
     let next_check = next_check_for_service(service, jitter)?;
     let rows_affected = Entity::update_many()
         .col_expr(Column::LastCheck, Expr::value(last_check))
@@ -125,7 +125,7 @@ pub async fn set_check_result(
                 service.id.hyphenated(),
                 err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?
         .rows_affected;
 
@@ -141,12 +141,12 @@ pub async fn set_check_result(
 async fn update_local_services_from_db(
     db: &DatabaseConnection,
     config: SendableConfig,
-) -> Result<(), Error> {
+) -> Result<(), MaremmaError> {
     let local_host_id = match host::Entity::find()
         .filter(host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
         .one(db)
         .await
-        .map_err(Error::from)?
+        .map_err(MaremmaError::from)?
         .map(|h| h.id)
     {
         Some(val) => val,
@@ -177,8 +177,8 @@ async fn update_local_services_from_db(
             .filter(service::Column::Name.eq(service))
             .one(db)
             .await
-            .map_err(Error::from)?
-            .ok_or_else(|| Error::ServiceNotFoundByName(service.clone()))?
+            .map_err(MaremmaError::from)?
+            .ok_or_else(|| MaremmaError::ServiceNotFoundByName(service.clone()))?
             .id;
 
         // if we can't find it, add it.
@@ -187,7 +187,7 @@ async fn update_local_services_from_db(
             .filter(Column::ServiceId.eq(service_id))
             .one(db)
             .await
-            .map_err(Error::from)?
+            .map_err(MaremmaError::from)?
             .is_none()
         {
             debug!("Adding local service check: {}", service);
@@ -205,7 +205,7 @@ async fn update_local_services_from_db(
             )
             .exec(db)
             .await
-            .map_err(Error::from)?;
+            .map_err(MaremmaError::from)?;
         };
     }
 
@@ -214,8 +214,8 @@ async fn update_local_services_from_db(
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        Err(Error::NotImplemented)
+    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
+        Err(MaremmaError::NotImplemented)
     }
 
     /// This updates all the service checks.
@@ -224,7 +224,7 @@ impl MaremmaEntity for Model {
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: SendableConfig,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MaremmaError> {
         debug!("Starting update of service checks");
         // the easy ones are the locals.
         info!("Starting local updates...");
@@ -266,7 +266,7 @@ impl MaremmaEntity for Model {
                         .filter(Column::ServiceId.eq(service.id))
                         .one(db)
                         .await
-                        .map_err(Error::from)?
+                        .map_err(MaremmaError::from)?
                     {
                         None => {
                             info!(
@@ -283,7 +283,7 @@ impl MaremmaEntity for Model {
                                 last_updated: Set(chrono::Utc::now()),
                             };
                             debug!("Inserting... {:?}", model);
-                            model.insert(db).await.map_err(Error::from)?;
+                            model.insert(db).await.map_err(MaremmaError::from)?;
                             debug!("Done!");
                         }
                         Some(service_check) => {
@@ -315,12 +315,12 @@ pub struct FullServiceCheck {
 }
 
 impl FullServiceCheck {
-    pub async fn all(db: &DatabaseConnection) -> Result<Vec<Self>, Error> {
+    pub async fn all(db: &DatabaseConnection) -> Result<Vec<Self>, MaremmaError> {
         Self::all_query()
             .into_model::<FullServiceCheck>()
             .all(db)
             .await
-            .map_err(Error::from)
+            .map_err(MaremmaError::from)
     }
 
     pub fn all_query() -> Select<Entity> {
@@ -341,12 +341,12 @@ impl FullServiceCheck {
     pub async fn get_by_service_id(
         service_id: Uuid,
         db: &DatabaseConnection,
-    ) -> Result<Vec<FullServiceCheck>, Error> {
+    ) -> Result<Vec<FullServiceCheck>, MaremmaError> {
         Self::get_by_service_id_query(service_id)
             .into_model::<FullServiceCheck>()
             .all(db)
             .await
-            .map_err(Error::from)
+            .map_err(MaremmaError::from)
     }
 }
 
@@ -360,7 +360,7 @@ mod tests {
     use crate::config::Configuration;
     use crate::db::tests::test_setup;
     use crate::db::{entities, MaremmaEntity};
-    use crate::errors::Error;
+    use crate::errors::MaremmaError;
     use crate::services::ServiceStatus;
 
     #[tokio::test]
@@ -371,7 +371,7 @@ mod tests {
         let res = super::Model::find_by_name("test", db.as_ref()).await;
 
         assert!(res.is_err());
-        assert_eq!(res.expect_err("Failed to run"), Error::NotImplemented);
+        assert_eq!(res.expect_err("Failed to run"), MaremmaError::NotImplemented);
     }
 
     #[tokio::test]

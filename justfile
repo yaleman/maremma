@@ -79,7 +79,7 @@ run_docker:
         ghcr.io/yaleman/maremma:latest
 
 # Run all the checks
-check: codespell clippy test doc_check
+check: codespell tailwind clippy test doc_check
 
 
 # Spell check the things
@@ -92,6 +92,10 @@ codespell:
     --skip='./static/*' \
     --skip='./docs/*,./.git' \
     --skip='./plugins/*'
+
+# Build the Tailwind stylesheet
+tailwind:
+    pnpm build:css
 
 # Ask the clip for the judgement
 clippy:

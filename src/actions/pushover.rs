@@ -54,7 +54,7 @@ pub struct PushOver {
 
 #[async_trait]
 impl Action for PushOver {
-    async fn execute(&self, check_result: &CheckResult) -> Result<(), Error> {
+    async fn execute(&self, check_result: &CheckResult) -> Result<(), MaremmaError> {
         if !self.run_states.contains(&check_result.status) {
             return Ok(());
         }
@@ -92,7 +92,7 @@ impl Action for PushOver {
             Ok(data) => data,
             Err(err) => {
                 error!("Failed to parse pushover response: {err:?} body={response_body:?}");
-                return Err(Error::Generic(format!(
+                return Err(MaremmaError::Generic(format!(
                     "Failed to parse pushover response: {err:?}"
                 )));
             }
@@ -103,7 +103,7 @@ impl Action for PushOver {
                 "Failed to send pushover message: {:?}",
                 data.errors.join(", ")
             );
-            return Err(Error::Generic(format!(
+            return Err(MaremmaError::Generic(format!(
                 "Failed to send pushover message: {:?}",
                 data.errors.join(", ")
             )));

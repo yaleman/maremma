@@ -25,10 +25,14 @@ plugins/*
 
 # config files
 *.json
+!packages.json
 !maremma.example.json
 !maremma.schema.json
 
 # IDE
 .vscode/settings.json
+
+# node / pnpm
+node_modules/
 
 

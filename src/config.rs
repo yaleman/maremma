@@ -137,22 +137,22 @@ pub struct Configuration {
 }
 
 impl TryFrom<ConfigurationParser> for Configuration {
-    fn try_from(value: ConfigurationParser) -> Result<Self, Error> {
+    fn try_from(value: ConfigurationParser) -> Result<Self, MaremmaError> {
         let services = value
             .services
             .iter()
             .map(|(name, service)| {
                 let service: Service = serde_json::from_value(service.clone()).map_err(|e| {
-                    Error::Configuration(format!("Failed to parse service {name}: {e}"))
+                    MaremmaError::Configuration(format!("Failed to parse service {name}: {e}"))
                 })?;
                 Ok((name.clone(), service))
             })
-            .collect::<Result<HashMap<String, Service>, Error>>()?;
+            .collect::<Result<HashMap<String, Service>, MaremmaError>>()?;
 
         let static_path = match value.static_path {
             Some(static_path) => {
                 if !static_path.exists() {
-                    return Err(Error::Configuration(
+                    return Err(MaremmaError::Configuration(
                         "Static path does not exist".to_string(),
                     ));
                 }
@@ -165,7 +165,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             .listen_port
             .map(|lp| {
                 NonZeroU16::try_from(lp).map_err(|_| {
-                    Error::Configuration("Failed to convert listen port to NonZeroU16".to_string())
+                    MaremmaError::Configuration("Failed to convert listen port to NonZeroU16".to_string())
                 })
             })
             .transpose()?;
@@ -173,14 +173,14 @@ impl TryFrom<ConfigurationParser> for Configuration {
             Some(val) => val,
             None => match std::env::var("MAREMMA_FRONTEND_URL") {
                 Ok(val) => val,
-                Err(_) => return Err(Error::Configuration("Frontend URL not set".to_string())),
+                Err(_) => return Err(MaremmaError::Configuration("Frontend URL not set".to_string())),
             },
         };
         let oidc_issuer = match value.oidc_issuer {
             Some(val) => val,
             None => match std::env::var("MAREMMA_OIDC_ISSUER") {
                 Ok(val) => val,
-                Err(_) => return Err(Error::Configuration("OIDC Issuer URL not set".to_string())),
+                Err(_) => return Err(MaremmaError::Configuration("OIDC Issuer URL not set".to_string())),
             },
         };
 
@@ -188,7 +188,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             Some(val) => val,
             None => match std::env::var("MAREMMA_OIDC_CLIENT_ID") {
                 Ok(val) => val,
-                Err(_) => return Err(Error::Configuration("OIDC Client ID not set".to_string())),
+                Err(_) => return Err(MaremmaError::Configuration("OIDC Client ID not set".to_string())),
             },
         };
 
@@ -214,14 +214,14 @@ impl TryFrom<ConfigurationParser> for Configuration {
         })
     }
 
-    type Error = Error;
+    type Error = MaremmaError;
 }
 
 impl Configuration {
     /// New Configuration object from a file reference
-    pub async fn new(filename: &PathBuf) -> Result<Self, Error> {
+    pub async fn new(filename: &PathBuf) -> Result<Self, MaremmaError> {
         if !filename.exists() {
-            return Err(Error::ConfigFileNotFound(
+            return Err(MaremmaError::ConfigFileNotFound(
                 filename.to_string_lossy().to_string(),
             ));
         }
@@ -230,7 +230,7 @@ impl Configuration {
     }
 
     /// If you've got the file contents, use that to build a configuration
-    pub async fn new_from_string(config: &str) -> Result<Self, Error> {
+    pub async fn new_from_string(config: &str) -> Result<Self, MaremmaError> {
         let mut res: ConfigurationParser = serde_json::from_str(config)?;
 
         if !res.local_services.services.is_empty() {
@@ -302,7 +302,7 @@ impl Configuration {
     }
 
     /// Prune the configuration based on the database, so we can serialize it back
-    pub async fn prune(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error> {
+    pub async fn prune(&mut self, db: Arc<DatabaseConnection>) -> Result<(), MaremmaError> {
         // TODO: prune config
 
         // check the hosts against the config file

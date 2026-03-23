@@ -39,7 +39,7 @@ fn sch_counts_query() -> sea_orm::Select<entities::service_check_history::Entity
 
 #[async_trait]
 impl CronTaskTrait for ServiceCheckHistoryCleanerTask {
-    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error> {
+    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), MaremmaError> {
         let sch_counts: Vec<SimpleSchCounts> = sch_counts_query()
             .into_model::<SimpleSchCounts>()
             .all(db.as_ref())

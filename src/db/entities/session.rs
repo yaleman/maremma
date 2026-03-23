@@ -23,9 +23,9 @@ pub struct ModelStore {
     db: Arc<DatabaseConnection>,
 }
 
-fn id_to_uuid(input: &Id) -> Result<Uuid, Error> {
+fn id_to_uuid(input: &Id) -> Result<Uuid, MaremmaError> {
     if input.0 <= 0 {
-        return Err(Error::InvalidInput(format!(
+        return Err(MaremmaError::InvalidInput(format!(
             "Input value {} can't be lower than or equal to 0",
             input.0
         )));
@@ -179,7 +179,7 @@ impl ModelStore {
     }
 
     /// Cleans up old/expired sessions
-    pub async fn cleanup(&self, db: Arc<DatabaseConnection>) -> Result<u64, Error> {
+    pub async fn cleanup(&self, db: Arc<DatabaseConnection>) -> Result<u64, MaremmaError> {
         let res = Entity::delete_many()
             .filter(
                 Column::Expiry

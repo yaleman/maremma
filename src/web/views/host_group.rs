@@ -4,9 +4,8 @@
 use super::prelude::*;
 use crate::db::entities::{host, host_group, host_group_members};
 use crate::web::oidc::User;
-use crate::web::{Error, WebState};
+use crate::web::{MaremmaError, WebState};
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
 use axum::response::Redirect;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
@@ -31,10 +30,8 @@ pub(crate) struct HostGroupData {
 pub(crate) async fn host_groups(
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<HostGroupsTemplate, (StatusCode, String)> {
-    if claims.is_none() {
-        return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
-    }
+) -> Result<HostGroupsTemplate, MaremmaError> {
+    let user = check_login(claims)?;
     let db_lock = state.db();
     let res = host_group::Entity::find()
         .order_by_asc(host_group::Column::Name)
@@ -43,7 +40,7 @@ pub(crate) async fn host_groups(
         .await
         .map_err(|e| {
             error!("Failed to fetch host groups: {}", e);
-            Error::from(e)
+            MaremmaError::from(e)
         })?;
 
     let host_groups = res
@@ -57,7 +54,7 @@ pub(crate) async fn host_groups(
 
     Ok(HostGroupsTemplate {
         title: "Host Groups".to_string(),
-        username: None,
+        username: Some(user.username()),
         host_groups,
     })
 }
@@ -83,11 +80,8 @@ pub(crate) async fn host_group(
     Query(query): Query<HostGroupQueries>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<HostGroupTemplate, (StatusCode, String)> {
-    if claims.is_none() {
-        // TODO: check that the user is an admin
-        return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
-    }
+) -> Result<HostGroupTemplate, MaremmaError> {
+    let user = check_login(claims)?;
 
     let db_lock = state.db();
     let host_group = host_group::Entity::find()
@@ -97,12 +91,12 @@ pub(crate) async fn host_group(
         .await
         .map_err(|e| {
             error!("Failed to fetch host groups: {}", e);
-            Error::from(e)
+            MaremmaError::from(e)
         })?;
 
     let (host_group, mut members) = match host_group.into_iter().next() {
         Some(val) => val,
-        None => return Err((StatusCode::NOT_FOUND, "Host Group not found".to_string())),
+        None => return Err(MaremmaError::HostGroupNotFound(id)),
     };
 
     match query.ord.unwrap_or(super::prelude::Order::Asc) {
@@ -112,7 +106,7 @@ pub(crate) async fn host_group(
 
     Ok(HostGroupTemplate {
         title: format!("Host Group: {}", host_group.name),
-        username: None,
+        username: Some(user.username()),
         host_group,
         members,
         message: query.message,
@@ -123,11 +117,11 @@ pub(crate) async fn host_group_member_delete(
     Path((group_id, host_id)): Path<(Uuid, Uuid)>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<Redirect, (StatusCode, String)> {
+) -> Result<Redirect, MaremmaError> {
     let user: User = match claims {
         None => {
             // TODO: check that the user is an admin
-            return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
+            return Err(MaremmaError::Unauthorized);
         }
         Some(val) => val.into(),
     };
@@ -136,7 +130,7 @@ pub(crate) async fn host_group_member_delete(
 
     let db_txn = state.db().begin().await.map_err(|e| {
         error!("Failed to start DB transaction: {}", e);
-        Error::from(e)
+        MaremmaError::from(e)
     })?;
 
     let hgm = host_group_members::Entity::find()
@@ -149,25 +143,22 @@ pub(crate) async fn host_group_member_delete(
         .await
         .map_err(|e| {
             error!("Failed to fetch host group membership: {}", e);
-            Error::from(e)
+            MaremmaError::from(e)
         })?;
     let hgm = match hgm {
         Some(val) => val,
         None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                "Host group membership not found".to_string(),
-            ));
+            return Err(MaremmaError::HostGroupMembershipNotFound(group_id, host_id));
         }
     };
 
     let res = hgm.delete(&db_txn).await.map_err(|e| {
         error!("Failed to delete host group membership: {}", e);
-        Error::from(e)
+        MaremmaError::from(e)
     })?;
     db_txn.commit().await.map_err(|e| {
         error!("Failed to commit DB transaction: {}", e);
-        Error::from(e)
+        MaremmaError::from(e)
     })?;
     info!(
         "user={} Deleted {} host_group_membership row host_id={} group_id={}",
@@ -184,11 +175,11 @@ pub(crate) async fn host_group_delete(
     Path(group_id): Path<Uuid>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<Redirect, (StatusCode, String)> {
+) -> Result<Redirect, MaremmaError> {
     let _user: User = match claims {
         None => {
             // TODO: check that the user is an admin
-            return Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()));
+            return Err(MaremmaError::Unauthorized);
         }
         Some(val) => val.into(),
     };
@@ -198,10 +189,10 @@ pub(crate) async fn host_group_delete(
         .await
         .map_err(|e| {
             error!("Failed to delete host group: {}", e);
-            Error::from(e)
+            MaremmaError::from(e)
         })?;
     if res.rows_affected == 0 {
-        return Err((StatusCode::NOT_FOUND, "Host Group not found".to_string()));
+        return Err(MaremmaError::HostGroupNotFound(group_id));
     }
 
     Ok(Redirect::to(Urls::HostGroups.as_ref()))

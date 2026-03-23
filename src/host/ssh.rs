@@ -75,15 +75,15 @@ impl SshHost {
 
 #[async_trait]
 impl GenericHost for SshHost {
-    async fn check_up(&self) -> Result<bool, Error> {
+    async fn check_up(&self) -> Result<bool, MaremmaError> {
         let socket_address = match self.ip_address {
             Some(ip) => match (ip, u16::from(self.port.unwrap_or(default_ssh_port())))
                 .to_socket_addrs()
-                .map_err(|_err| Error::DnsFailed)?
+                .map_err(|_err| MaremmaError::DnsFailed)?
                 .next()
             {
                 Some(sock) => sock,
-                None => return Err(Error::DnsFailed),
+                None => return Err(MaremmaError::DnsFailed),
             },
             None => match format!(
                 "{}:{}",
@@ -91,11 +91,11 @@ impl GenericHost for SshHost {
                 self.port.unwrap_or(default_ssh_port())
             )
             .to_socket_addrs()
-            .map_err(|_err| Error::DnsFailed)?
+            .map_err(|_err| MaremmaError::DnsFailed)?
             .next()
             {
                 Some(val) => val,
-                None => return Err(Error::DnsFailed),
+                None => return Err(MaremmaError::DnsFailed),
             },
         };
         let result = std::net::TcpStream::connect_timeout(
@@ -108,7 +108,7 @@ impl GenericHost for SshHost {
         }
     }
 
-    fn try_from_config(config: serde_json::Value) -> Result<Self, Error>
+    fn try_from_config(config: serde_json::Value) -> Result<Self, MaremmaError>
     where
         Self: Sized,
     {
@@ -117,10 +117,10 @@ impl GenericHost for SshHost {
 }
 
 impl TryFrom<&Value> for SshHost {
-    type Error = Error;
+    type Error = MaremmaError;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        serde_json::from_value(value.clone()).map_err(|e| Error::Deserialization(e.to_string()))
+        serde_json::from_value(value.clone()).map_err(|e| MaremmaError::Deserialization(e.to_string()))
     }
 }
 

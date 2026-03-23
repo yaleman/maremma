@@ -65,38 +65,38 @@ impl KubeHost {
 
 #[async_trait]
 impl GenericHost for KubeHost {
-    async fn check_up(&self) -> Result<bool, crate::errors::Error> {
+    async fn check_up(&self) -> Result<bool, crate::errors::MaremmaError> {
         let client = Client::try_default()
             .await
-            .map_err(|_err| Error::ConnectionFailed)?;
+            .map_err(|_err| MaremmaError::ConnectionFailed)?;
 
         match client.apiserver_version().await {
             Ok(_) => Ok(true),
-            Err(err) => Err(Error::Generic(err.to_string())),
+            Err(err) => Err(MaremmaError::Generic(err.to_string())),
         }
     }
 
-    fn try_from_config(config: serde_json::Value) -> Result<Self, Error>
+    fn try_from_config(config: serde_json::Value) -> Result<Self, MaremmaError>
     where
         Self: Sized,
     {
-        serde_json::from_value(config).map_err(Error::from)
+        serde_json::from_value(config).map_err(MaremmaError::from)
     }
 }
 
 impl TryFrom<&Host> for KubeHost {
-    type Error = crate::errors::Error;
+    type Error = crate::errors::MaremmaError;
 
     fn try_from(value: &Host) -> Result<Self, Self::Error> {
         let api_port = match value.extra.get("api_port") {
             Some(port) => {
                 let port = port.to_owned();
                 if let Some(port) = port.as_u64() {
-                    NonZeroU16::new(port as u16).ok_or(Error::Configuration(
+                    NonZeroU16::new(port as u16).ok_or(MaremmaError::Configuration(
                         "api_port must be somewhere between 1 and 65535".to_string(),
                     ))?
                 } else {
-                    return Err(Error::Configuration(
+                    return Err(MaremmaError::Configuration(
                         "api_port must be a valid number".to_string(),
                     ));
                 }
@@ -107,7 +107,7 @@ impl TryFrom<&Host> for KubeHost {
         let hostname = value
             .hostname
             .clone()
-            .ok_or(Error::Configuration("hostname is required".to_string()))?;
+            .ok_or(MaremmaError::Configuration("hostname is required".to_string()))?;
 
         Ok(Self {
             hostname,

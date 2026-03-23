@@ -124,10 +124,10 @@ where
     Self: std::marker::Sized,
 {
     /// Check if the host is available
-    async fn check_up(&self) -> Result<bool, crate::errors::Error>;
+    async fn check_up(&self) -> Result<bool, crate::errors::MaremmaError>;
 
     /// Create this from [serde_json::Value]
-    fn try_from_config(config: serde_json::Value) -> Result<Self, Error>
+    fn try_from_config(config: serde_json::Value) -> Result<Self, MaremmaError>
     where
         Self: Sized;
 }

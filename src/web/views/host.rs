@@ -1,9 +1,9 @@
 use super::index::SortQueries;
 use super::prelude::*;
 
-use crate::constants::{CSRF_TOKEN_MISMATCH, CSRF_TOKEN_NOT_FOUND, SESSION_CSRF_TOKEN};
+use crate::constants::SESSION_CSRF_TOKEN;
 use crate::db::entities::service_check::FullServiceCheck;
-use crate::errors::Error;
+use crate::errors::MaremmaError;
 use axum::Form;
 use entities::host_group;
 use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
@@ -28,14 +28,14 @@ pub(crate) async fn host(
     Query(queries): Query<SortQueries>,
     session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<HostTemplate, (StatusCode, String)> {
+) -> Result<HostTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
     let csrf_token = state.new_csrf_token();
     session
         .insert(SESSION_CSRF_TOKEN, &csrf_token)
         .await
-        .map_err(Error::from)?;
+        .map_err(MaremmaError::from)?;
 
     let order_field = queries
         .field
@@ -55,16 +55,13 @@ pub(crate) async fn host(
         .find_with_linked(entities::host_group_members::HostToGroups)
         .all(db_lock)
         .await
-        .map_err(Error::from)?
+        .map_err(MaremmaError::from)?
         .into_iter()
         .next()
     {
         Some(host) => host,
         None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("Host with id={host_id} not found"),
-            ))
+            return Err(MaremmaError::HostNotFound(host_id));
         }
     };
 
@@ -76,7 +73,7 @@ pub(crate) async fn host(
         .await
         .map_err(|err| {
             error!("Failed to look up service checks for host={host_id} error={err:?}");
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
 
     Ok(HostTemplate {
@@ -111,7 +108,7 @@ pub(crate) async fn hosts(
     Query(queries): Query<HostsQuery>,
     _session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<HostsTemplate, (StatusCode, String)> {
+) -> Result<HostsTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
     let mut hosts = entities::host::Entity::find();
@@ -141,7 +138,7 @@ pub(crate) async fn hosts(
         .order_by(order_column, ord.into())
         .all(db_lock)
         .await
-        .map_err(Error::from)?;
+        .map_err(MaremmaError::from)?;
 
     Ok(HostsTemplate {
         title: "Hosts".to_string(),
@@ -163,52 +160,46 @@ pub(crate) async fn delete_host(
     session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     Form(csrf_form): Form<CsrfForm>,
-) -> Result<Redirect, (StatusCode, String)> {
+) -> Result<Redirect, MaremmaError> {
     let _user = claims.ok_or_else(|| {
         debug!("User not logged in");
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
+        MaremmaError::Unauthorized
     })?;
 
     let session_csrf_token: String = match session
         .remove(SESSION_CSRF_TOKEN)
         .await
-        .map_err(Error::from)?
+        .map_err(MaremmaError::from)?
     {
         Some(val) => val,
         None => {
-            return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_NOT_FOUND.to_string()));
+            return Err(MaremmaError::Unauthorized);
         }
     };
 
     if csrf_form.csrf_token != session_csrf_token {
-        return Err((StatusCode::FORBIDDEN, CSRF_TOKEN_MISMATCH.to_string()));
+        return Err(MaremmaError::CsrfValidationFailed);
     }
 
     let db_writer = state.db().begin().await.map_err(|e| {
         error!("Failed to begin DB transaction: {}", e);
-        Error::from(e)
+        MaremmaError::from(e)
     })?;
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(&db_writer)
         .await
-        .map_err(Error::from)?
+        .map_err(MaremmaError::from)?
     {
         Some(host) => host,
         None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("Host with id={host_id} not found"),
-            ))
+            return Err(MaremmaError::HostNotFound(host_id));
         }
     };
 
-    host.delete(&db_writer).await.map_err(Error::from)?;
+    host.delete(&db_writer).await.map_err(MaremmaError::from)?;
     db_writer.commit().await.map_err(|e| {
         error!("Failed to commit DB transaction: {}", e);
-        Error::from(e)
+        MaremmaError::from(e)
     })?;
     Ok(Redirect::to(Urls::Hosts.as_ref()))
 }
@@ -461,17 +452,15 @@ mod tests {
 
         assert!(res.is_err());
 
-        match res.clone() {
-            Err(err) => {
-                assert_eq!(err.0, StatusCode::FORBIDDEN);
-                assert_eq!(err.1, CSRF_TOKEN_NOT_FOUND.to_string());
-            }
-            Ok(_) => panic!("Should have gotten an error!"),
-        }
+        if let Err(err) = &res {
+            assert_eq!(err, &MaremmaError::Unauthorized);
+        } else {
+            panic!("Should have gotten an error!")
+        };
 
         let response = res.into_response();
         dbg!(&response);
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
         let session = state.get_session();
         let csrf_token = state.new_csrf_token();
@@ -494,12 +483,10 @@ mod tests {
 
         assert!(res.is_err());
 
-        match res.clone() {
-            Err(err) => {
-                assert_eq!(err.0, StatusCode::FORBIDDEN);
-                assert_eq!(err.1, CSRF_TOKEN_MISMATCH.to_string());
-            }
-            Ok(_) => panic!("Should have gotten an error!"),
+        if let Err(err) = &res {
+            assert_eq!(err, &MaremmaError::CsrfValidationFailed);
+        } else {
+            panic!("Should have gotten an error!")
         }
 
         let response = res.into_response();

@@ -1,3 +1,5 @@
+use crate::errors::MaremmaError;
+
 use super::prelude::*;
 
 #[derive(Template, Debug, WebTemplate)]
@@ -11,7 +13,7 @@ pub(crate) struct ProfileTemplate {
 pub(crate) async fn profile(
     State(_state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<ProfileTemplate, (StatusCode, String)> {
+) -> Result<ProfileTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
     Ok(ProfileTemplate {

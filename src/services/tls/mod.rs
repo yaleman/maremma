@@ -53,7 +53,7 @@ pub struct TlsService {
 }
 
 impl ConfigOverlay for TlsService {
-    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, MaremmaError> {
         Ok(Box::new(Self {
             name: self.extract_string(value, "name", &self.name),
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
@@ -72,7 +72,7 @@ impl ServiceTrait for TlsService {
     expiry_critical=self.expiry_critical,
     expiry_warn=self.expiry_warn,
     timeout=self.timeout))]
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
 
         // this comes from the rustls example here: https://github.com/rustls/tokio-rustls/blob/HEAD/examples/client.rs
@@ -134,11 +134,11 @@ impl ServiceTrait for TlsService {
                     });
                 }
             },
-            Err(_) => return Err(Error::Timeout),
+            Err(_) => return Err(MaremmaError::Timeout),
         };
 
         let result: TlsPeerState = match connector.connect(dnsname, stream).await {
-            Ok(_val) => return Err(Error::Generic(
+            Ok(_val) => return Err(MaremmaError::Generic(
                 "Something went hinky in the TLS check parser, it should always return an 'Error'!"
                     .to_string(),
             )),
@@ -217,7 +217,7 @@ impl ServiceTrait for TlsService {
         })
     }
 
-    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, MaremmaError> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }

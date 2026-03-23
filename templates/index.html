@@ -9,71 +9,94 @@
   resetSearch("searchForm", "search");
 </script>
 
-<form method="get" class="form-inline" id="searchForm">  <div class="input-group mb-2 mr-sm-2">
-
-  <input type="text" id="search" name="search" placeholder="Search" value="{{ search }}"  class="form-control mb-2 mr-sm-2" />
-  <input type="hidden" value="{{ ord }}" name="ord" />
-  <input type="hidden" value="{{ field }}" name="field" />
-  <input type="submit" value="Submit"  class="btn btn-primary mb-2"/>
-  <input type="reset" value="Reset"  class="btn btn-secondary mb-2"/>
+<section class="app-stack">
+  <div class="app-card">
+    <div class="app-card-header">
+      <div>
+        <h1 class="app-section-title">Service checks</h1>
+        <p class="app-section-subtitle">Search, sort, and jump into the current fleet.</p>
+      </div>
+      <div class="app-muted">{{ num_checks }} enabled</div>
+    </div>
+    <div class="app-card-body">
+      <form method="get" id="searchForm" class="flex flex-col gap-3 sm:flex-row">
+        <input type="text"
+          id="search"
+          name="search"
+          placeholder="Search"
+          value="{{ search }}"
+          class="app-input sm:flex-1" />
+        <input type="hidden" value="{{ ord }}" name="ord" />
+        <input type="hidden" value="{{ field }}" name="field" />
+        <div class="flex gap-2">
+          <input type="submit" value="Search" class="app-button app-button-primary" />
+          <input type="reset" value="Reset" class="app-button app-button-secondary" />
+        </div>
+      </form>
+    </div>
   </div>
-</form>
-<table class="checktable">
-  <thead>
-    <tr>
-      <th>
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}">Host
-          &nbsp;&nbsp;⬆️</a>&nbsp;
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}">⬇️</a>
-      </th>
-      <th>
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}">Service
-          Check&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}">⬇️</a>
-      </th>
-      <th>
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}">Status&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Status}}">⬇️</a>
-      </th>
-      <th class="hide-on-small">
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::LastUpdated}}">Last
-          Check&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::LastUpdated}}">⬇️</a>
-      </th>
-      <th class="hide-on-small">
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::NextCheck}}">Next
-          Check&nbsp;&nbsp;⬆️</a>&nbsp;
-        <a
-          href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::NextCheck}}">⬇️</a>
-      </th>
-    </tr>
-  </thead>
-  {% for check in checks %}
-  <tr>
-    <td>
-      <a href="{{Urls::Host}}/{{check.host_id}}">{{check.host_name}}</a>
-    </td>
-    <td>
-      <a
-        href="{{Urls::ServiceCheck}}/{{check.id}}">{{check.service_name}}</a>
-    </td>
-    <td
-      class="bg-{{check.status.as_html_class_background()}} text-{{check.status.as_html_class_text()}}"">
-      {{check.status}}
-    </td>
-    <td class="hide-on-small">{{check.last_check.format("%Y-%m-%d %H:%M:%S")}}</td>
-    <td class="hide-on-small">{{check.next_check.format("%Y-%m-%d %H:%M:%S")}}</td>
-  </tr>
-  {% endfor %}
-</table>
-There are {{ num_checks }} service checks enabled.
+
+  <div class="app-table-wrap">
+    <div class="overflow-x-auto">
+      <table class="app-table">
+        <thead class="app-table-head">
+          <tr>
+            <th class="app-th">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}">Host</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}">⬇</a>
+              </div>
+            </th>
+            <th class="app-th">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Service}}">Service Check</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Service}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Service}}">⬇</a>
+              </div>
+            </th>
+            <th class="app-th">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}">Status</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Status}}">⬇</a>
+              </div>
+            </th>
+            <th class="app-th hidden xl:table-cell">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::LastUpdated}}">Last Check</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::LastUpdated}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::LastUpdated}}">⬇</a>
+              </div>
+            </th>
+            <th class="app-th hidden xl:table-cell">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::NextCheck}}">Next Check</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::NextCheck}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::NextCheck}}">⬇</a>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 bg-white">
+          {% for check in checks %}
+          <tr class="app-row">
+            <td class="app-td">
+              <a href="{{Urls::Host}}/{{check.host_id}}" class="app-link">{{check.host_name}}</a>
+            </td>
+            <td class="app-td">
+              <a href="{{Urls::ServiceCheck}}/{{check.id}}" class="app-link">{{check.service_name}}</a>
+            </td>
+            <td class="app-td">
+              <span class="{{check.status.tailwind_badge_classes()}}">{{check.status}}</span>
+            </td>
+            <td class="app-td hidden xl:table-cell">{{check.last_check.format("%Y-%m-%d %H:%M:%S")}}</td>
+            <td class="app-td hidden xl:table-cell">{{check.next_check.format("%Y-%m-%d %H:%M:%S")}}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
 {% endblock content %}

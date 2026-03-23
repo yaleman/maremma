@@ -115,7 +115,7 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
             );
         }
         Actions::OneShot(cmd) => match run_oneshot(cmd, config).await {
-            Err(maremma::errors::Error::OneShotFailed) => return Err(ExitCode::from(1)),
+            Err(maremma::errors::MaremmaError::OneShotFailed) => return Err(ExitCode::from(1)),
             Err(err) => error!("Failed to run oneshot: {:?}", err),
             Ok(_) => {}
         },
