@@ -61,8 +61,6 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
 
     match cli.action {
         Actions::Run(_) => {
-            use maremma::web::controller::WebServerControl;
-
             if update_db_from_config(db.as_ref(), config.clone())
                 .await
                 .is_err()

@@ -50,10 +50,10 @@
       <table class="app-table">
         <thead class="app-table-head">
           <tr>
+            <th class="app-th">Check ID</th>
             <th class="app-th">Service</th>
             <th class="app-th">Status</th>
             <th class="app-th hidden md:table-cell">Last Check</th>
-            <th class="app-th">Check ID</th>
             <th class="app-th hidden lg:table-cell">Actions</th>
           </tr>
         </thead>
@@ -61,15 +61,15 @@
           {% for check in checks %}
           <tr class="app-row">
             <td class="app-td">
+              <a href="{{Urls::ServiceCheck}}/{{check.id}}" class="app-link">{{check.id}}</a>
+            </td>
+            <td class="app-td">
               <a href="{{Urls::Service}}/{{check.service_id}}" class="app-link">{{check.service_name}}</a>
             </td>
             <td class="app-td">
               <span class="{{check.status.tailwind_badge_classes()}}">{{check.status}}</span>
             </td>
             <td class="app-td hidden md:table-cell">{{check.last_check}}</td>
-            <td class="app-td">
-              <a href="{{Urls::ServiceCheck}}/{{check.id}}" class="app-link">{{check.id}}</a>
-            </td>
             <td class="app-td hidden lg:table-cell">
               <div class="flex flex-wrap gap-2">
                 {% if check.status == crate::web::ServiceStatus::Disabled %}

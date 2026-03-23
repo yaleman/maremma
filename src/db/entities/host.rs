@@ -52,7 +52,10 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name(
+        name: &str,
+        db: &DatabaseConnection,
+    ) -> Result<Option<Model>, MaremmaError> {
         match Entity::find().filter(Column::Name.eq(name)).one(db).await {
             Ok(val) => Ok(val.into_iter().next()),
             Err(err) => {
@@ -93,7 +96,7 @@ impl MaremmaEntity for Model {
 
                     if existing_host.is_changed() {
                         info!("Updating {:?}", &existing_host);
-                        existing_host.save(db).await?;
+                        existing_host.update(db).await?;
                     } else {
                         debug!("No changes to {:?}", &existing_host);
                     }

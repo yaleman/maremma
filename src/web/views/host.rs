@@ -6,8 +6,8 @@ use crate::db::entities::service_check::FullServiceCheck;
 use crate::errors::MaremmaError;
 use axum::Form;
 use entities::host_group;
-use std::collections::HashMap;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Template, Debug, WebTemplate)]
@@ -132,10 +132,7 @@ pub(crate) async fn hosts(
 
     let db_lock = state.db();
 
-    let hosts = hosts
-        .all(db_lock)
-        .await
-        .map_err(MaremmaError::from)?;
+    let hosts = hosts.all(db_lock).await.map_err(MaremmaError::from)?;
 
     let host_statuses = aggregate_host_statuses(
         &hosts.iter().map(|host| host.id).collect::<Vec<Uuid>>(),
@@ -403,9 +400,7 @@ mod tests {
 
                     assert!(res.is_ok());
 
-                    let rendered = res
-                        .expect("Failed to render hosts page")
-                        .to_string();
+                    let rendered = res.expect("Failed to render hosts page").to_string();
 
                     assert!(rendered.contains("Status"));
                     assert!(rendered.contains("Unknown"));
