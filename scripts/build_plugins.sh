@@ -12,10 +12,10 @@ PLUGINS_VERSION="2.4.0"
 
 cd plugins
 if [ ! -f "monitoring-plugins-${PLUGINS_VERSION}.tar.gz" ]; then
-
     curl -O "https://www.monitoring-plugins.org/download/monitoring-plugins-${PLUGINS_VERSION}.tar.gz"
 fi
 tar -xvf "monitoring-plugins-${PLUGINS_VERSION}.tar.gz"
+rm -rf monitoring-plugins
 mv "monitoring-plugins-${PLUGINS_VERSION}" monitoring-plugins
 
 cd "${CURRDIR}" || exit 1
