@@ -1,14 +1,12 @@
 use super::index::SortQueries;
 use super::prelude::*;
+use crate::prelude::*;
 
 use crate::constants::SESSION_CSRF_TOKEN;
 use crate::db::entities::service_check::FullServiceCheck;
-use crate::errors::MaremmaError;
 use axum::Form;
 use entities::host_group;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
-use std::collections::HashMap;
-use uuid::Uuid;
+use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
 
 #[derive(Template, Debug, WebTemplate)]
 #[template(path = "host.html")]
@@ -130,13 +128,14 @@ pub(crate) async fn hosts(
         }
     }
 
-    let db_lock = state.db();
-
-    let hosts = hosts.all(db_lock).await.map_err(MaremmaError::from)?;
+    let hosts = hosts
+        .all(state.db.as_ref())
+        .await
+        .map_err(MaremmaError::from)?;
 
     let host_statuses = aggregate_host_statuses(
         &hosts.iter().map(|host| host.id).collect::<Vec<Uuid>>(),
-        db_lock,
+        state.db.as_ref(),
     )
     .await?;
 
@@ -190,7 +189,11 @@ async fn aggregate_host_statuses(
     Ok(statuses)
 }
 
-fn sort_host_list_items(hosts: &mut [HostListItem], field: OrderFields, ord: Order) {
+fn sort_host_list_items(
+    hosts: &mut [HostListItem],
+    field: OrderFields,
+    ord: crate::web::views::prelude::Order,
+) {
     hosts.sort_by(|left, right| {
         let ordering = match field {
             OrderFields::Status => left
@@ -209,8 +212,8 @@ fn sort_host_list_items(hosts: &mut [HostListItem], field: OrderFields, ord: Ord
         };
 
         match ord {
-            Order::Asc => ordering,
-            Order::Desc => ordering.reverse(),
+            crate::web::views::prelude::Order::Asc => ordering,
+            crate::web::views::prelude::Order::Desc => ordering.reverse(),
         }
     });
 }
@@ -248,10 +251,7 @@ pub(crate) async fn delete_host(
         return Err(MaremmaError::CsrfValidationFailed);
     }
 
-    let db_writer = state.db().begin().await.map_err(|e| {
-        error!("Failed to begin DB transaction: {}", e);
-        MaremmaError::from(e)
-    })?;
+    let db_writer = state.db().begin().await.map_err(MaremmaError::from)?;
     let host = match entities::host::Entity::find_by_id(host_id)
         .one(&db_writer)
         .await
@@ -264,17 +264,14 @@ pub(crate) async fn delete_host(
     };
 
     host.delete(&db_writer).await.map_err(MaremmaError::from)?;
-    db_writer.commit().await.map_err(|e| {
-        error!("Failed to commit DB transaction: {}", e);
-        MaremmaError::from(e)
-    })?;
+    db_writer.commit().await.map_err(MaremmaError::from)?;
+
     Ok(Redirect::to(Urls::Hosts.as_ref()))
 }
 
 #[cfg(test)]
 mod tests {
 
-    use crate::web::test_setup;
     use crate::web::views::tools::test_user_claims;
 
     #[tokio::test]

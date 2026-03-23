@@ -98,9 +98,8 @@ mod tests {
     async fn test_service_check_history_cleaner() {
         let (db, config) = test_setup_quieter().await.expect("Failed to do test setup");
         config.write().await.max_history_entries_per_check = 1;
-        let db_writer = db.as_ref();
         let valid_service_check = entities::service_check::Entity::find()
-            .one(db_writer)
+            .one(db.as_ref())
             .await
             .expect("Failed to query DB for service check")
             .expect("Failed to find service check");
@@ -117,7 +116,7 @@ mod tests {
                 result_text: Set(valid_service_check.id.to_string()),
                 time_elapsed: Set(0_i64),
             }
-            .insert(db_writer)
+            .insert(db.as_ref())
             .await
             .expect("Failed to insert service check history for check 1");
         }
