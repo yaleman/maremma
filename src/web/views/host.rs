@@ -6,7 +6,8 @@ use crate::db::entities::service_check::FullServiceCheck;
 use crate::errors::MaremmaError;
 use axum::Form;
 use entities::host_group;
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
+use std::collections::HashMap;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
 #[derive(Template, Debug, WebTemplate)]
@@ -92,8 +93,14 @@ pub(crate) async fn host(
 pub(crate) struct HostsTemplate {
     title: String,
     username: Option<String>,
-    hosts: Vec<entities::host::Model>,
+    hosts: Vec<HostListItem>,
     search_string: String,
+}
+
+#[derive(Debug)]
+pub(crate) struct HostListItem {
+    host: entities::host::Model,
+    status: ServiceStatus,
 }
 
 #[derive(Deserialize, Debug, Default)]
@@ -123,22 +130,35 @@ pub(crate) async fn hosts(
         }
     }
 
-    let ord = queries.queries.ord.unwrap_or(super::prelude::Order::Asc);
-    let order_column = match queries.queries.field.unwrap_or_default() {
-        OrderFields::Host => entities::host::Column::Hostname,
-        OrderFields::Service => entities::host::Column::Hostname,
-        OrderFields::LastUpdated => entities::host::Column::Hostname,
-        OrderFields::NextCheck => entities::host::Column::Hostname,
-        OrderFields::Status => entities::host::Column::Check,
-        OrderFields::Check => entities::host::Column::Check,
-    };
     let db_lock = state.db();
 
     let hosts = hosts
-        .order_by(order_column, ord.into())
         .all(db_lock)
         .await
         .map_err(MaremmaError::from)?;
+
+    let host_statuses = aggregate_host_statuses(
+        &hosts.iter().map(|host| host.id).collect::<Vec<Uuid>>(),
+        db_lock,
+    )
+    .await?;
+
+    let mut hosts = hosts
+        .into_iter()
+        .map(|host| HostListItem {
+            status: host_statuses
+                .get(&host.id)
+                .copied()
+                .unwrap_or(ServiceStatus::Unknown),
+            host,
+        })
+        .collect::<Vec<HostListItem>>();
+
+    sort_host_list_items(
+        &mut hosts,
+        queries.queries.field.unwrap_or_default(),
+        queries.queries.ord.unwrap_or(super::prelude::Order::Asc),
+    );
 
     Ok(HostsTemplate {
         title: "Hosts".to_string(),
@@ -146,6 +166,56 @@ pub(crate) async fn hosts(
         hosts,
         search_string: queries.search.unwrap_or_default(),
     })
+}
+
+async fn aggregate_host_statuses(
+    host_ids: &[Uuid],
+    db: &DatabaseConnection,
+) -> Result<HashMap<Uuid, ServiceStatus>, MaremmaError> {
+    let mut statuses = HashMap::new();
+
+    for service_check in entities::service_check::Entity::find()
+        .filter(entities::service_check::Column::HostId.is_in(host_ids.iter().copied()))
+        .all(db)
+        .await
+        .map_err(MaremmaError::from)?
+    {
+        statuses
+            .entry(service_check.host_id)
+            .and_modify(|status| {
+                if service_check.status > *status {
+                    *status = service_check.status;
+                }
+            })
+            .or_insert(service_check.status);
+    }
+
+    Ok(statuses)
+}
+
+fn sort_host_list_items(hosts: &mut [HostListItem], field: OrderFields, ord: Order) {
+    hosts.sort_by(|left, right| {
+        let ordering = match field {
+            OrderFields::Status => left
+                .status
+                .cmp(&right.status)
+                .then_with(|| left.host.hostname.cmp(&right.host.hostname)),
+            OrderFields::Host
+            | OrderFields::Service
+            | OrderFields::LastUpdated
+            | OrderFields::NextCheck
+            | OrderFields::Check => left
+                .host
+                .hostname
+                .cmp(&right.host.hostname)
+                .then_with(|| left.host.name.cmp(&right.host.name)),
+        };
+
+        match ord {
+            Order::Asc => ordering,
+            Order::Desc => ordering.reverse(),
+        }
+    });
 }
 
 #[derive(Deserialize, Debug)]
@@ -333,7 +403,14 @@ mod tests {
 
                     assert!(res.is_ok());
 
-                    let response = res.into_response();
+                    let rendered = res
+                        .expect("Failed to render hosts page")
+                        .to_string();
+
+                    assert!(rendered.contains("Status"));
+                    assert!(rendered.contains("Unknown"));
+
+                    let response = rendered.into_response();
 
                     assert_eq!(response.status(), StatusCode::OK);
                 }

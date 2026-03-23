@@ -1,5 +1,6 @@
 use askama_web::WebTemplate;
 use axum::Form;
+use chrono::{DateTime, Local, Utc};
 use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES;
@@ -20,6 +21,51 @@ pub(crate) struct ServiceCheckTemplate {
     service: entities::service::Model,
     service_check_history: Vec<entities::service_check_history::Model>,
     parsed_config: Option<String>,
+    last_check_display: String,
+    last_check_relative: String,
+    next_check_display: String,
+    next_check_relative: String,
+}
+
+fn format_absolute_time(value: DateTime<Utc>) -> String {
+    value
+        .with_timezone(&Local)
+        .format("%Y-%m-%d %H:%M:%S %Z")
+        .to_string()
+}
+
+fn format_relative_time(value: DateTime<Utc>, now: DateTime<Utc>) -> String {
+    let delta = value - now;
+    let future = delta > chrono::Duration::zero();
+    let seconds = delta.num_seconds().abs();
+
+    let (count, unit) = if seconds < 60 {
+        (seconds, "second")
+    } else if seconds < 3_600 {
+        (seconds / 60, "minute")
+    } else if seconds < 86_400 {
+        (seconds / 3_600, "hour")
+    } else {
+        (seconds / 86_400, "day")
+    };
+
+    let suffix = if count == 1 { "" } else { "s" };
+
+    if count == 0 {
+        if future {
+            "now".to_string()
+        } else {
+            "just now".to_string()
+        }
+    } else if future {
+        format!("in {count} {unit}{suffix}")
+    } else {
+        format!("{count} {unit}{suffix} ago")
+    }
+}
+
+fn format_time_fields(value: DateTime<Utc>, now: DateTime<Utc>) -> (String, String) {
+    (format_absolute_time(value), format_relative_time(value, now))
 }
 
 pub(crate) async fn service_check_get(
@@ -128,6 +174,12 @@ pub(crate) async fn service_check_get(
         res
     });
 
+    let now = Utc::now();
+    let (last_check_display, last_check_relative) =
+        format_time_fields(service_check.last_check, now);
+    let (next_check_display, next_check_relative) =
+        format_time_fields(service_check.next_check, now);
+
     Ok(ServiceCheckTemplate {
         title: format!("Service Check: {}", &service.name),
         username: Some(user.username()),
@@ -138,6 +190,10 @@ pub(crate) async fn service_check_get(
         service,
         service_check_history,
         parsed_config,
+        last_check_display,
+        last_check_relative,
+        next_check_display,
+        next_check_relative,
     })
 }
 
@@ -258,6 +314,7 @@ pub(crate) async fn service_check_delete(
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
 
     use crate::db::tests::test_setup;
     use crate::web::views::tools::test_user_claims;
@@ -302,6 +359,24 @@ mod tests {
         dbg!(&res);
 
         assert!(res.contains("Service Check"))
+    }
+
+    #[test]
+    fn test_format_relative_time() {
+        let now = Utc.with_ymd_and_hms(2026, 3, 23, 10, 0, 0).unwrap();
+
+        assert_eq!(
+            format_relative_time(Utc.with_ymd_and_hms(2026, 3, 23, 10, 0, 30).unwrap(), now),
+            "in 30 seconds"
+        );
+        assert_eq!(
+            format_relative_time(Utc.with_ymd_and_hms(2026, 3, 23, 9, 55, 0).unwrap(), now),
+            "5 minutes ago"
+        );
+        assert_eq!(
+            format_relative_time(Utc.with_ymd_and_hms(2026, 3, 23, 12, 0, 0).unwrap(), now),
+            "in 2 hours"
+        );
     }
 
     #[tokio::test]

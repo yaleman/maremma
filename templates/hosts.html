@@ -34,13 +34,23 @@
                 <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}&search={{search_string}}">⬇</a>
               </div>
             </th>
+            <th class="app-th">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}&search={{search_string}}">Status</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}&search={{search_string}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Status}}&search={{search_string}}">⬇</a>
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-200 bg-white">
           {% for host in hosts %}
           <tr class="app-row">
             <td class="app-td">
-              <a href="{{Urls::Host}}/{{host.id}}" class="app-link">{{host.name}}</a>
+              <a href="{{Urls::Host}}/{{host.host.id}}" class="app-link">{{host.host.name}}</a>
+            </td>
+            <td class="app-td">
+              <span class="{{host.status.tailwind_badge_classes()}}">{{host.status}}</span>
             </td>
           </tr>
           {% endfor %}
