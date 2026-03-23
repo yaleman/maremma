@@ -2,46 +2,68 @@
 
 {% block content %}
 
-{% if let Some(message) = message %}
-<div class="alert alert-success" role="alert">
+<section class="app-stack">
+  {% if let Some(message) = message %}
+  <div class="app-alert app-alert-success" role="alert">
     {{ message }}
-</div>
-{% endif %}
+  </div>
+  {% endif %}
 
-<script type="text/javascript">
-confirmForm('deleteCheck{{host_group.id}}', "Are you sure you want to delete this check?")
-</script>
-<div style="float:right;">
-    <form
+  <div class="app-card">
+    <div class="app-card-header">
+      <div>
+        <h1 class="app-section-title">Host Group: {{host_group.name}}</h1>
+        <p class="app-section-subtitle">{{ members.len() }} members</p>
+      </div>
+      <form
         action="{{Urls::HostGroup}}/{{host_group.id}}/delete"
         id="deleteCheck{{host_group.id}}"
-        method="post" class="buttonform">
-        <input type="submit" class="btn btn-warning"
-            value="Delete This" />
-        <input type="hidden" name="redirect_to"
-            value="{{Urls::HostGroups}}" />
-    </form></div>
+        method="post">
+        <input type="hidden" name="redirect_to" value="{{Urls::HostGroups}}" />
+        <input type="submit" class="app-button app-button-warning" value="Delete This" />
+      </form>
+    </div>
+    <div class="app-card-body">
+      <script type="text/javascript">
+        confirmForm('deleteCheck{{host_group.id}}', "Are you sure you want to delete this host group?")
+      </script>
+      <div class="app-muted">Manage the hosts assigned to this group below.</div>
+    </div>
+  </div>
 
-<h1>Host Group: {{host_group.name}}</h1>
+  <div class="app-table-wrap">
+    <div class="overflow-x-auto">
+      <table class="app-table">
+        <thead class="app-table-head">
+          <tr>
+            <th class="app-th">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}">Hostname</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}">⬇</a>
+              </div>
+            </th>
+            <th class="app-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 bg-white">
+          {% for member in members %}
+          <tr class="app-row">
+            <td class="app-td">
+              <a href="{{Urls::Host}}/{{member.id}}" class="app-link">{{member.name}}</a>
+            </td>
+            <td class="app-td">
+              <form method="post"
+                action="{{Urls::HostGroup}}/{{host_group.id}}/member/{{member.id}}/delete">
+                <input type="submit" value="Remove Member" class="app-button app-button-secondary" />
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
-<h3>Hosts</h3>
-
-<table class="checktable">
-    <thead>
-        <th>
-            <a href="?ord={{crate::web::views::prelude::Order::Asc}}">Hostname
-                &nbsp;&nbsp;⬆️</a>&nbsp;
-            <a href="?ord={{crate::web::views::prelude::Order::Desc}}">⬇️</a>
-        </th>
-        <th>&nbsp;</th>
-    </thead>
-    {% for member in members %}
-    <tr>
-        <td><a href="{{Urls::Host}}/{{member.id}}">{{member.name}}</a></td>
-        <td><form method="post"
-                action="{{Urls::HostGroup}}/{{host_group.id}}/member/{{member.id}}/delete"><input
-                    type="submit" value="Remove Member" /></form></td>
-    </tr>
-    {% endfor %}
-</table>
 {% endblock content %}

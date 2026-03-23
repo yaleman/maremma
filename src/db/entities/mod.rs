@@ -19,9 +19,9 @@ pub trait MaremmaEntity {
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: SendableConfig,
-    ) -> Result<(), Error>;
+    ) -> Result<(), MaremmaError>;
 
-    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Self>, Error>
+    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Self>, MaremmaError>
     where
         Self: Sized;
 }

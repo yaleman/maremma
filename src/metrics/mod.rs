@@ -8,7 +8,7 @@ use opentelemetry_sdk::Resource;
 use prometheus::Registry;
 
 /// Creates the metrics provider and registry for downstream use
-pub fn new() -> Result<(SdkMeterProvider, Registry), Error> {
+pub fn new() -> Result<(SdkMeterProvider, Registry), MaremmaError> {
     // create a new prometheus registry
     let registry = prometheus::Registry::new();
 

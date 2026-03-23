@@ -12,6 +12,8 @@ pub(crate) fn web_server_default_port() -> NonZeroU16 {
 
 /// Default location for the static resources
 pub const WEB_SERVER_DEFAULT_STATIC_PATH: &str = "./static";
+/// Default location for the static resources in the container
+pub const CONTAINER_DEFAULT_STATIC_PATH: &str = "/static";
 
 /// Default number of history entries to show on the service check page
 pub const DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES: u64 = 50;

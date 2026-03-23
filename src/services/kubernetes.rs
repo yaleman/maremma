@@ -21,7 +21,7 @@ pub struct KubernetesService {
 }
 
 impl ConfigOverlay for KubernetesService {
-    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, MaremmaError> {
         let name = self.extract_string(value, "name", &self.name);
         let cron_schedule = self.extract_cron(value, "cron_schedule", &self.cron_schedule)?;
 
@@ -36,7 +36,7 @@ impl ConfigOverlay for KubernetesService {
 
 #[async_trait]
 impl ServiceTrait for KubernetesService {
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
         let start_time: DateTime<Utc> = chrono::Utc::now();
 
         let _config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
@@ -66,7 +66,7 @@ impl ServiceTrait for KubernetesService {
         })
     }
 
-    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, MaremmaError> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }

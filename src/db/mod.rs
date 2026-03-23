@@ -57,7 +57,7 @@ pub async fn connect(config: SendableConfig) -> Result<DatabaseConnection, sea_o
 pub async fn update_db_from_config(
     db_writer: &DatabaseConnection,
     config: SendableConfig,
-) -> Result<(), Error> {
+) -> Result<(), MaremmaError> {
     // let's go through and update the DB
     entities::host::Model::update_db_from_config(db_writer, config.clone())
         .await
@@ -112,7 +112,7 @@ pub async fn update_db_from_config(
 /// Get the next service check to run, returns
 pub async fn get_next_service_check(
     db: &DatabaseConnection,
-) -> Result<Option<(entities::service_check::Model, entities::service::Model)>, Error> {
+) -> Result<Option<(entities::service_check::Model, entities::service::Model)>, MaremmaError> {
     let base_query =
         entities::service_check::Entity::find().find_with_related(entities::service::Entity);
 
@@ -161,7 +161,7 @@ pub async fn get_next_service_check(
     match res {
         Some((service_check, mut services)) => {
             let service = services.pop().ok_or_else(|| {
-                Error::Generic("Failed to get service for service check".to_string())
+                MaremmaError::Generic("Failed to get service for service check".to_string())
             })?;
             Ok(Some((service_check.to_owned(), service)))
         }

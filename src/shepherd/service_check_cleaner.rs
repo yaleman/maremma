@@ -6,7 +6,7 @@ pub(crate) struct ServiceCheckCleanTask {}
 
 #[async_trait]
 impl CronTaskTrait for ServiceCheckCleanTask {
-    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error> {
+    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), MaremmaError> {
         debug!("Checking for stuck service checks...");
 
         let res = entities::service_check::Entity::update_many()

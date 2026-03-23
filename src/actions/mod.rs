@@ -8,7 +8,7 @@ pub(crate) mod pushover;
 /// An action that'll run after a check has been performed
 pub trait Action {
     /// Run the response action
-    async fn execute(&self, check_result: &CheckResult) -> Result<(), Error>;
+    async fn execute(&self, check_result: &CheckResult) -> Result<(), MaremmaError>;
 
     /// What states the action would be run
     fn run_states(&self) -> Vec<ServiceStatus>;

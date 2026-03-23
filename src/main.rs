@@ -80,7 +80,21 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
             let (web_tx, web_rx) = tokio::sync::mpsc::channel(1);
 
             tokio::select! {
+                  biased;
 
+                _ = tokio::signal::ctrl_c() => {
+                    info!("Received Ctrl-C, shutting down");
+                    return Ok(())
+                }
+                Some(()) = async move {
+                    let sigterm = tokio::signal::unix::SignalKind::alarm();
+                    #[allow(clippy::expect_used)]
+                    tokio::signal::unix::signal(sigterm).expect("Failed to create signal stream").recv().await
+                } => {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        info!("Received SIGTERM, shutting down");
+                        return Ok(());
+                }
                 check_loop_result = run_check_loop(
                     db.clone(),
                     config.read().await.max_concurrent_checks,
@@ -115,7 +129,7 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
             );
         }
         Actions::OneShot(cmd) => match run_oneshot(cmd, config).await {
-            Err(maremma::errors::Error::OneShotFailed) => return Err(ExitCode::from(1)),
+            Err(maremma::errors::MaremmaError::OneShotFailed) => return Err(ExitCode::from(1)),
             Err(err) => error!("Failed to run oneshot: {:?}", err),
             Ok(_) => {}
         },

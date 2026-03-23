@@ -34,7 +34,7 @@ impl CronTask {
     }
 
     #[instrument(level = "INFO", skip_all)]
-    async fn run_task(&mut self, db: Arc<DatabaseConnection>) -> Result<bool, Error> {
+    async fn run_task(&mut self, db: Arc<DatabaseConnection>) -> Result<bool, MaremmaError> {
         if self.should_run()? {
             self.task
                 .run(db)
@@ -47,7 +47,7 @@ impl CronTask {
         }
     }
 
-    fn should_run(&self) -> Result<bool, Error> {
+    fn should_run(&self) -> Result<bool, MaremmaError> {
         let next_occurrence = self.cron.find_next_occurrence(&self.last_run, false)?;
         Ok(next_occurrence <= chrono::Utc::now())
     }
@@ -55,7 +55,7 @@ impl CronTask {
 
 #[async_trait]
 pub(crate) trait CronTaskTrait {
-    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error>;
+    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), MaremmaError>;
 }
 
 /// The shepherd wanders around making sure things are in order.
@@ -63,7 +63,7 @@ pub async fn shepherd(
     db: Arc<DatabaseConnection>,
     config: SendableConfig,
     web_tx: tokio::sync::mpsc::Sender<WebServerControl>,
-) -> Result<(), Error> {
+) -> Result<(), MaremmaError> {
     // run the clean_up_checking loop every x minutes
     let mut service_check_clean = CronTask::new(
         "ServiceCheckClean".to_string(),

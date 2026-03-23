@@ -28,7 +28,7 @@ use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
 use serde::de::DeserializeOwned;
 use serde_json::Map;
 
-use crate::errors::Error;
+use crate::errors::MaremmaError;
 #[derive(
     Default,
     Deserialize,
@@ -111,27 +111,16 @@ impl Display for ServiceStatus {
 }
 
 impl ServiceStatus {
-    /// Returns the cell background colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
-    pub fn as_html_class_background(self) -> &'static str {
+    /// Tailwind-safe badge classes for status indicators.
+    pub fn tailwind_badge_classes(self) -> &'static str {
         match self {
-            ServiceStatus::Ok => "success",
-            ServiceStatus::Critical | ServiceStatus::Error => "danger",
-            ServiceStatus::Checking | ServiceStatus::Warning => "warning",
+            ServiceStatus::Ok => "app-badge app-badge-success",
+            ServiceStatus::Critical | ServiceStatus::Error => "app-badge app-badge-danger",
+            ServiceStatus::Checking | ServiceStatus::Warning => "app-badge app-badge-warning",
             ServiceStatus::Pending | ServiceStatus::Disabled | ServiceStatus::Unknown => {
-                "secondary"
+                "app-badge app-badge-muted"
             }
-            ServiceStatus::Urgent => "primary",
-        }
-    }
-
-    /// Returns the text colour for the status, from the [bootstrap colours](https://getbootstrap.com/docs/5.3/utilities/colors/)
-    pub fn as_html_class_text(self) -> &'static str {
-        match self {
-            ServiceStatus::Ok => "light",
-            ServiceStatus::Critical | ServiceStatus::Error => "dark",
-            ServiceStatus::Checking | ServiceStatus::Warning => "light",
-            ServiceStatus::Pending | ServiceStatus::Disabled | ServiceStatus::Unknown => "dark",
-            ServiceStatus::Urgent => "light",
+            ServiceStatus::Urgent => "app-badge app-badge-info",
         }
     }
 }
@@ -140,24 +129,24 @@ impl ServiceStatus {
 /// The base trait for a service
 pub trait ServiceTrait: Debug + Sync + Send {
     /// Run the service check
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error>;
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError>;
 
     /// Validate the configuration against some extra rules
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), MaremmaError> {
         debug!("You're using the default always-ok validation for this service");
         Ok(())
     }
 
     /// Parse it from the configuration file
-    fn from_config(config: &Value) -> Result<Self, Error>
+    fn from_config(config: &Value) -> Result<Self, MaremmaError>
     where
         Self: Sized + DeserializeOwned,
     {
-        serde_json::from_value(config.clone()).map_err(Error::from)
+        serde_json::from_value(config.clone()).map_err(MaremmaError::from)
     }
 
     /// Render this as JSON
-    fn as_json_pretty(&self, _host: &entities::host::Model) -> Result<String, Error>;
+    fn as_json_pretty(&self, _host: &entities::host::Model) -> Result<String, MaremmaError>;
 
     /// Get the jitter value (in seconds) of a service
     fn jitter_value(&self) -> u32;
@@ -166,9 +155,9 @@ pub trait ServiceTrait: Debug + Sync + Send {
 /// Allows you to overlay host-specific content for services
 pub trait ConfigOverlay: Serialize {
     /// Serialize to a string for viewing
-    fn as_json(&self) -> Result<Box<str>, Error> {
+    fn as_json(&self) -> Result<Box<str>, MaremmaError> {
         serde_json::to_string(self)
-            .map_err(Error::from)
+            .map_err(MaremmaError::from)
             .map(|v| v.into_boxed_str())
     }
 
@@ -194,15 +183,15 @@ pub trait ConfigOverlay: Serialize {
         value: &Map<String, Json>,
         field: &str,
         default: &Cron,
-    ) -> Result<Cron, Error> {
+    ) -> Result<Cron, MaremmaError> {
         if value.contains_key(field) {
             value
                 .get(field)
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .ok_or_else(|| MaremmaError::Generic("Failed to get cron_schedule".to_string()))?
                 .as_str()
-                .ok_or_else(|| Error::Generic("Failed to get cron_schedule".to_string()))?
+                .ok_or_else(|| MaremmaError::Generic("Failed to get cron_schedule".to_string()))?
                 .parse()
-                .map_err(|_| Error::Generic("Failed to parse cron_schedule".to_string()))
+                .map_err(|_| MaremmaError::Generic("Failed to parse cron_schedule".to_string()))
         } else {
             Ok(default.clone())
         }
@@ -214,7 +203,7 @@ pub trait ConfigOverlay: Serialize {
         value: &Map<String, Value>,
         key: &str,
         default: &T,
-    ) -> Result<T, Error>
+    ) -> Result<T, MaremmaError>
     where
         T: serde::de::DeserializeOwned + Clone,
     {
@@ -224,24 +213,24 @@ pub trait ConfigOverlay: Serialize {
                     "Failed to extract field {} from host configuration: {:?}",
                     key, err
                 );
-                Error::from(err)
+                MaremmaError::from(err)
             }),
             None => Ok(default.to_owned()),
         }
     }
 
     /// Pulls the host config out of the host model
-    fn get_host_config(&self, name: &str, host: &host::Model) -> Result<Map<String, Value>, Error> {
+    fn get_host_config(&self, name: &str, host: &host::Model) -> Result<Map<String, Value>, MaremmaError> {
         let config = match host.config.as_object() {
             Some(val) => Ok(val.clone()),
-            None => Err(Error::Configuration(format!(
+            None => Err(MaremmaError::Configuration(format!(
                 "Failed to parse config as map for host={}",
                 host.name
             ))),
         }?;
 
         match config.get(name) {
-            Some(val) => val.as_object().cloned().ok_or(Error::Configuration(format!(
+            Some(val) => val.as_object().cloned().ok_or(MaremmaError::Configuration(format!(
                 "Failed to parse {name} config"
             ))),
             None => Ok(Map::new()),
@@ -249,7 +238,7 @@ pub trait ConfigOverlay: Serialize {
     }
 
     /// Overlays host-specific content for services
-    fn overlay_host_config(&self, host_config: &Map<String, Value>) -> Result<Box<Self>, Error>;
+    fn overlay_host_config(&self, host_config: &Map<String, Value>) -> Result<Box<Self>, MaremmaError>;
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
@@ -290,7 +279,7 @@ pub(crate) fn service_config_parse(
     service_identifier: &str,
     service_type: &ServiceType,
     value: &Value,
-) -> Result<Box<dyn ServiceTrait>, Error> {
+) -> Result<Box<dyn ServiceTrait>, MaremmaError> {
     let res = match service_type {
         ServiceType::Cli => Box::new(
             cli::CliService::from_config(value)
@@ -347,7 +336,7 @@ impl Service {
     }
 
     /// Because services are stored in the database as a JSON field, we need to parse the config and store the type internally
-    pub fn parse_config(&mut self) -> Result<Self, Error> {
+    pub fn parse_config(&mut self) -> Result<Self, MaremmaError> {
         let value = serde_json::to_value(&*self)?;
 
         let service_identifier = match &self.name {
@@ -371,7 +360,7 @@ impl Service {
 }
 
 impl TryFrom<&Value> for Service {
-    type Error = Error;
+    type Error = MaremmaError;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
         let mut res: Service = serde_json::from_value(value.clone())?;
@@ -384,7 +373,7 @@ impl Service {
     pub async fn try_from_service_model(
         value: &entities::service::Model,
         db: &DatabaseConnection,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, MaremmaError> {
         let host_groups: Vec<String> = value
             .find_linked(entities::service_group_link::ServiceToGroups)
             .all(db)
@@ -481,37 +470,35 @@ mod tests {
     }
 
     #[test]
-    fn test_servicestatus_as_html_class_background() {
-        assert_eq!(ServiceStatus::Ok.as_html_class_background(), "success");
-        assert_eq!(ServiceStatus::Critical.as_html_class_background(), "danger");
+    fn test_servicestatus_tailwind_badge_classes() {
         assert_eq!(
-            ServiceStatus::Checking.as_html_class_background(),
-            "warning"
+            ServiceStatus::Ok.tailwind_badge_classes(),
+            "app-badge app-badge-success"
         );
         assert_eq!(
-            ServiceStatus::Pending.as_html_class_background(),
-            "secondary"
+            ServiceStatus::Critical.tailwind_badge_classes(),
+            "app-badge app-badge-danger"
         );
         assert_eq!(
-            ServiceStatus::Disabled.as_html_class_background(),
-            "secondary"
+            ServiceStatus::Checking.tailwind_badge_classes(),
+            "app-badge app-badge-warning"
         );
         assert_eq!(
-            ServiceStatus::Unknown.as_html_class_background(),
-            "secondary"
+            ServiceStatus::Pending.tailwind_badge_classes(),
+            "app-badge app-badge-muted"
         );
-        assert_eq!(ServiceStatus::Urgent.as_html_class_background(), "primary");
-    }
-
-    #[test]
-    fn test_servicestatus_as_html_class_text() {
-        assert_eq!(ServiceStatus::Ok.as_html_class_text(), "light");
-        assert_eq!(ServiceStatus::Critical.as_html_class_text(), "dark");
-        assert_eq!(ServiceStatus::Checking.as_html_class_text(), "light");
-        assert_eq!(ServiceStatus::Pending.as_html_class_text(), "dark");
-        assert_eq!(ServiceStatus::Disabled.as_html_class_text(), "dark");
-        assert_eq!(ServiceStatus::Unknown.as_html_class_text(), "dark");
-        assert_eq!(ServiceStatus::Urgent.as_html_class_text(), "light");
+        assert_eq!(
+            ServiceStatus::Disabled.tailwind_badge_classes(),
+            "app-badge app-badge-muted"
+        );
+        assert_eq!(
+            ServiceStatus::Unknown.tailwind_badge_classes(),
+            "app-badge app-badge-muted"
+        );
+        assert_eq!(
+            ServiceStatus::Urgent.tailwind_badge_classes(),
+            "app-badge app-badge-info"
+        );
     }
 
     #[tokio::test]

@@ -1,6 +1,10 @@
 services:
   maremma:
     image: ghcr.io/yaleman/maremma:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: always
     container_name: maremma
     init: true
     restart: unless-stopped

@@ -1,75 +1,62 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" class="h-full">
     <head>
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="{{Urls::Static}}/js/maremma.js"></script>
         <link rel="icon" href="{{Urls::Static}}/img/maremma-icon.svg"
             type="image/svg+xml">
         <link rel="icon" href="{{Urls::Static}}/img/maremma-icon-128.png"
             type="image/png">
-        <script src="{{Urls::Static}}/js/bootstrap.js"></script>
-        <link href="{{Urls::Static}}/css/bootstrap.min.css" rel="stylesheet"
-            integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"
-            crossorigin="anonymous">
-        <link rel="stylesheet" href="{{Urls::Static}}/css/maremma.css" />
-        <title>{{ title }}{%
-            if !title.is_empty() %} - {% endif %}Maremma</title>
+        <link rel="stylesheet" href="{{Urls::Static}}/css/app.css" />
+        <title>{{ title }}{% if !title.is_empty() %} - {% endif %}Maremma</title>
         {% block header %}{% endblock %}
     </head>
-    <body>
-        <header data-bs-theme="dark">
-            <div class="container">
-                <div class="row"></div>
-            </div>
-        </header>
-        <div class="navbar navbar-dark bg-dark shadow-sm">
-            <div class="container">
-                <a href={{Urls::Index}}
-                    class="navbar-brand d-flex align-items-left">
-                    <img src="{{Urls::Static}}/img/maremma-icon.svg"
-                        class="navbar-logo" /><div class="hide-on-small">
-                            {% if !title.is_empty() %}{{ title }}{% else %}Maremma{% endif %}</a></div>
-                <ul
-                    class="nav col-11 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+    <body class="min-h-full">
+        <div class="app-shell">
+            <header class="app-topbar">
+                <div class="app-topbar-inner">
+                    <a href="{{Urls::Index}}" class="app-brand">
+                        <img src="{{Urls::Static}}/img/maremma-icon.svg"
+                            alt="Maremma" class="app-brand-mark" />
+                        <div class="app-brand-text">
+                            <div class="app-brand-title">Maremma</div>
+                        </div>
+                    </a>
+                    <nav class="app-nav" aria-label="Primary">
+                        <a href="{{Urls::Hosts}}" class="app-nav-link">Hosts</a>
+                        <a href="{{Urls::HostGroups}}" class="app-nav-link">Groups</a>
+                        <a href="{{Urls::Services}}" class="app-nav-link">Services</a>
+                        <a href="{{Urls::Tools}}" class="app-nav-link">Tools</a>
+                    </nav>
+                    <div class="flex items-center gap-2">
+                        {% if let Some(username) = username %}
+                        <a href="{{Urls::Profile}}" class="app-nav-chip hidden sm:inline-flex">
+                            {{username}}
+                        </a>
+                        <a href="{{Urls::Logout}}" class="app-nav-link">Log out</a>
+                        {% else %}
+                        <a href="{{Urls::Index}}" class="app-nav-link">Log in</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </header>
 
-                    <li class="nav"><a href="{{Urls::Tools}}"
-                            class="nav-link text-white">Tools</a></li>
-                    <li class="nav"><a href="{{Urls::Services}}"
-                            class="nav-link text-white">Services</a></li>
-                    <li class="nav"><a href="{{Urls::HostGroups}}"
-                            class="nav-link text-white">Groups</a></li>
-                    <li class="nav"><a href="{{Urls::Hosts}}"
-                            class="nav-link text-white">Hosts</a></li>
-                    {% if let Some(username) = username %}
-                    <li class="nav hide-on-small">
-                        <a href="{{Urls::Profile}}"
-                            class="nav-link text-white">
-                            {{username}}</a></li>
-                    <li class="nav">
-                        <a class="nav-link text-white"
-                            href="{{Urls::Logout}}">Log out</a>
-                    </li>
-                    {% else %}
-                    <li class="nav">
-                        <a class="nav-link text-white"
-                            href="{{Urls::Index}}">Log in</a>
-                    </li>
-                    {% endif %}
+            <main class="app-main">
+                <div class="app-content">
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
 
-                </ul>
-            </div>
+            <footer class="app-footer">
+                <div class="app-footer-inner">
+                    <span>
+                        Powered by
+                        <a class="app-link" href="https://github.com/yaleman/maremma/">Maremma</a>
+                    </span>
+                    <span class="hidden sm:inline">Server-rendered monitoring</span>
+                </div>
+            </footer>
         </div>
-
-        <main>
-            <div class="class="flex-grow-1">
-                {% block content %}{% endblock %}
-            </div>
-        </main>
-
-        <footer class="footer mt-auto py-3 bg-body-tertiary">
-            <div class="container">
-                <span class="text-body-secondary">Powered by <a
-                        href="https://github.com/yaleman/maremma/">Maremma</a></span>
-            </div>
-        </footer>
-    </html>
+    </body>
+</html>

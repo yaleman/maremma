@@ -2,38 +2,55 @@
 
 {% block content %}
 
-{% if let Some(message) = message %}
-<div class="alert alert-{{ status }}" <div
-    class="alert alert-secondary" role="alert">
+<section class="app-stack">
+  {% if let Some(message) = message %}
+  <div class="{{ status.alert_classes() }}" role="alert">
     {{ message }}
-</div>
-{% endif %}
-<p>
-    <form method="POST">
-        <input type="submit" value="Set all to urgent"
-            class="btn btn-warning" />
-        <input type="hidden" name="action"
-            value={{ FormAction::SetAllToUrgent.as_ref() }} />
-        <input type="hidden" name={{SESSION_CSRF_TOKEN}}
-            value="{{csrf_token}}" />
+  </div>
+  {% endif %}
+
+  <div class="grid gap-4 lg:grid-cols-3">
+    <form method="POST" class="app-card">
+      <div class="app-card-header">
+        <div>
+          <h2 class="app-card-title">Set all to urgent</h2>
+          <p class="app-card-subtitle">Marks every eligible check as urgent.</p>
+        </div>
+      </div>
+      <div class="app-card-body">
+        <input type="submit" value="Set all to urgent" class="app-button app-button-warning w-full" />
+        <input type="hidden" name="action" value={{ FormAction::SetAllToUrgent.as_ref() }} />
+        <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+      </div>
     </form>
-</p>
-<p>
-    <form method="POST">
-        <input type="submit" value="Reload System Configuration from File"
-            class="btn btn-warning" />
-        <input type="hidden" name="action"
-            value={{ FormAction::ReloadConfig.as_ref() }} />
-        <input type="hidden" name={{SESSION_CSRF_TOKEN}}
-            value="{{csrf_token}}" />
+
+    <form method="POST" class="app-card">
+      <div class="app-card-header">
+        <div>
+          <h2 class="app-card-title">Reload configuration</h2>
+          <p class="app-card-subtitle">Pulls the current file and reapplies it to the database.</p>
+        </div>
+      </div>
+      <div class="app-card-body">
+        <input type="submit" value="Reload System Configuration from File" class="app-button app-button-secondary w-full" />
+        <input type="hidden" name="action" value={{ FormAction::ReloadConfig.as_ref() }} />
+        <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+      </div>
     </form>
-</p>
-<p>
-    <form method="POST" action="{{Urls::ToolsExportDb}}"">
-        <input type="submit" value="Export DB to File"
-            class="btn btn-warning" />
-        <input type="hidden" name={{SESSION_CSRF_TOKEN}}
-            value="{{csrf_token}}" />
+
+    <form method="POST" action="{{Urls::ToolsExportDb}}" class="app-card">
+      <div class="app-card-header">
+        <div>
+          <h2 class="app-card-title">Export database</h2>
+          <p class="app-card-subtitle">Downloads the current database snapshot.</p>
+        </div>
+      </div>
+      <div class="app-card-body">
+        <input type="submit" value="Export DB to File" class="app-button app-button-secondary w-full" />
+        <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+      </div>
     </form>
-</p>
+  </div>
+</section>
+
 {% endblock content %}

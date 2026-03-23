@@ -12,11 +12,11 @@ pub struct FakeHost {
 #[async_trait]
 impl GenericHost for FakeHost {
     /// This is always true because it's the maremma host
-    async fn check_up(&self) -> Result<bool, Error> {
+    async fn check_up(&self) -> Result<bool, MaremmaError> {
         Ok(true)
     }
 
-    fn try_from_config(_config: serde_json::Value) -> Result<Self, Error> {
+    fn try_from_config(_config: serde_json::Value) -> Result<Self, MaremmaError> {
         Ok(Self {
             ..Default::default()
         })

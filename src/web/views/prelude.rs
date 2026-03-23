@@ -1,4 +1,5 @@
 pub(crate) use crate::db::entities;
+use crate::errors::MaremmaError;
 pub(crate) use crate::services::ServiceStatus;
 pub(crate) use crate::web::oidc::User;
 pub(crate) use crate::web::urls::Urls;
@@ -124,13 +125,10 @@ impl PartialOrd for Check {
 
 pub(crate) fn check_login(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<User, (StatusCode, String)> {
+) -> Result<User, MaremmaError> {
     match claims {
         Some(user) => Ok(User::from(user)),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )),
+        None => Err(MaremmaError::Unauthorized),
     }
 }
 

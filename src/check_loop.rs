@@ -5,6 +5,7 @@ use crate::prelude::*;
 use futures::FutureExt;
 use opentelemetry::metrics::Counter;
 use opentelemetry::KeyValue;
+use std::cmp::{max, min};
 use tokio::task::JoinSet;
 
 const DEFAULT_BACKOFF: std::time::Duration = tokio::time::Duration::from_millis(50);
@@ -40,7 +41,7 @@ pub(crate) async fn run_service_check(
     db: Arc<DatabaseConnection>,
     service_check: &entities::service_check::Model,
     service: entities::service::Model,
-) -> Result<CheckResult, Error> {
+) -> Result<CheckResult, MaremmaError> {
     let start_time = Utc::now();
     let check = match Service::try_from_service_model(&service, db.as_ref()).await {
         Ok(check) => check,
@@ -120,7 +121,7 @@ pub(crate) async fn run_service_check(
             "Failed to get service config for {}",
             service.id.hyphenated()
         );
-        Error::ServiceConfigNotFound(service.id.hyphenated().to_string())
+        MaremmaError::ServiceConfigNotFound(service.id.hyphenated().to_string())
     })?;
 
     debug!("Starting service_check={:?}", service_check);
@@ -163,7 +164,7 @@ async fn run_inner(
     service_check: entities::service_check::Model,
     service: entities::service::Model,
     checks_run_since_startup: Arc<Counter<u64>>,
-) -> Result<ServiceStatus, Error> {
+) -> Result<ServiceStatus, MaremmaError> {
     let sc_id = service_check.id.hyphenated().to_string();
     match run_service_check(db, &service_check, service).await {
         Err(err) => {
@@ -261,12 +262,10 @@ pub async fn run_check_loop(
     db: Arc<DatabaseConnection>,
     max_permits: usize,
     metrics_meter: Arc<Meter>,
-) -> Result<(), Error> {
+) -> Result<(), MaremmaError> {
     // Create a Counter Instrument.
 
-    use std::cmp::min;
-
-    let max_permits = std::cmp::max(max_permits, 1);
+    let max_permits = max(max_permits, 1);
     let checks_run_since_startup = metrics_meter
         .u64_counter("checks_run_since_startup")
         .build();

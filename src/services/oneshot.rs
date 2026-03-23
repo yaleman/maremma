@@ -36,7 +36,7 @@ fn export_config(cmd: &OneShotCmd) -> (String, String) {
 }
 
 /// Runs a single check and exits
-pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(), Error> {
+pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(), MaremmaError> {
     if cmd.show_config {
         let (msg, config) = export_config(&cmd);
         eprintln!("{msg}");
@@ -53,7 +53,7 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(),
             serde_json::to_value(obj)?
         }
         None => {
-            return Err(Error::Configuration(
+            return Err(MaremmaError::Configuration(
                 "Service config must be a map of key-value pairs".to_string(),
             ))
         }
@@ -180,7 +180,7 @@ mod tests {
 
         assert_eq!(
             res,
-            Err(Error::Configuration(
+            Err(MaremmaError::Configuration(
                 "Service config must be a map of key-value pairs".to_string()
             ))
         );
@@ -198,7 +198,7 @@ mod tests {
         dbg!(&res);
         assert_eq!(
             res,
-            Err(Error::Configuration(
+            Err(MaremmaError::Configuration(
                 "No SSH key or password provided, auth is going to fail!".to_string()
             ))
         );

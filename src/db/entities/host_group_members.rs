@@ -75,7 +75,7 @@ impl Entity {
         db: &DatabaseConnection,
         host_id: &Uuid,
         group_id: &Uuid,
-    ) -> Result<Model, Error> {
+    ) -> Result<Model, MaremmaError> {
         let existing = Entity::find()
             .filter(Column::HostId.eq(*host_id))
             .filter(Column::GroupId.eq(*group_id))
@@ -95,7 +95,7 @@ impl Entity {
                 }
                 .insert(db)
                 .await
-                .map_err(Error::from)
+                .map_err(MaremmaError::from)
             }
         }
     }
@@ -103,14 +103,14 @@ impl Entity {
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
-        Err(Error::NotImplemented)
+    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
+        Err(MaremmaError::NotImplemented)
     }
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: SendableConfig,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MaremmaError> {
         // group -> (group def, host ids)
         let mut inverted_group_list: HashMap<String, (super::host_group::Model, Vec<Uuid>)> =
             HashMap::new();
@@ -138,7 +138,7 @@ impl MaremmaEntity for Model {
 
                     match group {
                         None => {
-                            return Err(Error::HostGroupNotFoundByName(group_name.clone()));
+                            return Err(MaremmaError::HostGroupNotFoundByName(group_name.clone()));
                         }
                         Some(group) => {
                             inverted_group_list
@@ -173,7 +173,7 @@ mod tests {
         let res = super::Model::find_by_name("test", db.as_ref()).await;
 
         assert!(res.is_err());
-        assert_eq!(res.expect_err("failed to run"), Error::NotImplemented);
+        assert_eq!(res.expect_err("failed to run"), MaremmaError::NotImplemented);
     }
 
     #[tokio::test]

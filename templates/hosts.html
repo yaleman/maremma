@@ -2,29 +2,62 @@
 
 {% block content %}
 
-<form method="get">
-    <input type="text" name="search" placeholder="Search"
-        value="{{search_string}}" />
-    <input type="submit" value="Search" />
-</form>
+<section class="app-stack">
+  <div class="app-card">
+    <div class="app-card-header">
+      <div>
+        <h1 class="app-section-title">Hosts</h1>
+        <p class="app-section-subtitle">Filter by host name or hostname.</p>
+      </div>
+    </div>
+    <div class="app-card-body">
+      <form method="get" class="flex flex-col gap-3 sm:flex-row">
+        <input type="text"
+          name="search"
+          placeholder="Search"
+          value="{{search_string}}"
+          class="app-input sm:flex-1" />
+        <input type="submit" value="Search" class="app-button app-button-primary" />
+      </form>
+    </div>
+  </div>
 
-<table class="checktable">
-    <thead>
-        <th>
-            <a
-                href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}&search={{search_string}}">Host
-                &nbsp;&nbsp;⬆️</a>&nbsp;
-            <a
-                href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}&search={{search_string}}">⬇️</a>
-        </th>
-    </thead>
-    {% for host in hosts %}
-    <tr>
-        <td><a
-                href="{{Urls::Host}}/{{host.id}}">{{host.name}}</a></td>
-    </tr>
-
-    {% endfor %}
-</table>
+  <div class="app-table-wrap">
+    <div class="overflow-x-auto">
+      <table class="app-table">
+        <thead class="app-table-head">
+          <tr>
+            <th class="app-th">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}&search={{search_string}}">Host</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Host}}&search={{search_string}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Host}}&search={{search_string}}">⬇</a>
+              </div>
+            </th>
+            <th class="app-th">
+              <div class="flex items-center gap-2">
+                <a class="app-link" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}&search={{search_string}}">Status</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Asc}}&field={{OrderFields::Status}}&search={{search_string}}">⬆</a>
+                <a class="app-link text-xs" href="?ord={{crate::web::views::prelude::Order::Desc}}&field={{OrderFields::Status}}&search={{search_string}}">⬇</a>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 bg-white">
+          {% for host in hosts %}
+          <tr class="app-row">
+            <td class="app-td">
+              <a href="{{Urls::Host}}/{{host.host.id}}" class="app-link">{{host.host.name}}</a>
+            </td>
+            <td class="app-td">
+              <span class="{{host.status.tailwind_badge_classes()}}">{{host.status}}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
 {% endblock content %}

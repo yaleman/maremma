@@ -6,7 +6,7 @@ use k8s_openapi::api::core::v1::{Namespace, Pod, Service};
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::api::ListParams;
 use kube::{Api, Client};
-use maremma::errors::Error;
+use maremma::errors::MaremmaError;
 use maremma::log::setup_logging;
 use serde::{Deserialize, Serialize};
 use tracing::*;
@@ -67,7 +67,7 @@ fn has_maremma_annotations(input: Option<&BTreeMap<String, String>>) -> bool {
 
 #[cfg(not(tarpaulin_include))]
 impl TryFrom<(&Namespace, &Pod)> for K8sPod {
-    type Error = Error;
+    type Error = MaremmaError;
 
     fn try_from(value: (&Namespace, &Pod)) -> Result<Self, Self::Error> {
         let (namespace, pod) = value;
@@ -76,12 +76,12 @@ impl TryFrom<(&Namespace, &Pod)> for K8sPod {
                 .metadata
                 .name
                 .clone()
-                .ok_or(Error::InvalidInput("No namespace?".to_string()))?,
+                .ok_or(MaremmaError::InvalidInput("No namespace?".to_string()))?,
             name: pod
                 .metadata
                 .name
                 .clone()
-                .ok_or(Error::InvalidInput("No pod name?".to_string()))?,
+                .ok_or(MaremmaError::InvalidInput("No pod name?".to_string()))?,
             annotations: pod
                 .metadata
                 .annotations
@@ -106,7 +106,7 @@ impl TryFrom<(&Namespace, &Pod)> for K8sPod {
 
 #[cfg(not(tarpaulin_include))]
 impl TryFrom<(&Namespace, &Ingress)> for K8sIngress {
-    type Error = Error;
+    type Error = MaremmaError;
 
     fn try_from(value: (&Namespace, &Ingress)) -> Result<Self, Self::Error> {
         let (namespace, ingress) = value;
@@ -116,12 +116,12 @@ impl TryFrom<(&Namespace, &Ingress)> for K8sIngress {
                 .metadata
                 .name
                 .clone()
-                .ok_or(Error::InvalidInput("No ingress name?".to_string()))?,
+                .ok_or(MaremmaError::InvalidInput("No ingress name?".to_string()))?,
             namespace: namespace
                 .metadata
                 .name
                 .clone()
-                .ok_or(Error::InvalidInput("No namespace?".to_string()))?,
+                .ok_or(MaremmaError::InvalidInput("No namespace?".to_string()))?,
             annotations: HashMap::new(),
         };
 
@@ -143,8 +143,8 @@ impl TryFrom<(&Namespace, &Ingress)> for K8sIngress {
 
 #[cfg(not(tarpaulin_include))]
 impl TryFrom<(&Namespace, &Service)> for K8sService {
-    type Error = Error;
-    fn try_from(input: (&Namespace, &Service)) -> Result<Self, Error> {
+    type Error = MaremmaError;
+    fn try_from(input: (&Namespace, &Service)) -> Result<Self, MaremmaError> {
         let (namespace, service) = input;
         // debug!("service: {:?}", service);
         let mut res = Self {
@@ -152,12 +152,12 @@ impl TryFrom<(&Namespace, &Service)> for K8sService {
                 .metadata
                 .name
                 .clone()
-                .ok_or(Error::Generic("No namespace?".to_string()))?,
+                .ok_or(MaremmaError::Generic("No namespace?".to_string()))?,
             name: service
                 .metadata
                 .name
                 .clone()
-                .ok_or(Error::Generic("No service name?".to_string()))?,
+                .ok_or(MaremmaError::Generic("No service name?".to_string()))?,
             cluster_ips: vec![],
             external_ips: vec![],
             ports: vec![],
@@ -185,7 +185,7 @@ impl TryFrom<(&Namespace, &Service)> for K8sService {
                             "cluster IP {} on service {} bad: {:?}",
                             cluster_ip, res.name, err
                         );
-                        Error::from(err)
+                        MaremmaError::from(err)
                     })?);
                 }
             }
@@ -196,7 +196,7 @@ impl TryFrom<(&Namespace, &Service)> for K8sService {
                     }
                     res.cluster_ips.push(ip.parse().map_err(|err| {
                         error!("cluster IPs {} on service {} bad: {:?}", ip, res.name, err);
-                        Error::from(err)
+                        MaremmaError::from(err)
                     })?);
                 }
             }
@@ -209,7 +209,7 @@ impl TryFrom<(&Namespace, &Service)> for K8sService {
                     debug!("trying {}", ip);
                     res.external_ips.push(ip.parse().map_err(|err| {
                         error!("external IP {} on service {} bad: {:?}", ip, res.name, err);
-                        Error::from(err)
+                        MaremmaError::from(err)
                     })?);
                 }
             }
@@ -241,7 +241,7 @@ async fn discover_ingress(
     client: Client,
     namespace: &Namespace,
     namespace_name: &str,
-) -> Result<Vec<K8sIngress>, Error> {
+) -> Result<Vec<K8sIngress>, MaremmaError> {
     let ingress_api: Api<Ingress> = Api::namespaced(client.clone(), namespace_name);
 
     let ingresses = ingress_api.list(&ListParams::default()).await?;
@@ -260,7 +260,7 @@ async fn discover_ingress(
 
 #[tokio::main]
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), MaremmaError> {
     use kube::config::KubeConfigOptions;
 
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -268,13 +268,13 @@ async fn main() -> Result<(), Error> {
 
     if let Err(err) = setup_logging(true, true, false) {
         eprintln!("Error setting up logging: {err:?}");
-        return Err(Error::Generic("Error setting up logging".to_string()));
+        return Err(MaremmaError::Generic("Error setting up logging".to_string()));
     };
 
     debug!("Discovering namespaces");
     let mut discovery_data = K8sServiceDiscovery::default();
 
-    let client = Client::try_default().await.map_err(Error::from)?;
+    let client = Client::try_default().await.map_err(MaremmaError::from)?;
 
     let namespaces: Api<Namespace> = Api::all(client.clone());
     let res = namespaces.list(&ListParams::default()).await?;

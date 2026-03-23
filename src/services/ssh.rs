@@ -77,7 +77,7 @@ impl Default for SshService {
 }
 
 impl ConfigOverlay for SshService {
-    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, MaremmaError> {
         Ok(Box::new(Self {
             name: self.extract_string(value, "name", &self.name),
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
@@ -100,7 +100,7 @@ impl ConfigOverlay for SshService {
 #[async_trait]
 impl ServiceTrait for SshService {
     /// ssh to the target host and run the command
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
@@ -135,7 +135,7 @@ impl ServiceTrait for SshService {
             .connect(&target)
             .map_err(|err| {
                 error!("Failed to connect to {}", target);
-                Error::Generic(err.to_string())
+                MaremmaError::Generic(err.to_string())
             })?
             .run_local();
 
@@ -143,22 +143,22 @@ impl ServiceTrait for SshService {
 
         let mut exec = session.open_exec().map_err(|err| {
             error!("Failed to open exec: {:?}", err);
-            Error::Generic(err.to_string())
+            MaremmaError::Generic(err.to_string())
         })?;
         exec.exec_command(&config.command_line).map_err(|err| {
             error!("Failed to send SSH command: {:?}", err);
-            Error::Generic(err.to_string())
+            MaremmaError::Generic(err.to_string())
         })?;
 
         let output = exec.get_output().map_err(|err| {
             error!("Failed to get output: {:?}", err);
-            Error::Generic(err.to_string())
+            MaremmaError::Generic(err.to_string())
         })?;
 
         let result_text = String::from_utf8_lossy(&output).to_string();
         let exit_status = exec.exit_status().map_err(|err| {
             error!("Failed to get exit status: {:?}", err);
-            Error::Generic(err.to_string())
+            MaremmaError::Generic(err.to_string())
         })?;
 
         let time_elapsed = chrono::Utc::now() - start_time;
@@ -177,17 +177,17 @@ impl ServiceTrait for SshService {
     }
 
     /// Validate the configuration
-    fn validate(&self) -> Result<(), Error> {
+    fn validate(&self) -> Result<(), MaremmaError> {
         // TODO: this should overlay the host config too
         if self.private_key.is_none() && self.password.is_none() {
-            return Err(Error::Configuration(
+            return Err(MaremmaError::Configuration(
                 "No SSH key or password provided, auth is going to fail!".to_string(),
             ));
         }
         Ok(())
     }
 
-    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, MaremmaError> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }

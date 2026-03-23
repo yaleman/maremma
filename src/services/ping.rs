@@ -50,7 +50,7 @@ impl PingService {
 }
 
 impl ConfigOverlay for PingService {
-    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, Error> {
+    fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, MaremmaError> {
         Ok(Box::new(Self {
             name: self.extract_string(value, "name", &self.name),
             address: self.extract_value(value, "address", &self.address)?,
@@ -68,7 +68,7 @@ impl ConfigOverlay for PingService {
 
 #[async_trait]
 impl ServiceTrait for PingService {
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, Error> {
+    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
@@ -81,7 +81,7 @@ impl ServiceTrait for PingService {
         let hostname = lookup_host(format!("{target}:80"))
             .await?
             .next()
-            .ok_or(Error::DnsFailed)?;
+            .ok_or(MaremmaError::DnsFailed)?;
 
         let results = (0..self.get_count())
             .map(|_| tokio::spawn(surge_ping::ping(hostname.ip(), &[0; 8])))
@@ -103,13 +103,13 @@ impl ServiceTrait for PingService {
                             debug!("Ping {} timed out: {}", index, err.to_string());
                         }
                         _ => {
-                            return Err(Error::Generic(err.to_string()));
+                            return Err(MaremmaError::Generic(err.to_string()));
                         }
                     }
-                    return Err(Error::Generic(err.to_string()));
+                    return Err(MaremmaError::Generic(err.to_string()));
                 }
                 Err(err) => {
-                    return Err(Error::Generic(format!("Running task failed: {err}")));
+                    return Err(MaremmaError::Generic(format!("Running task failed: {err}")));
                 }
             }
         }
@@ -127,14 +127,14 @@ impl ServiceTrait for PingService {
                 time_elapsed: Utc::now() - start_time,
             })
         } else {
-            Err(Error::Generic(format!(
+            Err(MaremmaError::Generic(format!(
                 "CRITICAL: Ping failed: {} successful, {} failed",
                 success_count,
                 3 - success_count
             )))
         }
     }
-    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, Error> {
+    fn as_json_pretty(&self, host: &entities::host::Model) -> Result<String, MaremmaError> {
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
         Ok(serde_json::to_string_pretty(&config)?)
     }

@@ -2,7 +2,7 @@
 
 use super::index::SortQueries;
 use super::prelude::*;
-use crate::errors::Error;
+use crate::errors::MaremmaError;
 use askama_web::WebTemplate;
 use entities::service_check::FullServiceCheck;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
@@ -23,7 +23,7 @@ pub(crate) async fn service(
     State(state): State<WebState>,
     Query(_queries): Query<SortQueries>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<ServiceTemplate, (StatusCode, String)> {
+) -> Result<ServiceTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
     let db_lock = state.db();
@@ -31,15 +31,10 @@ pub(crate) async fn service(
     let service = match entities::service::Entity::find_by_id(service_id)
         .one(db_lock)
         .await
-        .map_err(Error::from)?
+        .map_err(MaremmaError::from)?
     {
         Some(host) => host,
-        None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("Service with id={service_id} not found"),
-            ))
-        }
+        None => return Err(MaremmaError::ServiceNotFound(service_id)),
     };
 
     let service_checks = FullServiceCheck::get_by_service_id(service_id, db_lock).await?;
@@ -69,7 +64,7 @@ pub(crate) async fn services(
     State(state): State<WebState>,
     Query(queries): Query<ServicesQuery>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<ServicesTemplate, (StatusCode, String)> {
+) -> Result<ServicesTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
     let order = queries.ord.unwrap_or(Order::Desc);
@@ -83,7 +78,7 @@ pub(crate) async fn services(
         .order_by(entities::service::Column::Name, order.into())
         .all(state.db())
         .await
-        .map_err(Error::from)?;
+        .map_err(MaremmaError::from)?;
 
     Ok(ServicesTemplate {
         title: "Services".to_string(),

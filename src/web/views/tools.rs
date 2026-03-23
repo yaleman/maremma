@@ -1,7 +1,7 @@
 use super::prelude::*;
 use crate::constants::SESSION_CSRF_TOKEN;
 use crate::db::update_db_from_config;
-use crate::web::{Configuration, Error};
+use crate::web::{Configuration, MaremmaError};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue};
 use axum::Form;
@@ -50,7 +50,7 @@ impl AsRef<str> for FormAction {
     }
 }
 
-#[derive(Deserialize, Default, Debug)]
+#[derive(Deserialize, Default, Debug, Copy, Clone)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum ActionStatus {
     Success,
@@ -63,8 +63,18 @@ impl std::fmt::Display for ActionStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ActionStatus::Success => write!(f, "success"),
-            ActionStatus::Error => write!(f, "danger"),
-            ActionStatus::Unknown => write!(f, "primary"),
+            ActionStatus::Error => write!(f, "error"),
+            ActionStatus::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
+impl ActionStatus {
+    pub(crate) fn alert_classes(self) -> &'static str {
+        match self {
+            ActionStatus::Success => "app-alert app-alert-success",
+            ActionStatus::Error => "app-alert app-alert-danger",
+            ActionStatus::Unknown => "app-alert app-alert-info",
         }
     }
 }
@@ -128,15 +138,15 @@ async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
     )))
 }
 
-async fn check_csrf_token(csrf_token: &str, session: &Session) -> Result<(), Error> {
+async fn check_csrf_token(csrf_token: &str, session: &Session) -> Result<(), MaremmaError> {
     let session_csrf_token = session
         .get::<String>(SESSION_CSRF_TOKEN)
         .await
-        .map_err(Error::from)?;
+        .map_err(MaremmaError::from)?;
 
     if session_csrf_token.is_none() {
         debug!("CSRF token not found in session");
-        return Err(Error::CsrfTokenMissing);
+        return Err(MaremmaError::CsrfTokenMissing);
     }
     if let Some(token) = &session_csrf_token {
         if token != csrf_token {
@@ -144,7 +154,7 @@ async fn check_csrf_token(csrf_token: &str, session: &Session) -> Result<(), Err
                 "CSRF token mismatch: session={} form={}",
                 &token, csrf_token
             );
-            return Err(Error::CsrfValidationFailed);
+            return Err(MaremmaError::CsrfValidationFailed);
         }
     }
 
@@ -161,7 +171,7 @@ pub(crate) async fn tools(
 ) -> Result<ToolsTemplate, impl IntoResponse> {
     if claims.is_none() {
         // TODO: check that the user is an admin
-        return Err(Error::Unauthorized.into_response());
+        return Err(MaremmaError::Unauthorized.into_response());
     }
 
     if let (Some(action), Some(csrf_token)) = (&form.action, &form.csrf_token) {
@@ -208,7 +218,7 @@ pub(crate) async fn tools(
     session
         .insert(SESSION_CSRF_TOKEN, &csrf_token)
         .await
-        .map_err(|err| Error::from(err).into_response())?;
+        .map_err(|err| MaremmaError::from(err).into_response())?;
 
     Ok(ToolsTemplate {
         title: "Tools".to_string(),
@@ -229,17 +239,17 @@ pub(crate) async fn export_db(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     session: Session,
     Form(form): Form<CsrfTokenForm>,
-) -> Result<(StatusCode, HeaderMap, Vec<u8>), Error> {
+) -> Result<(StatusCode, HeaderMap, Vec<u8>), MaremmaError> {
     if claims.is_none() {
         // TODO: check that the user is an admin
-        return Err(Error::Unauthorized);
+        return Err(MaremmaError::Unauthorized);
     }
 
     check_csrf_token(&form.csrf_token, &session).await?;
 
     let db_filename = state.configuration.read().await.database_file.clone();
 
-    let file_contents = tokio::fs::read(&db_filename).await.map_err(Error::from)?;
+    let file_contents = tokio::fs::read(&db_filename).await.map_err(MaremmaError::from)?;
 
     let filename = db_filename.split("/").last().unwrap_or("db.sqlite3");
 
@@ -252,7 +262,7 @@ pub(crate) async fn export_db(
     headers.insert(
         CONTENT_DISPOSITION,
         HeaderValue::from_str(&format!("attachment; filename=\"{filename}\""))
-            .map_err(Error::from)?,
+            .map_err(MaremmaError::from)?,
     );
 
     Ok((StatusCode::OK, headers, file_contents))
@@ -361,8 +371,8 @@ mod tests {
     fn test_actionstatus_display() {
         use super::ActionStatus;
         assert_eq!(ActionStatus::Success.to_string(), "success");
-        assert_eq!(ActionStatus::Error.to_string(), "danger");
-        assert_eq!(ActionStatus::Unknown.to_string(), "primary");
+        assert_eq!(ActionStatus::Error.to_string(), "error");
+        assert_eq!(ActionStatus::Unknown.to_string(), "unknown");
     }
 
     #[tokio::test]

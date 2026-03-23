@@ -2,6 +2,21 @@
 
 {% block content %}
 
-Profile for user: {{ profile_user.username() }}
+<section class="app-stack">
+  <div class="app-card max-w-2xl">
+    <div class="app-card-header">
+      <div>
+        <h1 class="app-section-title">Profile</h1>
+        <p class="app-section-subtitle">Signed-in account details.</p>
+      </div>
+    </div>
+    <div class="app-card-body">
+      <div class="app-panel-muted">
+        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Username</div>
+        <div class="mt-2 text-base font-medium text-slate-900">{{ profile_user.username() }}</div>
+      </div>
+    </div>
+  </div>
+</section>
 
 {% endblock content %}

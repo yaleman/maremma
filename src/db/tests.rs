@@ -14,14 +14,14 @@ async fn test_next_service_check() {
     assert!(next_check.is_some());
 }
 
-pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
+pub(crate) async fn test_setup() -> Result<(Arc<DatabaseConnection>, SendableConfig), MaremmaError> {
     test_setup_harness(true, false).await
 }
 
 pub(crate) async fn test_setup_harness(
     debug: bool,
     db_debug: bool,
-) -> Result<(Arc<DatabaseConnection>, SendableConfig), Error> {
+) -> Result<(Arc<DatabaseConnection>, SendableConfig), MaremmaError> {
     // make sure logging is happening
 
     let _ = setup_logging(debug, db_debug, false);
@@ -42,7 +42,7 @@ pub(crate) async fn test_setup_harness(
     Ok((db, config))
 }
 
-pub(crate) async fn test_setup_quieter() -> Result<(Arc<DatabaseConnection>, SendableConfig), Error>
+pub(crate) async fn test_setup_quieter() -> Result<(Arc<DatabaseConnection>, SendableConfig), MaremmaError>
 {
     test_setup_harness(false, false).await
 }
@@ -53,7 +53,7 @@ pub(crate) async fn test_setup_with_real_db() -> Result<
         Arc<DatabaseConnection>,
         SendableConfig,
     ),
-    Error,
+    MaremmaError,
 > {
     // make sure logging is happening
     let _ = setup_logging(true, true, false);

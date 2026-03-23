@@ -58,7 +58,7 @@ impl ActiveModelBehavior for ActiveModel {}
 #[async_trait]
 impl MaremmaEntity for Model {
     #[instrument(level = "debug", skip(_db))]
-    async fn find_by_name(name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+    async fn find_by_name(name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
         Entity::find()
             .filter(Column::Name.eq(name))
             .one(_db)
@@ -70,7 +70,7 @@ impl MaremmaEntity for Model {
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: SendableConfig,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MaremmaError> {
         for (service_name, service) in &config.read().await.services {
             // this is janky but we need to flatten it using serde to get the "extra" fields
             let extra_config: Json = serde_json::to_value(service.extra_config.clone())
@@ -96,7 +96,7 @@ impl MaremmaEntity for Model {
                     if let Some(id) = service_object.get_mut("id") {
                         *id = json!(Uuid::new_v4());
                     } else {
-                        return Err(Error::Configuration(format!(
+                        return Err(MaremmaError::Configuration(format!(
                             "Failed to add ID to service '{service_name}', check the configuration!"
                         )));
                     };
@@ -105,7 +105,7 @@ impl MaremmaEntity for Model {
                 service_object.insert("extra_config".to_string(), json!(extra_config));
             } else {
                 error!("Failed to convert service to object: {:?}", service_value);
-                return Err(Error::Configuration(format!(
+                return Err(MaremmaError::Configuration(format!(
                     "Failed to convert service '{service_name}' to object, check the configuration!"
                 )));
             }
@@ -123,7 +123,7 @@ impl MaremmaEntity for Model {
                     res.name.set_if_not_equals(service_name.clone());
                     res.set_from_json(service_value).map_err(|err| {
                         error!("Error setting service from json: {:?}", err);
-                        Error::from(err)
+                        MaremmaError::from(err)
                     })?;
 
                     if res.is_changed() {

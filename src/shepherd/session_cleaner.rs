@@ -6,7 +6,7 @@ pub(crate) struct SessionCleanTask {}
 
 #[async_trait]
 impl CronTaskTrait for SessionCleanTask {
-    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), Error> {
+    async fn run(&mut self, db: Arc<DatabaseConnection>) -> Result<(), MaremmaError> {
         debug!("Checking sessions for cleanup...");
 
         let res = entities::session::Entity::delete_many()

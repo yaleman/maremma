@@ -60,18 +60,18 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, Error> {
+    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
         Entity::find()
             .filter(Column::Name.eq(name))
             .one(db)
             .await
-            .map_err(Error::from)
+            .map_err(MaremmaError::from)
     }
 
     async fn update_db_from_config(
         db: &DatabaseConnection,
         config: SendableConfig,
-    ) -> Result<(), Error> {
+    ) -> Result<(), MaremmaError> {
         let mut known_group_list: Vec<String> = Entity::find()
             .all(db)
             .await?

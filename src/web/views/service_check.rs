@@ -1,11 +1,13 @@
 use askama_web::WebTemplate;
 use axum::Form;
+use chrono::{DateTime, Local, Utc};
 use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES;
-use crate::web::Error;
+use crate::web::MaremmaError;
 
 use super::prelude::*;
+use crate::web::views::tools::ActionStatus;
 
 #[derive(Template, Debug, WebTemplate)]
 #[template(path = "service_check.html")]
@@ -13,19 +15,64 @@ pub(crate) struct ServiceCheckTemplate {
     title: String,
     username: Option<String>, // for the header
     message: Option<String>,
-    status: String,
+    status: ActionStatus,
     service_check: entities::service_check::Model,
     host: entities::host::Model,
     service: entities::service::Model,
     service_check_history: Vec<entities::service_check_history::Model>,
     parsed_config: Option<String>,
+    last_check_display: String,
+    last_check_relative: String,
+    next_check_display: String,
+    next_check_relative: String,
+}
+
+fn format_absolute_time(value: DateTime<Utc>) -> String {
+    value
+        .with_timezone(&Local)
+        .format("%Y-%m-%d %H:%M:%S %Z")
+        .to_string()
+}
+
+fn format_relative_time(value: DateTime<Utc>, now: DateTime<Utc>) -> String {
+    let delta = value - now;
+    let future = delta > chrono::Duration::zero();
+    let seconds = delta.num_seconds().abs();
+
+    let (count, unit) = if seconds < 60 {
+        (seconds, "second")
+    } else if seconds < 3_600 {
+        (seconds / 60, "minute")
+    } else if seconds < 86_400 {
+        (seconds / 3_600, "hour")
+    } else {
+        (seconds / 86_400, "day")
+    };
+
+    let suffix = if count == 1 { "" } else { "s" };
+
+    if count == 0 {
+        if future {
+            "now".to_string()
+        } else {
+            "just now".to_string()
+        }
+    } else if future {
+        format!("in {count} {unit}{suffix}")
+    } else {
+        format!("{count} {unit}{suffix} ago")
+    }
+}
+
+fn format_time_fields(value: DateTime<Utc>, now: DateTime<Utc>) -> (String, String) {
+    (format_absolute_time(value), format_relative_time(value, now))
 }
 
 pub(crate) async fn service_check_get(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-) -> Result<ServiceCheckTemplate, (StatusCode, String)> {
+) -> Result<ServiceCheckTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
     let db_lock = state.db();
@@ -38,15 +85,9 @@ pub(crate) async fn service_check_get(
                 "Failed to search for service check {}: {:?}",
                 service_check_id, err
             );
-            (
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} not found"),
-            )
+            MaremmaError::ServiceCheckNotFound(service_check_id)
         })?;
-    let service_check = res.ok_or((
-        StatusCode::NOT_FOUND,
-        format!("Service check with id={service_check_id} not found"),
-    ))?;
+    let service_check = res.ok_or(MaremmaError::ServiceCheckNotFound(service_check_id))?;
 
     let service_check_history = entities::service_check_history::Entity::find()
         .filter(entities::service_check_history::Column::ServiceCheckId.eq(service_check_id))
@@ -59,7 +100,7 @@ pub(crate) async fn service_check_get(
                 "Failed to search for service check history {}: {:?}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
 
     let host = service_check
@@ -71,13 +112,14 @@ pub(crate) async fn service_check_get(
                 "Failed to search for service check {}: {:?}",
                 service_check.id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?
         .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} host not found"),
-            )
+            error!(
+                "Host not found in DB for service check id {}",
+                service_check_id
+            );
+            MaremmaError::ServiceCheckNotFound(service_check_id)
         })?;
 
     let service = service_check
@@ -89,13 +131,14 @@ pub(crate) async fn service_check_get(
                 "Error querying service for service_check={} error={}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?
         .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} service not found"),
-            )
+            error!(
+                "Service not found in DB for service check id {}",
+                service_check_id
+            );
+            MaremmaError::ServiceCheckNotFound(service_check_id)
         })?;
 
     let mut parsed_service = crate::services::Service::try_from_service_model(&service, db_lock)
@@ -105,7 +148,7 @@ pub(crate) async fn service_check_get(
                 "Failed to render service_check {} into service {:?}",
                 service_check_id, err
             );
-            Error::Configuration("Failed to parse service definition".to_string())
+            MaremmaError::Configuration("Failed to parse service definition".to_string())
         })?;
 
     parsed_service.parse_config().map_err(|err| {
@@ -113,7 +156,7 @@ pub(crate) async fn service_check_get(
             "Failed to render service_check {} into service {:?}",
             service_check_id, err
         );
-        Error::Configuration("Failed to parse service definition to config".to_string())
+        MaremmaError::Configuration("Failed to parse service definition to config".to_string())
     })?;
 
     let parsed_config = parsed_service.config().map(|liveservice| {
@@ -124,23 +167,33 @@ pub(crate) async fn service_check_get(
                     "Failed to render service_check {} into service {:?}",
                     service_check_id, err
                 );
-                Error::Configuration("Failed to overlay host config".to_string())
+                MaremmaError::Configuration("Failed to overlay host config".to_string())
             })
             .unwrap_or("Failed to render config".to_string());
         debug!("Parsed config: {}", res);
         res
     });
 
+    let now = Utc::now();
+    let (last_check_display, last_check_relative) =
+        format_time_fields(service_check.last_check, now);
+    let (next_check_display, next_check_relative) =
+        format_time_fields(service_check.next_check, now);
+
     Ok(ServiceCheckTemplate {
         title: format!("Service Check: {}", &service.name),
         username: Some(user.username()),
         message: None,
-        status: "".to_string(),
+        status: ActionStatus::Unknown,
         service_check,
         host,
         service,
         service_check_history,
         parsed_config,
+        last_check_display,
+        last_check_relative,
+        next_check_display,
+        next_check_relative,
     })
 }
 
@@ -172,7 +225,7 @@ pub(crate) async fn set_service_check_status(
     state: WebState,
     status: ServiceStatus,
     form: RedirectTo,
-) -> Result<Redirect, (StatusCode, String)> {
+) -> Result<Redirect, MaremmaError> {
     let db_lock = state.db();
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
         .one(db_lock)
@@ -182,17 +235,12 @@ pub(crate) async fn set_service_check_status(
                 "Failed to search for service check {}: {:?}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
 
     let service_check = match service_check {
         Some(service_check) => service_check,
-        None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                format!("Service check with id={service_check_id} not found"),
-            ))
-        }
+        None => return Err(MaremmaError::ServiceCheckNotFound(service_check_id)),
     };
 
     let mut service_check = service_check.into_active_model();
@@ -209,7 +257,7 @@ pub(crate) async fn set_service_check_status(
                 "Failed to set service_check_id={} to status={}: {:?}",
                 service_check_id, status, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
     };
 
@@ -243,13 +291,8 @@ pub(crate) async fn service_check_delete(
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     Form(redirect_form): Form<RedirectTo>,
-) -> Result<Redirect, (StatusCode, String)> {
-    let _user = claims.ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            "You must be logged in to view this page".to_string(),
-        )
-    })?;
+) -> Result<Redirect, MaremmaError> {
+    let _user = claims.ok_or_else(|| MaremmaError::Unauthorized)?;
     let db_lock = state.db();
     entities::service_check::Entity::delete_by_id(service_check_id)
         .exec(db_lock)
@@ -259,7 +302,7 @@ pub(crate) async fn service_check_delete(
                 "Failed to delete service check {}: {:?}",
                 service_check_id, err
             );
-            Error::from(err)
+            MaremmaError::from(err)
         })?;
 
     if let Some(redirect_to) = redirect_form.redirect_to {
@@ -271,6 +314,7 @@ pub(crate) async fn service_check_delete(
 
 #[cfg(test)]
 mod tests {
+    use chrono::{TimeZone, Utc};
 
     use crate::db::tests::test_setup;
     use crate::web::views::tools::test_user_claims;
@@ -315,6 +359,24 @@ mod tests {
         dbg!(&res);
 
         assert!(res.contains("Service Check"))
+    }
+
+    #[test]
+    fn test_format_relative_time() {
+        let now = Utc.with_ymd_and_hms(2026, 3, 23, 10, 0, 0).unwrap();
+
+        assert_eq!(
+            format_relative_time(Utc.with_ymd_and_hms(2026, 3, 23, 10, 0, 30).unwrap(), now),
+            "in 30 seconds"
+        );
+        assert_eq!(
+            format_relative_time(Utc.with_ymd_and_hms(2026, 3, 23, 9, 55, 0).unwrap(), now),
+            "5 minutes ago"
+        );
+        assert_eq!(
+            format_relative_time(Utc.with_ymd_and_hms(2026, 3, 23, 12, 0, 0).unwrap(), now),
+            "in 2 hours"
+        );
     }
 
     #[tokio::test]
