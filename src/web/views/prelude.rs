@@ -15,7 +15,7 @@ pub(crate) use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 #[cfg(test)]
 pub(crate) use chrono::{DateTime, Local};
 use sea_orm::EnumIter;
-pub(crate) use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, TransactionTrait};
+pub(crate) use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel};
 pub(crate) use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Display;

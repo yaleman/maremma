@@ -10,7 +10,6 @@ use axum::response::Response;
 use croner::errors::CronError;
 use kube::config::KubeconfigError;
 use tokio::sync::oneshot;
-use tracing::error;
 use uuid::Uuid;
 
 use crate::constants::{CSRF_TOKEN_MISMATCH, CSRF_TOKEN_NOT_FOUND};

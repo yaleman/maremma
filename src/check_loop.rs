@@ -347,6 +347,7 @@ mod tests {
     use entities::service_check;
     use opentelemetry::metrics::MeterProvider;
     use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, Set};
+    use sea_query::Expr;
 
     use super::*;
     use crate::db::entities::{host, service};

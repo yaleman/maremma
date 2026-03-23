@@ -32,11 +32,10 @@ pub(crate) async fn host_groups(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostGroupsTemplate, MaremmaError> {
     let user = check_login(claims)?;
-    let db_lock = state.db();
     let res = host_group::Entity::find()
         .order_by_asc(host_group::Column::Name)
         .find_with_linked(host_group_members::GroupToHosts)
-        .all(db_lock)
+        .all(state.db.as_ref())
         .await
         .map_err(|e| {
             error!("Failed to fetch host groups: {}", e);

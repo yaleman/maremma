@@ -11,19 +11,21 @@ pub(crate) use crate::host::Host;
 pub(crate) use crate::services::{Service, ServiceStatus, ServiceTrait, ServiceType};
 pub(crate) use crate::web::urls::Urls;
 pub(crate) use crate::LOCAL_SERVICE_HOST_NAME;
-pub use async_trait::async_trait;
+pub(crate) use async_trait::async_trait;
 pub use chrono::{DateTime, Duration, Local, TimeDelta, Utc};
 pub use croner::Cron;
 pub(crate) use opentelemetry::metrics::Meter;
 pub(crate) use schemars::{schema_for, JsonSchema};
-pub use sea_orm::prelude::{
-    ActiveModelBehavior, ActiveModelTrait, ColumnTrait, ColumnTypeTrait, ConnectionTrait,
-    DeriveActiveEnum, DeriveDisplay, DeriveEntityModel, DerivePrimaryKey, DeriveRelation,
-    EntityTrait, EnumIter, Expr, Json, Linked, ModelTrait, PrimaryKeyToColumn, PrimaryKeyTrait,
-    QueryFilter, Related, RelationDef, RelationTrait, Select, StringLen,
+pub(crate) use sea_orm::entity::prelude::{
+    ActiveModelBehavior, ActiveModelTrait, ColumnTrait, DeriveRelation, EntityTrait, Json, Linked,
+    ModelTrait, Related, RelationTrait,
 };
 pub(crate) use sea_orm::DatabaseConnection;
-pub use sea_orm::IntoActiveModel;
+pub(crate) use sea_orm::DeriveEntityModel;
+pub(crate) use sea_orm::{
+    prelude::StringLen, DerivePrimaryKey, EnumIter, FromQueryResult, IntoActiveModel, Order,
+    PrimaryKeyTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef, Select,
+};
 pub use serde::{Deserialize, Serialize};
 pub use serde_json::{json, Map, Value};
 pub use std::collections::HashMap;
