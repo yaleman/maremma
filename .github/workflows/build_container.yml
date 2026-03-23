@@ -18,9 +18,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  REGISTRY_IMAGE: "ghcr.io/yaleman/maremma"
-
 jobs:
   build:
     uses: docker/github-builder/.github/workflows/build.yml@v1
@@ -32,7 +29,7 @@ jobs:
       output: image
       push: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
       platforms: linux/amd64,linux/arm64
-      meta-images: ${{ env.REGISTRY_IMAGE }}
+      meta-images: ghcr.io/yaleman/maremma
       meta-tags: |
         type=ref,event=branch
         type=ref,event=pr
