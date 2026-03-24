@@ -106,10 +106,6 @@ impl WebState {
         let session_store = get_session_store(&self.db);
         tower_sessions::Session::new(None, std::sync::Arc::new(session_store), None)
     }
-
-    pub fn new_csrf_token(&self) -> String {
-        rand::random::<u64>().to_string()
-    }
 }
 
 async fn up(State(_state): State<WebState>) -> impl IntoResponse {

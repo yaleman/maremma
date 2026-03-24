@@ -382,6 +382,22 @@ where
 }
 
 #[cfg(test)]
+mod error_page_tests {
+    use super::*;
+
+    #[test]
+    fn test_error_page_has_back_link_and_home_link() {
+        let rendered = ErrorPage::new(&"Test Error", "Something went wrong".to_string())
+            .render()
+            .expect("Failed to render error page");
+
+        assert!(rendered.contains("Go back"));
+        assert!(rendered.contains("window.history.back()"));
+        assert!(rendered.contains("go back to the homepage"));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use std::str::FromStr;
 

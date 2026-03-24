@@ -17,6 +17,7 @@
       </div>
       <form method="post" action="{{Urls::Service}}/{{service.id}}/delete" id="deleteService">
         <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+        <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
         <input type="submit" class="app-button app-button-destructive" value="Delete Service" />
       </form>
     </div>
@@ -63,18 +64,21 @@
                 <form action="{{Urls::ServiceCheck}}/{{check.id}}/enable" method="post">
                   <input type="hidden" name="redirect_to" value="{{Urls::Service}}/{{service.id}}" />
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-success" value="Enable" />
                 </form>
                 {% else %}
                 <form action="{{Urls::ServiceCheck}}/{{check.id}}/disable" method="post">
                   <input type="hidden" name="redirect_to" value="{{Urls::Service}}/{{service.id}}" />
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-destructive" value="Disable" />
                 </form>
                 {% endif %}
                 <form action="{{Urls::ServiceCheck}}/{{check.id}}/urgent" method="post">
                   <input type="hidden" name="redirect_to" value="{{Urls::Service}}/{{service.id}}" />
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-warning" value="Run ASAP" />
                 </form>
                 <script type="text/javascript">
@@ -87,6 +91,7 @@
                   <input type="hidden" name="redirect_to"
                         value="{{Urls::Service}}/{{service.id}}" />
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-secondary"
                     value="Delete" />
                 </form>

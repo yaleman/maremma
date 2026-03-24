@@ -2,9 +2,11 @@
 
 use super::index::SortQueries;
 use super::prelude::*;
-use crate::constants::SESSION_CSRF_TOKEN;
+use crate::constants::{SESSION_CSRF_SCOPE, SESSION_CSRF_TOKEN};
 use crate::errors::MaremmaError;
-use crate::web::views::csrf::{check_csrf_token, issue_csrf_token, CsrfTokenForm};
+use crate::web::views::csrf::{
+    check_csrf_token, consume_csrf_token, issue_csrf_token, service_scope, CsrfTokenForm,
+};
 use askama_web::WebTemplate;
 use axum::Form;
 use entities::service_check::FullServiceCheck;
@@ -20,6 +22,7 @@ pub(crate) struct ServiceTemplate {
     service_checks: Vec<FullServiceCheck>,
     base_config: String,
     csrf_token: String,
+    csrf_scope: String,
 }
 
 /// Host view
@@ -47,7 +50,8 @@ pub(crate) async fn service(
         &crate::services::Service::try_from_service_model(&service, db_lock).await?,
     )?;
     let service_checks = FullServiceCheck::get_by_service_id(service_id, db_lock).await?;
-    let csrf_token = issue_csrf_token(&state, &session).await?;
+    let csrf_scope = service_scope(service.id);
+    let csrf_token = issue_csrf_token(&session, &csrf_scope).await?;
 
     Ok(ServiceTemplate {
         title: service.name.clone(),
@@ -55,6 +59,7 @@ pub(crate) async fn service(
         service_checks,
         base_config,
         csrf_token,
+        csrf_scope,
         username: Some(user.username()),
     })
 }
@@ -66,8 +71,16 @@ pub(crate) async fn service_delete(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     Form(form): Form<CsrfTokenForm>,
 ) -> Result<Redirect, MaremmaError> {
-    let _user = check_login(claims)?;
-    check_csrf_token(&form.csrf_token, &session).await?;
+    check_login(claims)?;
+    let scope = service_scope(service_id);
+    let allowed_scopes = [scope.as_str()];
+    check_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     let db_tx = state.db().begin().await.map_err(MaremmaError::from)?;
     let service = entities::service::Entity::find_by_id(service_id)
@@ -78,6 +91,13 @@ pub(crate) async fn service_delete(
 
     service.delete(&db_tx).await.map_err(MaremmaError::from)?;
     db_tx.commit().await.map_err(MaremmaError::from)?;
+    consume_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     Ok(Redirect::to(Urls::Services.as_ref()))
 }
@@ -128,7 +148,7 @@ mod tests {
     use super::*;
     use crate::db::entities;
     use crate::errors::MaremmaError;
-    use crate::web::views::csrf::{issue_csrf_token, CsrfTokenForm};
+    use crate::web::views::csrf::{issue_csrf_token, service_scope, CsrfTokenForm};
     use crate::web::views::tools::test_user_claims;
     use crate::web::WebState;
     use axum::extract::{Path, Query, State};
@@ -258,6 +278,7 @@ mod tests {
             Some(test_user_claims()),
             Form(CsrfTokenForm {
                 csrf_token: "wrong".to_string(),
+                csrf_scope: service_scope(service.id),
             }),
         )
         .await;
@@ -267,7 +288,8 @@ mod tests {
             MaremmaError::CsrfTokenMissing
         );
 
-        let csrf_token = issue_csrf_token(&state, &session)
+        let csrf_scope = service_scope(service.id);
+        let csrf_token = issue_csrf_token(&session, &csrf_scope)
             .await
             .expect("Failed to issue CSRF token");
         let res = service_delete(
@@ -277,6 +299,7 @@ mod tests {
             Some(test_user_claims()),
             Form(CsrfTokenForm {
                 csrf_token: format!("{csrf_token}-wrong"),
+                csrf_scope,
             }),
         )
         .await;
@@ -297,7 +320,8 @@ mod tests {
             .expect("Failed to query service")
             .expect("No services found");
 
-        let csrf_token = issue_csrf_token(&state, &session)
+        let csrf_scope = service_scope(service.id);
+        let csrf_token = issue_csrf_token(&session, &csrf_scope)
             .await
             .expect("Failed to issue CSRF token");
         let res = service_delete(
@@ -305,7 +329,10 @@ mod tests {
             State(state.clone()),
             session.clone(),
             Some(test_user_claims()),
-            Form(CsrfTokenForm { csrf_token }),
+            Form(CsrfTokenForm {
+                csrf_token,
+                csrf_scope,
+            }),
         )
         .await
         .expect("Failed to delete service");

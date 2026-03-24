@@ -2,8 +2,11 @@ use super::index::SortQueries;
 use super::prelude::*;
 use crate::prelude::*;
 
-use crate::constants::SESSION_CSRF_TOKEN;
+use crate::constants::{SESSION_CSRF_SCOPE, SESSION_CSRF_TOKEN};
 use crate::db::entities::service_check::FullServiceCheck;
+use crate::web::views::csrf::{
+    check_csrf_token, consume_csrf_token, host_scope, issue_csrf_token, CsrfTokenForm,
+};
 use axum::Form;
 use entities::host_group;
 use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
@@ -18,6 +21,7 @@ pub(crate) struct HostTemplate {
     host_groups: Vec<host_group::Model>,
     page_refresh: u64,
     csrf_token: String,
+    csrf_scope: String,
 }
 
 /// Host view
@@ -29,12 +33,6 @@ pub(crate) async fn host(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostTemplate, MaremmaError> {
     let user = check_login(claims)?;
-
-    let csrf_token = state.new_csrf_token();
-    session
-        .insert(SESSION_CSRF_TOKEN, &csrf_token)
-        .await
-        .map_err(MaremmaError::from)?;
 
     let order_field = queries
         .field
@@ -75,6 +73,9 @@ pub(crate) async fn host(
             MaremmaError::from(err)
         })?;
 
+    let csrf_scope = host_scope(host.id);
+    let csrf_token = issue_csrf_token(&session, &csrf_scope).await?;
+
     Ok(HostTemplate {
         title: host.hostname.to_owned(),
         checks,
@@ -83,6 +84,7 @@ pub(crate) async fn host(
         username: Some(user.username()),
         page_refresh: 30,
         csrf_token,
+        csrf_scope,
     })
 }
 
@@ -218,38 +220,23 @@ fn sort_host_list_items(
     });
 }
 
-#[derive(Deserialize, Debug)]
-pub struct CsrfForm {
-    #[allow(dead_code)]
-    pub csrf_token: String,
-}
-
 pub(crate) async fn delete_host(
     State(state): State<WebState>,
     Path(host_id): Path<Uuid>,
     session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-    Form(csrf_form): Form<CsrfForm>,
+    Form(csrf_form): Form<CsrfTokenForm>,
 ) -> Result<Redirect, MaremmaError> {
-    let _user = claims.ok_or_else(|| {
-        debug!("User not logged in");
-        MaremmaError::Unauthorized
-    })?;
-
-    let session_csrf_token: String = match session
-        .remove(SESSION_CSRF_TOKEN)
-        .await
-        .map_err(MaremmaError::from)?
-    {
-        Some(val) => val,
-        None => {
-            return Err(MaremmaError::Unauthorized);
-        }
-    };
-
-    if csrf_form.csrf_token != session_csrf_token {
-        return Err(MaremmaError::CsrfValidationFailed);
-    }
+    check_login(claims)?;
+    let scope = host_scope(host_id);
+    let allowed_scopes = [scope.as_str()];
+    check_csrf_token(
+        &csrf_form.csrf_token,
+        &csrf_form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     let db_writer = state.db().begin().await.map_err(MaremmaError::from)?;
     let host = match entities::host::Entity::find_by_id(host_id)
@@ -265,6 +252,13 @@ pub(crate) async fn delete_host(
 
     host.delete(&db_writer).await.map_err(MaremmaError::from)?;
     db_writer.commit().await.map_err(MaremmaError::from)?;
+    consume_csrf_token(
+        &csrf_form.csrf_token,
+        &csrf_form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     Ok(Redirect::to(Urls::Hosts.as_ref()))
 }
@@ -422,10 +416,9 @@ mod tests {
             .expect("Failed to search for host")
             .expect("No host found");
 
-        let csrf_token = state.new_csrf_token();
         let session = state.get_session();
-        session
-            .insert(SESSION_CSRF_TOKEN, &csrf_token)
+        let csrf_scope = host_scope(host.id);
+        let csrf_token = issue_csrf_token(&session, &csrf_scope)
             .await
             .expect("Failed to save CSRF token");
 
@@ -434,7 +427,10 @@ mod tests {
             Path(host.id),
             session.clone(),
             Some(test_user_claims()),
-            Form(CsrfForm { csrf_token }),
+            Form(CsrfTokenForm {
+                csrf_token,
+                csrf_scope: csrf_scope.clone(),
+            }),
         )
         .await;
 
@@ -443,13 +439,6 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
 
         // test deleting a non-existent host
-
-        let session = state.get_session();
-        let csrf_token = state.new_csrf_token();
-        session
-            .insert(SESSION_CSRF_TOKEN, &csrf_token)
-            .await
-            .expect("Failed to save CSRF token");
 
         let mut nonexistent_host_id = Uuid::new_v4();
         while entities::host::Entity::find_by_id(nonexistent_host_id)
@@ -461,12 +450,21 @@ mod tests {
             nonexistent_host_id = Uuid::new_v4();
         }
 
+        let session = state.get_session();
+        let csrf_scope = host_scope(nonexistent_host_id);
+        let csrf_token = issue_csrf_token(&session, &csrf_scope)
+            .await
+            .expect("Failed to save CSRF token");
+
         let res = super::delete_host(
             State(state.clone()),
             Path(nonexistent_host_id),
             session,
             Some(test_user_claims()),
-            Form(CsrfForm { csrf_token }),
+            Form(CsrfTokenForm {
+                csrf_token,
+                csrf_scope,
+            }),
         )
         .await;
 
@@ -489,8 +487,9 @@ mod tests {
             Path(Uuid::new_v4()),
             state.get_session(),
             None,
-            Form(CsrfForm {
+            Form(CsrfTokenForm {
                 csrf_token: "test".to_string(),
+                csrf_scope: host_scope(Uuid::new_v4()),
             }),
         )
         .await;
@@ -508,13 +507,15 @@ mod tests {
         let state = WebState::test().await;
 
         // test with no CSRF token in the store
+        let host_id = Uuid::new_v4();
         let res = super::delete_host(
             State(state.clone()),
-            Path(Uuid::new_v4()),
+            Path(host_id),
             state.get_session(),
             Some(test_user_claims()),
-            Form(CsrfForm {
+            Form(CsrfTokenForm {
                 csrf_token: "test".to_string(),
+                csrf_scope: host_scope(host_id),
             }),
         )
         .await;
@@ -522,30 +523,31 @@ mod tests {
         assert!(res.is_err());
 
         if let Err(err) = &res {
-            assert_eq!(err, &MaremmaError::Unauthorized);
+            assert_eq!(err, &MaremmaError::CsrfTokenMissing);
         } else {
             panic!("Should have gotten an error!")
         };
 
         let response = res.into_response();
         dbg!(&response);
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
         let session = state.get_session();
-        let csrf_token = state.new_csrf_token();
-        session
-            .insert(SESSION_CSRF_TOKEN, &csrf_token)
+        let host_id = Uuid::new_v4();
+        let csrf_scope = host_scope(host_id);
+        issue_csrf_token(&session, &csrf_scope)
             .await
             .expect("Failed to save CSRF token");
 
         // test with a CSRF token in the store, but user specifies the wrong one
         let res = super::delete_host(
             State(state.clone()),
-            Path(Uuid::new_v4()),
+            Path(host_id),
             session,
             Some(test_user_claims()),
-            Form(CsrfForm {
+            Form(CsrfTokenForm {
                 csrf_token: "test".to_string(),
+                csrf_scope,
             }),
         )
         .await;
