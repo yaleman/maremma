@@ -91,7 +91,10 @@ impl Model {
     }
 }
 
-fn next_check_for_service(service: &service::Model, jitter: u32) -> Result<DateTime<Utc>, MaremmaError> {
+fn next_check_for_service(
+    service: &service::Model,
+    jitter: u32,
+) -> Result<DateTime<Utc>, MaremmaError> {
     // Keep next-check calculation in one place so success and error paths schedule consistently.
     let jitter: i64 = (0..jitter).choose(&mut rand::rng()).unwrap_or(0) as i64;
 
@@ -214,7 +217,10 @@ async fn update_local_services_from_db(
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name(
+        _name: &str,
+        _db: &DatabaseConnection,
+    ) -> Result<Option<Model>, MaremmaError> {
         Err(MaremmaError::NotImplemented)
     }
 
@@ -371,7 +377,10 @@ mod tests {
         let res = super::Model::find_by_name("test", db.as_ref()).await;
 
         assert!(res.is_err());
-        assert_eq!(res.expect_err("Failed to run"), MaremmaError::NotImplemented);
+        assert_eq!(
+            res.expect_err("Failed to run"),
+            MaremmaError::NotImplemented
+        );
     }
 
     #[tokio::test]

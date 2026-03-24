@@ -19,7 +19,8 @@
         action="{{Urls::HostGroup}}/{{host_group.id}}/delete"
         id="deleteCheck{{host_group.id}}"
         method="post">
-        <input type="hidden" name="redirect_to" value="{{Urls::HostGroups}}" />
+        <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+        <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
         <input type="submit" class="app-button app-button-warning" value="Delete This" />
       </form>
     </div>
@@ -55,6 +56,8 @@
             <td class="app-td">
               <form method="post"
                 action="{{Urls::HostGroup}}/{{host_group.id}}/member/{{member.id}}/delete">
+                <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                 <input type="submit" value="Remove Member" class="app-button app-button-secondary" />
               </form>
             </td>

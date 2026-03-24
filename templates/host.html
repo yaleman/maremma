@@ -21,6 +21,7 @@
       </div>
       <form method="post" action="{{Urls::Host}}/{{host.id}}/delete" id="deleteHost">
         <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+        <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
         <input type="submit" class="app-button app-button-destructive" value="Delete Host" />
       </form>
     </div>
@@ -75,16 +76,19 @@
                 {% if check.status == crate::web::ServiceStatus::Disabled %}
                 <form action="{{Urls::ServiceCheck}}/{{check.id}}/enable" method="post">
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-success" value="Enable" />
                 </form>
                 {% else %}
                 <form action="{{Urls::ServiceCheck}}/{{check.id}}/disable" method="post">
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-destructive" value="Disable" />
                 </form>
                 {% endif %}
                 <form action="{{Urls::ServiceCheck}}/{{check.id}}/urgent" method="post">
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-warning" value="Run ASAP" />
                 </form>
                 <script type="text/javascript">
@@ -95,6 +99,7 @@
                   method="post">
                   <input type="hidden" name="redirect_to" value="{{Urls::Host}}/{{host.id}}" />
                   <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+                  <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
                   <input type="submit" class="app-button app-button-secondary" value="Delete" />
                 </form>
               </div>

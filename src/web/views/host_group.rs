@@ -2,9 +2,14 @@
 //!
 
 use super::prelude::*;
+use crate::constants::{SESSION_CSRF_SCOPE, SESSION_CSRF_TOKEN};
 use crate::db::entities::{host, host_group, host_group_members};
 use crate::web::oidc::User;
+use crate::web::views::csrf::{
+    check_csrf_token, consume_csrf_token, host_group_scope, issue_csrf_token, CsrfTokenForm,
+};
 use crate::web::{MaremmaError, WebState};
+use axum::Form;
 use axum::extract::{Path, Query, State};
 use axum::response::Redirect;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
@@ -66,6 +71,8 @@ pub(crate) struct HostGroupTemplate {
     host_group: host_group::Model,
     members: Vec<host::Model>,
     message: Option<String>,
+    csrf_token: String,
+    csrf_scope: String,
 }
 
 #[derive(Deserialize, Default)]
@@ -78,6 +85,7 @@ pub(crate) async fn host_group(
     Path(id): Path<Uuid>,
     Query(query): Query<HostGroupQueries>,
     State(state): State<WebState>,
+    session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostGroupTemplate, MaremmaError> {
     let user = check_login(claims)?;
@@ -102,6 +110,8 @@ pub(crate) async fn host_group(
         super::prelude::Order::Asc => members.sort_by(|a, b| a.hostname.cmp(&b.hostname)),
         super::prelude::Order::Desc => members.sort_by(|a, b| b.hostname.cmp(&a.hostname)),
     };
+    let csrf_scope = host_group_scope(host_group.id);
+    let csrf_token = issue_csrf_token(&session, &csrf_scope).await?;
 
     Ok(HostGroupTemplate {
         title: format!("Host Group: {}", host_group.name),
@@ -109,13 +119,17 @@ pub(crate) async fn host_group(
         host_group,
         members,
         message: query.message,
+        csrf_token,
+        csrf_scope,
     })
 }
 
 pub(crate) async fn host_group_member_delete(
     Path((group_id, host_id)): Path<(Uuid, Uuid)>,
     State(state): State<WebState>,
+    session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfTokenForm>,
 ) -> Result<Redirect, MaremmaError> {
     let user: User = match claims {
         None => {
@@ -124,6 +138,9 @@ pub(crate) async fn host_group_member_delete(
         }
         Some(val) => val.into(),
     };
+    let group_scope = host_group_scope(group_id);
+    let allowed_scopes = [group_scope.as_str()];
+    check_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
 
     debug!("looking for group {:?} host {:?}", group_id, host_id);
 
@@ -166,6 +183,7 @@ pub(crate) async fn host_group_member_delete(
         host_id.hyphenated(),
         group_id.hyphenated()
     );
+    consume_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
 
     Ok(Redirect::to(&format!("{}/{}", Urls::HostGroup, group_id)))
 }
@@ -173,7 +191,9 @@ pub(crate) async fn host_group_member_delete(
 pub(crate) async fn host_group_delete(
     Path(group_id): Path<Uuid>,
     State(state): State<WebState>,
+    session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfTokenForm>,
 ) -> Result<Redirect, MaremmaError> {
     let _user: User = match claims {
         None => {
@@ -182,6 +202,9 @@ pub(crate) async fn host_group_delete(
         }
         Some(val) => val.into(),
     };
+    let group_scope = host_group_scope(group_id);
+    let allowed_scopes = [group_scope.as_str()];
+    check_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
     let db_lock = state.db();
     let res = host_group::Entity::delete_by_id(group_id)
         .exec(db_lock)
@@ -193,20 +216,32 @@ pub(crate) async fn host_group_delete(
     if res.rows_affected == 0 {
         return Err(MaremmaError::HostGroupNotFound(group_id));
     }
+    consume_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
 
     Ok(Redirect::to(Urls::HostGroups.as_ref()))
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use axum::Form;
     use axum::extract::{Path, Query, State};
     use axum::response::IntoResponse;
     use uuid::Uuid;
 
     use crate::db::tests::test_setup;
-    use crate::web::views::host_group::HostGroupQueries;
     use crate::web::views::tools::test_user_claims;
-    use crate::web::WebState;
+
+    async fn scoped_form(session: &Session, group_id: Uuid) -> CsrfTokenForm {
+        let csrf_scope = host_group_scope(group_id);
+        let csrf_token = issue_csrf_token(session, &csrf_scope)
+            .await
+            .expect("Failed to issue CSRF token");
+        CsrfTokenForm {
+            csrf_token,
+            csrf_scope,
+        }
+    }
 
     #[tokio::test]
     async fn test_unauthed_endpoints() {
@@ -224,6 +259,7 @@ mod tests {
             Path(Uuid::new_v4()),
             Query(HostGroupQueries::default()),
             State(state.clone()),
+            state.get_session(),
             None,
         )
         .await;
@@ -236,7 +272,12 @@ mod tests {
         let res = super::host_group_member_delete(
             Path((Uuid::new_v4(), Uuid::new_v4())),
             State(state.clone()),
+            state.get_session(),
             None,
+            Form(CsrfTokenForm {
+                csrf_token: "missing".to_string(),
+                csrf_scope: host_group_scope(Uuid::new_v4()),
+            }),
         )
         .await;
         assert!(res.is_err());
@@ -263,6 +304,7 @@ mod tests {
                     Path(host_group.id),
                     Query(HostGroupQueries { ord, message }),
                     State(state.clone()),
+                    state.get_session(),
                     Some(test_user_claims()),
                 )
                 .await;
@@ -297,10 +339,14 @@ mod tests {
         let state = WebState::test().await;
 
         let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
+        let session = state.get_session();
+        let missing_group = Uuid::new_v4();
         let res = super::host_group_delete(
-            Path(Uuid::new_v4()),
+            Path(missing_group),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
+            Form(scoped_form(&session, missing_group).await),
         )
         .await;
         dbg!(&res);
@@ -314,10 +360,13 @@ mod tests {
             .expect("Failed to search for host group")
             .expect("No host group found");
 
+        let session = state.get_session();
         let res = super::host_group_delete(
             Path(host_group.id),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
+            Form(scoped_form(&session, host_group.id).await),
         )
         .await;
 
@@ -332,7 +381,17 @@ mod tests {
         let state = WebState::test().await;
 
         let (_db, _config) = test_setup().await.expect("Failed to setup test harness");
-        let res = super::host_group_delete(Path(Uuid::new_v4()), State(state.clone()), None).await;
+        let res = super::host_group_delete(
+            Path(Uuid::new_v4()),
+            State(state.clone()),
+            state.get_session(),
+            None,
+            Form(CsrfTokenForm {
+                csrf_token: "missing".to_string(),
+                csrf_scope: host_group_scope(Uuid::new_v4()),
+            }),
+        )
+        .await;
         dbg!(&res);
         assert!(res.is_err());
         let response = res.into_response();
@@ -344,10 +403,13 @@ mod tests {
             .expect("Failed to search for host group")
             .expect("No host group found");
 
+        let session = state.get_session();
         let res = super::host_group_delete(
             Path(host_group.id),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
+            Form(scoped_form(&session, host_group.id).await),
         )
         .await;
 
@@ -386,10 +448,13 @@ mod tests {
             .expect("failed to look up hgm")
             .is_some());
 
+        let session = state.get_session();
         let res = super::host_group_member_delete(
             Path((hgm.group_id, hgm.host_id)),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
+            Form(scoped_form(&session, hgm.group_id).await),
         )
         .await;
         dbg!(&res);
@@ -404,10 +469,13 @@ mod tests {
             (hgm.group_id, Uuid::new_v4()),
             (Uuid::new_v4(), Uuid::new_v4()),
         ] {
+            let session = state.get_session();
             let res = super::host_group_member_delete(
                 Path(input),
                 State(state.clone()),
+                session.clone(),
                 Some(test_user_claims()),
+                Form(scoped_form(&session, input.0).await),
             )
             .await;
 

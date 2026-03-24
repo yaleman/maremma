@@ -1,5 +1,6 @@
 use axum::http::StatusCode;
 
+pub(crate) mod csrf;
 pub(crate) mod host;
 pub(crate) mod host_group;
 pub(crate) mod index;

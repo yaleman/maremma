@@ -20,6 +20,8 @@
       <div class="flex flex-wrap gap-2">
         <form action="{{Urls::ServiceCheck}}/{{service_check.id}}/urgent" method="post">
           <input type="hidden" name="redirect_to" value="{{Urls::ServiceCheck}}/{{service_check.id}}" />
+          <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+          <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
           <input type="submit" class="app-button app-button-warning" value="Run ASAP" />
         </form>
         <script type="text/javascript">
@@ -29,6 +31,8 @@
           id="deleteCheck{{service_check.id}}"
           method="post">
           <input type="hidden" name="redirect_to" value="{{Urls::Host}}/{{host.id}}" />
+          <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+          <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
           <input type="submit" class="app-button app-button-secondary" value="Delete This" />
         </form>
       </div>
@@ -101,7 +105,7 @@
       {% if let Some(config) = parsed_config %}
       <details class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">
-          Show config
+          Rendered config
         </summary>
         <pre class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 text-xs leading-6 text-slate-800"><code>{{config}}</code></pre>
       </details>

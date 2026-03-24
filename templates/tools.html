@@ -21,6 +21,7 @@
         <input type="submit" value="Set all to urgent" class="app-button app-button-warning w-full" />
         <input type="hidden" name="action" value={{ FormAction::SetAllToUrgent.as_ref() }} />
         <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+        <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
       </div>
     </form>
 
@@ -35,6 +36,7 @@
         <input type="submit" value="Reload System Configuration from File" class="app-button app-button-secondary w-full" />
         <input type="hidden" name="action" value={{ FormAction::ReloadConfig.as_ref() }} />
         <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+        <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
       </div>
     </form>
 
@@ -48,6 +50,7 @@
       <div class="app-card-body">
         <input type="submit" value="Export DB to File" class="app-button app-button-secondary w-full" />
         <input type="hidden" name={{SESSION_CSRF_TOKEN}} value="{{csrf_token}}" />
+        <input type="hidden" name={{SESSION_CSRF_SCOPE}} value="{{csrf_scope}}" />
       </div>
     </form>
   </div>

@@ -1,6 +1,9 @@
 use super::prelude::*;
-use crate::constants::SESSION_CSRF_TOKEN;
+use crate::constants::{SESSION_CSRF_SCOPE, SESSION_CSRF_TOKEN};
 use crate::db::update_db_from_config;
+use crate::web::views::csrf::{
+    check_csrf_token, consume_csrf_token, issue_csrf_token, tools_scope, CsrfTokenForm,
+};
 use crate::web::{Configuration, MaremmaError};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue};
@@ -23,6 +26,7 @@ pub(crate) struct ToolsTemplate {
     message: Option<String>,
     status: ActionStatus,
     csrf_token: String,
+    csrf_scope: String,
 }
 
 #[derive(Deserialize)]
@@ -83,6 +87,7 @@ impl ActionStatus {
 pub(crate) struct ToolsForm {
     action: Option<FormAction>,
     csrf_token: Option<String>,
+    csrf_scope: Option<String>,
 }
 #[derive(Deserialize, Default)]
 pub(crate) struct ToolsQuery {
@@ -92,18 +97,14 @@ pub(crate) struct ToolsQuery {
 }
 
 #[instrument(level = "info", skip_all)]
-async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
+async fn tools_reload_config(state: &WebState) -> Result<(), MaremmaError> {
     info!("Asked to reload config");
 
     let new_config = Configuration::new(&state.config_filepath)
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
-            Redirect::to(&format!(
-                "{}?result=Failed to load config from file&status={}",
-                Urls::Tools,
-                ActionStatus::Error,
-            ))
+            e
         })?;
 
     *state.configuration.write().await = new_config;
@@ -112,52 +113,16 @@ async fn tools_reload_config(state: &WebState) -> Result<(), Redirect> {
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
-            Redirect::to(&format!(
-                "{}?result=Failed to load config from file&status={}",
-                Urls::Tools,
-                ActionStatus::Error,
-            ))
+            e
         })?;
     update_db_from_config(state.db(), Arc::new(RwLock::new(new_config)))
         .await
         .map_err(|e| {
             error!("Failed to reload config: {:?}", e);
-            Redirect::to(&format!(
-                "{}?result=Failed to reload config&status={}",
-                Urls::Tools,
-                ActionStatus::Error,
-            ))
+            e
         })?;
 
     info!("Reloaded config");
-    // not really an error but we're doing this to show the user that the config was reloaded
-    Err(Redirect::to(&format!(
-        "{}?result=Reloaded config&status={}",
-        Urls::Tools,
-        ActionStatus::Success,
-    )))
-}
-
-async fn check_csrf_token(csrf_token: &str, session: &Session) -> Result<(), MaremmaError> {
-    let session_csrf_token = session
-        .get::<String>(SESSION_CSRF_TOKEN)
-        .await
-        .map_err(MaremmaError::from)?;
-
-    if session_csrf_token.is_none() {
-        debug!("CSRF token not found in session");
-        return Err(MaremmaError::CsrfTokenMissing);
-    }
-    if let Some(token) = &session_csrf_token {
-        if token != csrf_token {
-            debug!(
-                "CSRF token mismatch: session={} form={}",
-                &token, csrf_token
-            );
-            return Err(MaremmaError::CsrfValidationFailed);
-        }
-    }
-
     Ok(())
 }
 
@@ -174,9 +139,12 @@ pub(crate) async fn tools(
         return Err(MaremmaError::Unauthorized.into_response());
     }
 
-    if let (Some(action), Some(csrf_token)) = (&form.action, &form.csrf_token) {
+    if let (Some(action), Some(csrf_token), Some(csrf_scope)) =
+        (&form.action, &form.csrf_token, &form.csrf_scope)
+    {
+        let allowed_scopes = [tools_scope()];
         // pull the CSRF token from the session store
-        check_csrf_token(csrf_token, &session)
+        check_csrf_token(csrf_token, csrf_scope, &allowed_scopes, &session)
             .await
             .map_err(|e| e.into_response())?;
 
@@ -200,6 +168,9 @@ pub(crate) async fn tools(
                         ))
                         .into_response()
                     })?;
+                consume_csrf_token(csrf_token, csrf_scope, &allowed_scopes, &session)
+                    .await
+                    .map_err(|e| e.into_response())?;
                 return Err(Redirect::to(&format!(
                     "{}?result=Set all tasks to urgent&status={}",
                     Urls::Tools,
@@ -209,16 +180,30 @@ pub(crate) async fn tools(
             }
             FormAction::ReloadConfig => {
                 if let Err(err) = tools_reload_config(&state).await {
-                    return Err(err.into_response());
-                };
+                    error!("Failed to reload config: {:?}", err);
+                    return Err(Redirect::to(&format!(
+                        "{}?result=Failed to reload config&status={}",
+                        Urls::Tools,
+                        ActionStatus::Error,
+                    ))
+                    .into_response());
+                }
+                consume_csrf_token(csrf_token, csrf_scope, &allowed_scopes, &session)
+                    .await
+                    .map_err(|e| e.into_response())?;
+                return Err(Redirect::to(&format!(
+                    "{}?result=Reloaded config&status={}",
+                    Urls::Tools,
+                    ActionStatus::Success,
+                ))
+                .into_response());
             }
         }
     }
-    let csrf_token = state.new_csrf_token();
-    session
-        .insert(SESSION_CSRF_TOKEN, &csrf_token)
+    let csrf_scope = tools_scope().to_string();
+    let csrf_token = issue_csrf_token(&session, &csrf_scope)
         .await
-        .map_err(|err| MaremmaError::from(err).into_response())?;
+        .map_err(|err| err.into_response())?;
 
     Ok(ToolsTemplate {
         title: "Tools".to_string(),
@@ -226,12 +211,8 @@ pub(crate) async fn tools(
         message: results.result,
         status: results.status,
         csrf_token,
+        csrf_scope,
     })
-}
-
-#[derive(Deserialize)]
-pub(crate) struct CsrfTokenForm {
-    csrf_token: String,
 }
 
 pub(crate) async fn export_db(
@@ -245,11 +226,19 @@ pub(crate) async fn export_db(
         return Err(MaremmaError::Unauthorized);
     }
 
-    check_csrf_token(&form.csrf_token, &session).await?;
+    check_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &[tools_scope()],
+        &session,
+    )
+    .await?;
 
     let db_filename = state.configuration.read().await.database_file.clone();
 
-    let file_contents = tokio::fs::read(&db_filename).await.map_err(MaremmaError::from)?;
+    let file_contents = tokio::fs::read(&db_filename)
+        .await
+        .map_err(MaremmaError::from)?;
 
     let filename = db_filename.split("/").last().unwrap_or("db.sqlite3");
 
@@ -285,10 +274,35 @@ pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
 mod tests {
 
     use crate::db::tests::test_setup;
+    use sea_orm::{ColumnTrait, QueryFilter};
+    use serde_json::json;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
     use super::*;
+
+    async fn tools_form(session: &Session, action: FormAction) -> ToolsForm {
+        let csrf_scope = tools_scope().to_string();
+        let csrf_token = issue_csrf_token(session, &csrf_scope)
+            .await
+            .expect("Failed to issue CSRF token");
+        ToolsForm {
+            action: Some(action),
+            csrf_token: Some(csrf_token),
+            csrf_scope: Some(csrf_scope),
+        }
+    }
+
+    async fn export_form(session: &Session) -> CsrfTokenForm {
+        let csrf_scope = tools_scope().to_string();
+        let csrf_token = issue_csrf_token(session, &csrf_scope)
+            .await
+            .expect("Failed to issue export token");
+        CsrfTokenForm {
+            csrf_token,
+            csrf_scope,
+        }
+    }
 
     #[tokio::test]
     async fn test_tools_noauth() {
@@ -303,6 +317,7 @@ mod tests {
             Form(ToolsForm {
                 action: None,
                 csrf_token: None,
+                csrf_scope: None,
             }),
         )
         .await;
@@ -316,21 +331,15 @@ mod tests {
         use super::*;
         let state = WebState::test().await;
 
-        let csrf_token = "foo".to_string();
-        let session = state.get_session();
-        session
-            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
-            .await
-            .expect("Failed to insert CSRF token into session");
-
         let res = super::tools(
             State(state.clone()),
             Some(test_user_claims()),
             Query(ToolsQuery::default()),
-            session.clone(),
+            state.get_session(),
             Form(ToolsForm {
                 action: None,
                 csrf_token: None,
+                csrf_scope: None,
             }),
         )
         .await;
@@ -343,22 +352,14 @@ mod tests {
         let _ = test_setup().await.expect("Failed to start test harness");
         let state = WebState::test().await;
 
-        let csrf_token = "foo".to_string();
         let session = state.get_session();
-        session
-            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
-            .await
-            .expect("Failed to insert CSRF token into session");
 
         let res = super::tools(
             State(state.clone()),
             Some(test_user_claims()),
             Query(ToolsQuery::default()),
-            session,
-            Form(ToolsForm {
-                action: Some(FormAction::SetAllToUrgent),
-                csrf_token: Some(csrf_token),
-            }),
+            session.clone(),
+            Form(tools_form(&session, FormAction::SetAllToUrgent).await),
         )
         .await
         .into_response();
@@ -381,29 +382,7 @@ mod tests {
         use super::*;
 
         let state = WebState::test().await;
-        let res = tools_reload_config(&state).await;
-        assert!(res.is_err());
-        dbg!(&res);
-
-        if let Err(err) = res {
-            let err = err.into_response();
-            assert_eq!(err.status(), StatusCode::SEE_OTHER);
-            let (headers, _body) = err.into_parts();
-            assert_eq!(
-                headers
-                    .headers
-                    .get("location")
-                    .expect("Failed to get location header")
-                    .to_str()
-                    .expect("Failed to get location header value"),
-                &format!(
-                    "{}?result=Failed to load config from file&status={}",
-                    Urls::Tools,
-                    ActionStatus::Error,
-                ),
-                "Expected an error response"
-            );
-        }
+        assert!(tools_reload_config(&state).await.is_err());
 
         // test reading an invalid file
         let mut state = WebState::test().await;
@@ -413,26 +392,7 @@ mod tests {
             .expect("Failed to write a byte to the tempfile");
         state.config_filepath = tempfile.path().to_path_buf();
 
-        let res = tools_reload_config(&state).await;
-        if let Err(err) = res {
-            let err = err.into_response();
-            assert_eq!(err.status(), StatusCode::SEE_OTHER);
-            let (headers, _body) = err.into_parts();
-            assert_eq!(
-                headers
-                    .headers
-                    .get("location")
-                    .expect("Failed to get location header")
-                    .to_str()
-                    .expect("Failed to get location header value"),
-                &format!(
-                    "{}?result=Failed to load config from file&status={}",
-                    Urls::Tools,
-                    ActionStatus::Error,
-                ),
-                "Expected a failed reload"
-            );
-        }
+        assert!(tools_reload_config(&state).await.is_err());
 
         // test a valid reload
         let mut state = WebState::test().await;
@@ -447,26 +407,59 @@ mod tests {
             .expect("Failed to write test config");
         state.config_filepath = tempfile.path().to_path_buf();
 
+        assert!(tools_reload_config(&state).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_tools_reload_config_updates_service_command_line() {
+        let mut state = WebState::test().await;
+        let mut config = Configuration::load_test_config_bare().await;
+
+        config
+            .services
+            .get_mut("local_lslah")
+            .expect("Failed to find local_lslah in test config")
+            .extra_config
+            .insert("command_line".to_string(), json!("echo updated"));
+
+        let mut tempfile = NamedTempFile::new().expect("Failed to create tempfile");
+        tempfile
+            .write_all(
+                serde_json::to_string(&config)
+                    .expect("Failed to serialize updated test config")
+                    .as_bytes(),
+            )
+            .expect("Failed to write updated test config");
+        state.config_filepath = tempfile.path().to_path_buf();
+
         let res = tools_reload_config(&state).await;
-        if let Err(err) = res {
-            let err = err.into_response();
-            assert_eq!(err.status(), StatusCode::SEE_OTHER);
-            let (headers, _body) = err.into_parts();
-            assert_eq!(
-                headers
-                    .headers
-                    .get("location")
-                    .expect("Failed to get location header")
-                    .to_str()
-                    .expect("Failed to get location header value"),
-                &format!(
-                    "{}?result=Reloaded config&status={}",
-                    Urls::Tools,
-                    ActionStatus::Success
-                ),
-                "Expected a failed reload"
-            );
-        }
+        assert!(res.is_ok());
+
+        let service = entities::service::Entity::find()
+            .filter(entities::service::Column::Name.eq("local_lslah"))
+            .one(state.db())
+            .await
+            .expect("Failed to query updated service")
+            .expect("Failed to find updated service");
+        assert_eq!(service.extra_config["command_line"], json!("echo updated"));
+
+        let service_check = entities::service_check::Entity::find()
+            .filter(entities::service_check::Column::ServiceId.eq(service.id))
+            .one(state.db())
+            .await
+            .expect("Failed to query service check")
+            .expect("Failed to find service check");
+
+        let rendered = crate::web::views::service_check::service_check_get(
+            Path(service_check.id),
+            State(state.clone()),
+            state.get_session(),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Failed to render service check after reload")
+        .to_string();
+        assert!(rendered.contains("echo updated"));
     }
 
     #[tokio::test]
@@ -481,6 +474,7 @@ mod tests {
             session.clone(),
             Form(CsrfTokenForm {
                 csrf_token: "lol".to_string(),
+                csrf_scope: tools_scope().to_string(),
             }),
         )
         .await
@@ -494,6 +488,7 @@ mod tests {
             session.clone(),
             Form(CsrfTokenForm {
                 csrf_token: "lol".to_string(),
+                csrf_scope: tools_scope().to_string(),
             }),
         )
         .await;
@@ -507,28 +502,26 @@ mod tests {
         // valid request, session etc
         let (tempfile, state) = WebState::test_with_real_db().await;
         let session = state.get_session();
-        let csrf_token = "foo".to_string();
-        session
-            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
-            .await
-            .expect("Failed to insert CSRF token into session");
+        let valid_form = export_form(&session).await;
 
         let res = export_db(
             State(state.clone()),
             Some(test_user_claims()),
             session.clone(),
-            Form(CsrfTokenForm {
-                csrf_token: csrf_token.clone(),
-            }),
+            Form(valid_form.clone()),
         )
         .await;
         dbg!("result of should-work test", &res);
         assert!(res.is_ok());
 
-        session
-            .insert(SESSION_CSRF_TOKEN, csrf_token.clone())
-            .await
-            .expect("Failed to insert CSRF token into session");
+        let repeat_res = export_db(
+            State(state.clone()),
+            Some(test_user_claims()),
+            session.clone(),
+            Form(valid_form),
+        )
+        .await;
+        assert!(repeat_res.is_ok());
 
         let res = export_db(
             State(state.clone()),
@@ -536,6 +529,7 @@ mod tests {
             session,
             Form(CsrfTokenForm {
                 csrf_token: "definitelynotit".to_string(),
+                csrf_scope: tools_scope().to_string(),
             }),
         )
         .await;

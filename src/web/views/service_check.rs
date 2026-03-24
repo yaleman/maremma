@@ -3,7 +3,13 @@ use axum::Form;
 use chrono::{DateTime, Local, Utc};
 use sea_orm::{ColumnTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect};
 
-use crate::constants::DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES;
+use crate::constants::{
+    DEFAULT_SERVICE_CHECK_HISTORY_VIEW_ENTRIES, SESSION_CSRF_SCOPE, SESSION_CSRF_TOKEN,
+};
+use crate::web::views::csrf::{
+    check_csrf_token, consume_csrf_token, host_scope, issue_csrf_token, service_check_scope,
+    service_scope, CsrfRedirectToForm,
+};
 use crate::web::MaremmaError;
 
 use super::prelude::*;
@@ -25,6 +31,8 @@ pub(crate) struct ServiceCheckTemplate {
     last_check_relative: String,
     next_check_display: String,
     next_check_relative: String,
+    csrf_token: String,
+    csrf_scope: String,
 }
 
 fn format_absolute_time(value: DateTime<Utc>) -> String {
@@ -65,12 +73,16 @@ fn format_relative_time(value: DateTime<Utc>, now: DateTime<Utc>) -> String {
 }
 
 fn format_time_fields(value: DateTime<Utc>, now: DateTime<Utc>) -> (String, String) {
-    (format_absolute_time(value), format_relative_time(value, now))
+    (
+        format_absolute_time(value),
+        format_relative_time(value, now),
+    )
 }
 
 pub(crate) async fn service_check_get(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
+    session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<ServiceCheckTemplate, MaremmaError> {
     let user = check_login(claims)?;
@@ -179,6 +191,8 @@ pub(crate) async fn service_check_get(
         format_time_fields(service_check.last_check, now);
     let (next_check_display, next_check_relative) =
         format_time_fields(service_check.next_check, now);
+    let csrf_scope = service_check_scope(service_check.id);
+    let csrf_token = issue_csrf_token(&session, &csrf_scope).await?;
 
     Ok(ServiceCheckTemplate {
         title: format!("Service Check: {}", &service.name),
@@ -194,38 +208,74 @@ pub(crate) async fn service_check_get(
         last_check_relative,
         next_check_display,
         next_check_relative,
+        csrf_token,
+        csrf_scope,
     })
 }
 
 pub(crate) async fn set_service_check_urgent(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
-    Form(form): Form<RedirectTo>,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Urgent, form).await
+    set_service_check_status(
+        service_check_id,
+        state,
+        session,
+        claims,
+        ServiceStatus::Urgent,
+        form,
+    )
+    .await
 }
 pub(crate) async fn set_service_check_disabled(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
-    Form(form): Form<RedirectTo>,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Disabled, form).await
+    set_service_check_status(
+        service_check_id,
+        state,
+        session,
+        claims,
+        ServiceStatus::Disabled,
+        form,
+    )
+    .await
 }
 
 pub(crate) async fn set_service_check_enabled(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
-    Form(form): Form<RedirectTo>,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
+    Form(form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, impl IntoResponse> {
-    set_service_check_status(service_check_id, state, ServiceStatus::Pending, form).await
+    set_service_check_status(
+        service_check_id,
+        state,
+        session,
+        claims,
+        ServiceStatus::Pending,
+        form,
+    )
+    .await
 }
 
 pub(crate) async fn set_service_check_status(
     service_check_id: Uuid,
     state: WebState,
+    session: Session,
+    claims: Option<OidcClaims<EmptyAdditionalClaims>>,
     status: ServiceStatus,
-    form: RedirectTo,
+    form: CsrfRedirectToForm,
 ) -> Result<Redirect, MaremmaError> {
+    check_login(claims)?;
+
     let db_lock = state.db();
     let service_check = entities::service_check::Entity::find_by_id(service_check_id)
         .one(db_lock)
@@ -242,6 +292,21 @@ pub(crate) async fn set_service_check_status(
         Some(service_check) => service_check,
         None => return Err(MaremmaError::ServiceCheckNotFound(service_check_id)),
     };
+    let service_check_page = service_check_scope(service_check_id);
+    let host_page = host_scope(service_check.host_id);
+    let service_page = service_scope(service_check.service_id);
+    let allowed_scopes = [
+        service_check_page.as_str(),
+        host_page.as_str(),
+        service_page.as_str(),
+    ];
+    check_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     let mut service_check = service_check.into_active_model();
     service_check.status.set_if_not_equals(status);
@@ -260,6 +325,13 @@ pub(crate) async fn set_service_check_status(
             MaremmaError::from(err)
         })?;
     };
+    consume_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     // TODO: make it so we can redirect to... elsewhere based on a query string?
     if let Some(redirect_to) = &form.redirect_to {
@@ -273,37 +345,56 @@ pub(crate) async fn set_service_check_status(
     }
 }
 
-/// For when you want to redirect people back to where they came from
-#[derive(Deserialize, Debug)]
-pub(crate) struct RedirectTo {
-    redirect_to: Option<String>,
-}
-
-impl From<Option<String>> for RedirectTo {
-    fn from(redirect_to: Option<String>) -> Self {
-        Self { redirect_to }
-    }
-}
-
 /// Want to delete a service check? Woo!
 pub(crate) async fn service_check_delete(
     Path(service_check_id): Path<Uuid>,
     State(state): State<WebState>,
+    session: Session,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
-    Form(redirect_form): Form<RedirectTo>,
+    Form(redirect_form): Form<CsrfRedirectToForm>,
 ) -> Result<Redirect, MaremmaError> {
-    let _user = claims.ok_or_else(|| MaremmaError::Unauthorized)?;
+    check_login(claims)?;
     let db_lock = state.db();
-    entities::service_check::Entity::delete_by_id(service_check_id)
-        .exec(db_lock)
+    let service_check = entities::service_check::Entity::find_by_id(service_check_id)
+        .one(db_lock)
         .await
         .map_err(|err| {
             error!(
-                "Failed to delete service check {}: {:?}",
+                "Failed to search for service check {} before delete: {:?}",
                 service_check_id, err
             );
             MaremmaError::from(err)
-        })?;
+        })?
+        .ok_or(MaremmaError::ServiceCheckNotFound(service_check_id))?;
+    let service_check_page = service_check_scope(service_check_id);
+    let host_page = host_scope(service_check.host_id);
+    let service_page = service_scope(service_check.service_id);
+    let allowed_scopes = [
+        service_check_page.as_str(),
+        host_page.as_str(),
+        service_page.as_str(),
+    ];
+    check_csrf_token(
+        &redirect_form.csrf_token,
+        &redirect_form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
+    service_check.delete(db_lock).await.map_err(|err| {
+        error!(
+            "Failed to delete service check {}: {:?}",
+            service_check_id, err
+        );
+        MaremmaError::from(err)
+    })?;
+    consume_csrf_token(
+        &redirect_form.csrf_token,
+        &redirect_form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     if let Some(redirect_to) = redirect_form.redirect_to {
         Ok(Redirect::to(&redirect_to))
@@ -322,6 +413,26 @@ mod tests {
 
     use super::*;
 
+    async fn csrf_form(session: &Session, scope: &str, redirect_to: Option<String>) -> CsrfRedirectToForm {
+        let csrf_token = issue_csrf_token(session, scope)
+            .await
+            .expect("Failed to issue CSRF token");
+        CsrfRedirectToForm {
+            redirect_to,
+            csrf_token,
+            csrf_scope: scope.to_string(),
+        }
+    }
+
+    async fn service_check_form(
+        session: &Session,
+        service_check: &entities::service_check::Model,
+        redirect_to: Option<String>,
+    ) -> CsrfRedirectToForm {
+        let scope = service_check_scope(service_check.id);
+        csrf_form(session, &scope, redirect_to).await
+    }
+
     #[tokio::test]
     async fn test_view_service_check_without_auth() {
         let state = WebState::test().await;
@@ -331,7 +442,13 @@ mod tests {
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
-        let res = service_check_get(Path(service_check.id), State(state.clone()), None).await;
+        let res = service_check_get(
+            Path(service_check.id),
+            State(state.clone()),
+            state.get_session(),
+            None,
+        )
+        .await;
 
         assert!(res.is_err()); // because authentication failed
     }
@@ -349,6 +466,7 @@ mod tests {
         let res = service_check_get(
             Path(service_check.id),
             State(state.clone()),
+            state.get_session(),
             Some(test_user_claims()),
         )
         .await
@@ -384,6 +502,7 @@ mod tests {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
+        let session = state.get_session();
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db())
@@ -394,16 +513,23 @@ mod tests {
         let res = set_service_check_urgent(
             Path(service_check.id),
             State(state.clone()),
-            Form(RedirectTo::from(None)),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(service_check_form(&session, &service_check, None).await),
         )
         .await;
         assert!(res.is_ok());
         let res = set_service_check_urgent(
             Path(Uuid::new_v4()),
             State(state.clone()),
-            Form(RedirectTo {
-                redirect_to: Some("/test".to_string()),
-            }),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(
+                &session,
+                &service_check_scope(Uuid::new_v4()),
+                Some("/test".to_string()),
+            )
+            .await),
         )
         .await;
         assert!(res.is_err());
@@ -411,9 +537,14 @@ mod tests {
         let res = set_service_check_urgent(
             Path(Uuid::new_v4()),
             State(state.clone()),
-            Form(RedirectTo {
-                redirect_to: Some("/test".to_string()),
-            }),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(
+                &session,
+                &service_check_scope(Uuid::new_v4()),
+                Some("/test".to_string()),
+            )
+            .await),
         )
         .await;
 
@@ -422,6 +553,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_service_check_disabled() {
         let state = WebState::test().await;
+        let session = state.get_session();
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db())
@@ -432,14 +564,18 @@ mod tests {
         let res = set_service_check_disabled(
             Path(service_check.id),
             State(state.clone()),
-            Form(RedirectTo::from(None)),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(service_check_form(&session, &service_check, None).await),
         )
         .await;
         assert!(res.is_ok());
         let res = set_service_check_disabled(
             Path(Uuid::new_v4()),
-            State(state),
-            Form(RedirectTo::from(None)),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&session, &service_check_scope(Uuid::new_v4()), None).await),
         )
         .await;
         assert!(res.is_err());
@@ -449,6 +585,7 @@ mod tests {
         let (db, config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::new(db, config, None, None, PathBuf::new());
+        let session = state.get_session();
 
         let service_check = entities::service_check::Entity::find()
             .one(state.db())
@@ -459,14 +596,18 @@ mod tests {
         let res = set_service_check_enabled(
             Path(service_check.id),
             State(state.clone()),
-            Form(RedirectTo::from(None)),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(service_check_form(&session, &service_check, None).await),
         )
         .await;
         assert!(res.is_ok());
         let res = set_service_check_enabled(
             Path(Uuid::new_v4()),
-            State(state),
-            Form(RedirectTo::from(None)),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(csrf_form(&session, &service_check_scope(Uuid::new_v4()), None).await),
         )
         .await;
         assert!(res.is_err());
@@ -489,6 +630,7 @@ mod tests {
         let res = super::service_check_get(
             Path(service_check_id),
             State(state.clone()),
+            state.get_session(),
             Some(test_user_claims()),
         )
         .await;
@@ -504,6 +646,7 @@ mod tests {
         let (_db, _config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
+        let session = state.get_session();
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
@@ -517,8 +660,9 @@ mod tests {
         let res = super::service_check_delete(
             Path(service_check_id),
             State(state.clone()),
+            session.clone(),
             None,
-            Form(RedirectTo { redirect_to: None }),
+            Form(csrf_form(&session, &service_check_scope(service_check_id), None).await),
         )
         .await;
         assert!(res.is_err());
@@ -527,9 +671,10 @@ mod tests {
     #[tokio::test]
     async fn test_view_service_check_delete_auth() {
         use super::*;
-        let (db, _config) = test_setup().await.expect("Failed to set up!");
+        let (_db, _config) = test_setup().await.expect("Failed to set up!");
 
         let state = WebState::test().await;
+        let session = state.get_session();
 
         let mut service_check_id = Uuid::new_v4();
         while entities::service_check::Entity::find_by_id(service_check_id)
@@ -543,18 +688,19 @@ mod tests {
         let res = super::service_check_delete(
             Path(service_check_id),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
-            Form(RedirectTo { redirect_to: None }),
+            Form(csrf_form(&session, &service_check_scope(service_check_id), None).await),
         )
         .await;
 
         dbg!(&res);
-        assert!(res.is_ok());
-        assert_eq!(res.into_response().status(), StatusCode::SEE_OTHER);
+        assert!(res.is_err());
+        assert_eq!(res.into_response().status(), StatusCode::NOT_FOUND);
 
         // find a valid service check
         let service_check = entities::service_check::Entity::find()
-            .one(db.as_ref())
+            .one(state.db())
             .await
             .expect("Failed to get service check")
             .expect("No service checks found");
@@ -562,10 +708,149 @@ mod tests {
         let res = service_check_delete(
             Path(service_check.id),
             State(state.clone()),
+            session.clone(),
             Some(test_user_claims()),
-            Form(RedirectTo { redirect_to: None }),
+            Form(service_check_form(&session, &service_check, None).await),
         )
         .await;
         assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_service_check_actions_require_valid_csrf() {
+        let state = WebState::test().await;
+        let session = state.get_session();
+        let service_check = entities::service_check::Entity::find()
+            .one(state.db())
+            .await
+            .expect("Failed to query service check")
+            .expect("No service checks found");
+
+        let res = set_service_check_urgent(
+            Path(service_check.id),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(CsrfRedirectToForm {
+                redirect_to: None,
+                csrf_token: "wrong".to_string(),
+                csrf_scope: service_check_scope(service_check.id),
+            }),
+        )
+        .await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.expect_err("Expected csrf error")
+                .into_response()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+
+        let csrf_scope = service_check_scope(service_check.id);
+        let csrf_token = issue_csrf_token(&session, &csrf_scope)
+            .await
+            .expect("Failed to issue CSRF token");
+        let res = set_service_check_urgent(
+            Path(service_check.id),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(CsrfRedirectToForm {
+                redirect_to: None,
+                csrf_token: format!("{csrf_token}-wrong"),
+                csrf_scope,
+            }),
+        )
+        .await;
+        assert!(res.is_err());
+        assert_eq!(
+            res.expect_err("Expected csrf mismatch")
+                .into_response()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+
+    #[tokio::test]
+    async fn test_service_check_actions_allow_host_and_service_page_scopes() {
+        let state = WebState::test().await;
+        let session = state.get_session();
+        let service_check = entities::service_check::Entity::find()
+            .one(state.db())
+            .await
+            .expect("Failed to query service check")
+            .expect("No service checks found");
+
+        let host_page_scope = host_scope(service_check.host_id);
+        let host_page_token = issue_csrf_token(&session, &host_page_scope)
+            .await
+            .expect("Failed to issue host page token");
+        let urgent_res = set_service_check_urgent(
+            Path(service_check.id),
+            State(state.clone()),
+            session.clone(),
+            Some(test_user_claims()),
+            Form(CsrfRedirectToForm {
+                redirect_to: None,
+                csrf_token: host_page_token,
+                csrf_scope: host_page_scope,
+            }),
+        )
+        .await;
+        assert!(urgent_res.is_ok());
+
+        let service_page_scope = service_scope(service_check.service_id);
+        let service_page_token = issue_csrf_token(&session, &service_page_scope)
+            .await
+            .expect("Failed to issue service page token");
+        let disable_res = set_service_check_disabled(
+            Path(service_check.id),
+            State(state.clone()),
+            session,
+            Some(test_user_claims()),
+            Form(CsrfRedirectToForm {
+                redirect_to: None,
+                csrf_token: service_page_token,
+                csrf_scope: service_page_scope,
+            }),
+        )
+        .await;
+        assert!(disable_res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_service_check_actions_reject_cross_page_scope() {
+        let state = WebState::test().await;
+        let session = state.get_session();
+        let service_check = entities::service_check::Entity::find()
+            .one(state.db())
+            .await
+            .expect("Failed to query service check")
+            .expect("No service checks found");
+
+        let csrf_scope = crate::web::views::csrf::tools_scope().to_string();
+        let csrf_token = issue_csrf_token(&session, &csrf_scope)
+            .await
+            .expect("Failed to issue tools token");
+        let res = set_service_check_urgent(
+            Path(service_check.id),
+            State(state.clone()),
+            session,
+            Some(test_user_claims()),
+            Form(CsrfRedirectToForm {
+                redirect_to: None,
+                csrf_token,
+                csrf_scope,
+            }),
+        )
+        .await;
+
+        assert!(res.is_err());
+        assert_eq!(
+            res.expect_err("Cross-page scope should fail")
+                .into_response()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
     }
 }
