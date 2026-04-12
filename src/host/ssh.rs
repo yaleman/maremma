@@ -120,7 +120,8 @@ impl TryFrom<&Value> for SshHost {
     type Error = MaremmaError;
 
     fn try_from(value: &Value) -> Result<Self, Self::Error> {
-        serde_json::from_value(value.clone()).map_err(|e| MaremmaError::Deserialization(e.to_string()))
+        serde_json::from_value(value.clone())
+            .map_err(|e| MaremmaError::Deserialization(e.to_string()))
     }
 }
 

@@ -130,7 +130,10 @@ pub struct HttpService {
 
 impl HttpService {
     /// Get the expected status code for the service and throw an error if it's bad
-    fn expected_status_code(&self, client_config: &Self) -> Result<reqwest::StatusCode, MaremmaError> {
+    fn expected_status_code(
+        &self,
+        client_config: &Self,
+    ) -> Result<reqwest::StatusCode, MaremmaError> {
         reqwest::StatusCode::from_u16(
             client_config
                 .http_status
