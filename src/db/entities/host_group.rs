@@ -60,7 +60,10 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(name: &str, db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name(
+        name: &str,
+        db: &DatabaseConnection,
+    ) -> Result<Option<Model>, MaremmaError> {
         Entity::find()
             .filter(Column::Name.eq(name))
             .one(db)
