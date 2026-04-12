@@ -3,7 +3,6 @@ target/
 docs/book/
 
 .cargo/config.toml
-vendor/
 
 # macos, why
 .DS_Store
