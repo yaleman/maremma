@@ -6,9 +6,7 @@ use std::path::PathBuf;
 
 use schemars::JsonSchema;
 
-use crate::constants::{
-    web_server_default_port, DEFAULT_SERVICE_CHECK_HISTORY_STORAGE,
-};
+use crate::constants::{web_server_default_port, DEFAULT_SERVICE_CHECK_HISTORY_STORAGE};
 use crate::host::fakehost::FakeHost;
 use crate::host::{Host, HostCheck};
 use crate::prelude::*;
@@ -23,8 +21,12 @@ fn default_listen_address() -> String {
 
 fn default_max_concurrent_checks() -> usize {
     let cpus = num_cpus::get();
-    debug!("Detected {} CPUs", cpus);
-    std::cmp::max(cpus.saturating_sub(2), 1)
+    let res = std::cmp::max((cpus * 4).saturating_sub(2), 1);
+    debug!(
+        "Detected {} CPUs, setting max concurrent checks to {}",
+        cpus, res
+    );
+    res
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -165,7 +167,9 @@ impl TryFrom<ConfigurationParser> for Configuration {
             .listen_port
             .map(|lp| {
                 NonZeroU16::try_from(lp).map_err(|_| {
-                    MaremmaError::Configuration("Failed to convert listen port to NonZeroU16".to_string())
+                    MaremmaError::Configuration(
+                        "Failed to convert listen port to NonZeroU16".to_string(),
+                    )
                 })
             })
             .transpose()?;
@@ -173,14 +177,22 @@ impl TryFrom<ConfigurationParser> for Configuration {
             Some(val) => val,
             None => match std::env::var("MAREMMA_FRONTEND_URL") {
                 Ok(val) => val,
-                Err(_) => return Err(MaremmaError::Configuration("Frontend URL not set".to_string())),
+                Err(_) => {
+                    return Err(MaremmaError::Configuration(
+                        "Frontend URL not set".to_string(),
+                    ))
+                }
             },
         };
         let oidc_issuer = match value.oidc_issuer {
             Some(val) => val,
             None => match std::env::var("MAREMMA_OIDC_ISSUER") {
                 Ok(val) => val,
-                Err(_) => return Err(MaremmaError::Configuration("OIDC Issuer URL not set".to_string())),
+                Err(_) => {
+                    return Err(MaremmaError::Configuration(
+                        "OIDC Issuer URL not set".to_string(),
+                    ))
+                }
             },
         };
 
@@ -188,7 +200,11 @@ impl TryFrom<ConfigurationParser> for Configuration {
             Some(val) => val,
             None => match std::env::var("MAREMMA_OIDC_CLIENT_ID") {
                 Ok(val) => val,
-                Err(_) => return Err(MaremmaError::Configuration("OIDC Client ID not set".to_string())),
+                Err(_) => {
+                    return Err(MaremmaError::Configuration(
+                        "OIDC Client ID not set".to_string(),
+                    ))
+                }
             },
         };
 
