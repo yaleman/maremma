@@ -220,7 +220,11 @@ pub trait ConfigOverlay: Serialize {
     }
 
     /// Pulls the host config out of the host model
-    fn get_host_config(&self, name: &str, host: &host::Model) -> Result<Map<String, Value>, MaremmaError> {
+    fn get_host_config(
+        &self,
+        name: &str,
+        host: &host::Model,
+    ) -> Result<Map<String, Value>, MaremmaError> {
         let config = match host.config.as_object() {
             Some(val) => Ok(val.clone()),
             None => Err(MaremmaError::Configuration(format!(
@@ -230,15 +234,21 @@ pub trait ConfigOverlay: Serialize {
         }?;
 
         match config.get(name) {
-            Some(val) => val.as_object().cloned().ok_or(MaremmaError::Configuration(format!(
-                "Failed to parse {name} config"
-            ))),
+            Some(val) => val
+                .as_object()
+                .cloned()
+                .ok_or(MaremmaError::Configuration(format!(
+                    "Failed to parse {name} config"
+                ))),
             None => Ok(Map::new()),
         }
     }
 
     /// Overlays host-specific content for services
-    fn overlay_host_config(&self, host_config: &Map<String, Value>) -> Result<Box<Self>, MaremmaError>;
+    fn overlay_host_config(
+        &self,
+        host_config: &Map<String, Value>,
+    ) -> Result<Box<Self>, MaremmaError>;
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]

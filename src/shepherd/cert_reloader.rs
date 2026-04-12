@@ -27,7 +27,9 @@ fn get_file_time(file: &std::path::Path) -> Result<DateTime<Utc>, MaremmaError> 
 }
 
 #[instrument(level = "debug", skip(config))]
-async fn get_file_times(config: SendableConfig) -> Result<(DateTime<Utc>, DateTime<Utc>), MaremmaError> {
+async fn get_file_times(
+    config: SendableConfig,
+) -> Result<(DateTime<Utc>, DateTime<Utc>), MaremmaError> {
     let config_reader = config.read().await;
 
     let cert_time = get_file_time(&config_reader.cert_file).inspect_err(|err| {
