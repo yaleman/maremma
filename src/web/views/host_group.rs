@@ -9,9 +9,9 @@ use crate::web::views::csrf::{
     check_csrf_token, consume_csrf_token, host_group_scope, issue_csrf_token, CsrfTokenForm,
 };
 use crate::web::{MaremmaError, WebState};
-use axum::Form;
 use axum::extract::{Path, Query, State};
 use axum::response::Redirect;
+use axum::Form;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
 use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
 use serde::Deserialize;
@@ -140,7 +140,13 @@ pub(crate) async fn host_group_member_delete(
     };
     let group_scope = host_group_scope(group_id);
     let allowed_scopes = [group_scope.as_str()];
-    check_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
+    check_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     debug!("looking for group {:?} host {:?}", group_id, host_id);
 
@@ -183,7 +189,13 @@ pub(crate) async fn host_group_member_delete(
         host_id.hyphenated(),
         group_id.hyphenated()
     );
-    consume_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
+    consume_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     Ok(Redirect::to(&format!("{}/{}", Urls::HostGroup, group_id)))
 }
@@ -204,7 +216,13 @@ pub(crate) async fn host_group_delete(
     };
     let group_scope = host_group_scope(group_id);
     let allowed_scopes = [group_scope.as_str()];
-    check_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
+    check_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
     let db_lock = state.db();
     let res = host_group::Entity::delete_by_id(group_id)
         .exec(db_lock)
@@ -216,7 +234,13 @@ pub(crate) async fn host_group_delete(
     if res.rows_affected == 0 {
         return Err(MaremmaError::HostGroupNotFound(group_id));
     }
-    consume_csrf_token(&form.csrf_token, &form.csrf_scope, &allowed_scopes, &session).await?;
+    consume_csrf_token(
+        &form.csrf_token,
+        &form.csrf_scope,
+        &allowed_scopes,
+        &session,
+    )
+    .await?;
 
     Ok(Redirect::to(Urls::HostGroups.as_ref()))
 }
@@ -224,9 +248,9 @@ pub(crate) async fn host_group_delete(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::Form;
     use axum::extract::{Path, Query, State};
     use axum::response::IntoResponse;
+    use axum::Form;
     use uuid::Uuid;
 
     use crate::db::tests::test_setup;

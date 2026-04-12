@@ -4,7 +4,9 @@ use super::prelude::*;
 
 use prometheus::{Encoder, TextEncoder};
 
-pub(crate) async fn metrics(State(state): State<WebState>) -> Result<String, crate::errors::MaremmaError> {
+pub(crate) async fn metrics(
+    State(state): State<WebState>,
+) -> Result<String, crate::errors::MaremmaError> {
     match state.registry {
         Some(registry) => {
             // Ok(Json(format!("{:?}", webmetrics.get_metrics()))),
