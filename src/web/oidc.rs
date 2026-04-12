@@ -10,6 +10,11 @@ use axum::response::Redirect;
 use axum_oidc::{AdditionalClaims, OidcClaims, OidcRpInitiatedLogout};
 use tower_sessions::Session;
 
+/// login redirect
+pub async fn login() -> Redirect {
+    Redirect::to(Urls::Index.as_ref())
+}
+
 /// Logs the user out
 pub async fn logout(session: Session) -> Result<Redirect, (StatusCode, &'static str)> {
     session.clear().await;
@@ -96,6 +101,19 @@ mod tests {
 
         assert!(res.is_ok());
         let res = res.expect("Errored out").into_response();
+
+        assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
+        assert_eq!(
+            res.headers()
+                .get("location")
+                .expect("Failed to get location header"),
+            Urls::Index.as_ref()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_login_view() {
+        let res = login().await.into_response();
 
         assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
         assert_eq!(
