@@ -357,11 +357,11 @@ impl IntoResponse for MaremmaError {
             | Self::Timeout
             | Self::IPCRecvError(_)
             | Self::IPCSendError(_)
-            | Self::CommandNotFound(_) => (
-                StatusCode::from(&self),
-                "Please see server logs".to_string(),
-            )
-                .into_response(),
+            | Self::CommandNotFound(_) => {
+                let status = StatusCode::from(&self);
+                error!("{:?}", self);
+                (status, "Please see server logs".to_string()).into_response()
+            }
         }
     }
 }

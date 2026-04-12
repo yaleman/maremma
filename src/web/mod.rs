@@ -17,7 +17,7 @@ use axum::http::{StatusCode, Uri};
 #[cfg(test)]
 use axum::middleware::{from_fn, Next};
 use axum::response::{IntoResponse, Redirect};
-use axum::routing::{any, get, post};
+use axum::routing::{get, post};
 use axum::Router;
 use axum_oidc::error::MiddlewareError;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
@@ -229,7 +229,8 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
         )
         .route(Urls::ToolsExportDb.as_ref(), post(views::tools::export_db))
         .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout));
-    let auth_only_routes = Router::new().route(Urls::Index.as_ref(), get(views::index::index));
+    let auth_optional_routes = Router::new().route(Urls::Index.as_ref(), get(views::index::index));
+    let login_routes = Router::new().route(Urls::Login.as_ref(), get(oidc::login));
     let public_routes = Router::new()
         .route(Urls::Metrics.as_ref(), get(views::metrics::metrics))
         .route(Urls::HealthCheck.as_ref(), get(up))
@@ -241,8 +242,6 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
         .fallback(handler_404);
 
     let app = if enable_oidc {
-        use axum_oidc::OidcClient;
-
         let config_reader = state.configuration.read().await;
         let oidc_issuer = config_reader.oidc_issuer.clone();
         let oidc_client_id = config_reader.oidc_client_id.clone();
@@ -250,65 +249,60 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
         let frontend_url = config_reader.frontend_url.clone();
         drop(config_reader);
 
-        let oidc_redirect_url = oidc_redirect_uri(&frontend_url)?;
+        let oidc_application_base_url = oidc_application_base_uri(&frontend_url)?;
         debug!("Frontend URL: {:?}", frontend_url);
-        debug!("OIDC redirect URL: {:?}", oidc_redirect_url);
+        debug!("OIDC application base URL: {:?}", oidc_application_base_url);
         let oidc_error_handler = OidcErrorHandler::new(state.web_tx.clone());
-        let oidc_callback_routes = Router::new().route(
-            Urls::Login.as_ref(),
-            any(axum_oidc::handle_oidc_redirect::<EmptyAdditionalClaims>),
-        );
+        let login_required_routes = protected_routes.merge(login_routes);
 
         let oidc_login_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
-                error!("Failed to handle OIDC logout: {:?}", e);
+                error!("Failed to start OIDC login flow: {:?}", e);
                 e.into_response()
             }))
             .layer(OidcLoginLayer::<EmptyAdditionalClaims>::new());
 
-        let mut oidc_client = OidcClient::builder()
-            .with_default_http_client()
-            .add_scope("openid")
-            .add_scope("groups")
-            .with_redirect_url(oidc_redirect_url)
-            .with_client_id(oidc_client_id);
-
-        if let Some(oidc_client_secret) = oidc_client_secret {
-            oidc_client = oidc_client.with_client_secret(oidc_client_secret);
-        }
-
-        let oidc_client: OidcClient<EmptyAdditionalClaims> =
-            oidc_client.discover(oidc_issuer).await?.build();
-
         let oidc_auth_layer: OidcAuthLayer<EmptyAdditionalClaims> =
-            OidcAuthLayer::<EmptyAdditionalClaims>::new(oidc_client);
+            OidcAuthLayer::<EmptyAdditionalClaims>::discover_client(
+                oidc_application_base_url,
+                oidc_issuer,
+                oidc_client_id,
+                oidc_client_secret,
+                vec!["openid".to_string(), "groups".to_string()],
+            )
+            .await?;
 
         let oidc_auth_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async move {
                 if let MiddlewareError::SessionNotFound = e {
-                    error!("No OIDC session found, redirecting to logout to clear it client-side");
+                    error!(
+                        "No OIDC session found during auth flow, redirecting to logout to clear client-side state"
+                    );
                 } else {
+                    error!("OIDC auth middleware error: {:?}", e);
                     oidc_error_handler.handle_oidc_error(&e).await;
                 }
                 Redirect::to(Urls::Logout.as_ref()).into_response()
             }))
             .layer(oidc_auth_layer);
 
-        protected_routes
+        login_required_routes
             .layer(oidc_login_service)
-            .merge(auth_only_routes)
-            .merge(oidc_callback_routes)
+            .merge(auth_optional_routes)
             .layer(oidc_auth_service)
     } else {
         #[cfg(test)]
         {
             protected_routes
-                .merge(auth_only_routes)
+                .merge(auth_optional_routes)
+                .merge(login_routes)
                 .layer(from_fn(test_auth_middleware))
         }
         #[cfg(not(test))]
         {
-            protected_routes.merge(auth_only_routes)
+            protected_routes
+                .merge(auth_optional_routes)
+                .merge(login_routes)
         }
     };
 
@@ -319,15 +313,11 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
         .with_state(state))
 }
 
-fn oidc_redirect_uri(frontend_url: &str) -> Result<Uri, MaremmaError> {
-    let callback_url = format!(
-        "{}{}",
-        frontend_url.trim_end_matches('/'),
-        Urls::Login.as_ref()
-    );
-
-    Uri::from_str(&callback_url).map_err(|err| {
-        MaremmaError::Configuration(format!("Failed to parse OIDC callback URL: {err:?}"))
+fn oidc_application_base_uri(frontend_url: &str) -> Result<Uri, MaremmaError> {
+    Uri::from_str(frontend_url.trim_end_matches('/')).map_err(|err| {
+        MaremmaError::Configuration(format!(
+            "Failed to parse OIDC application base URL: {err:?}"
+        ))
     })
 }
 
@@ -633,13 +623,13 @@ mod tests {
     }
 
     #[test]
-    fn test_oidc_redirect_uri() {
-        let redirect_uri =
-            oidc_redirect_uri("https://example.com").expect("Failed to build OIDC redirect URI");
+    fn test_oidc_application_base_uri() {
+        let application_base_uri = oidc_application_base_uri("https://example.com")
+            .expect("Failed to build OIDC application base URL");
 
         assert_eq!(
-            redirect_uri,
-            Uri::from_static("https://example.com/auth/login")
+            application_base_uri,
+            Uri::from_static("https://example.com")
         );
     }
 

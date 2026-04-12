@@ -103,7 +103,10 @@ impl Entity {
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(_name: &str, _db: &DatabaseConnection) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name(
+        _name: &str,
+        _db: &DatabaseConnection,
+    ) -> Result<Option<Model>, MaremmaError> {
         Err(MaremmaError::NotImplemented)
     }
 
@@ -173,7 +176,10 @@ mod tests {
         let res = super::Model::find_by_name("test", db.as_ref()).await;
 
         assert!(res.is_err());
-        assert_eq!(res.expect_err("failed to run"), MaremmaError::NotImplemented);
+        assert_eq!(
+            res.expect_err("failed to run"),
+            MaremmaError::NotImplemented
+        );
     }
 
     #[tokio::test]

@@ -104,10 +104,9 @@ impl TryFrom<&Host> for KubeHost {
             None => kube_port_default(),
         };
 
-        let hostname = value
-            .hostname
-            .clone()
-            .ok_or(MaremmaError::Configuration("hostname is required".to_string()))?;
+        let hostname = value.hostname.clone().ok_or(MaremmaError::Configuration(
+            "hostname is required".to_string(),
+        ))?;
 
         Ok(Self {
             hostname,

@@ -413,7 +413,11 @@ mod tests {
 
     use super::*;
 
-    async fn csrf_form(session: &Session, scope: &str, redirect_to: Option<String>) -> CsrfRedirectToForm {
+    async fn csrf_form(
+        session: &Session,
+        scope: &str,
+        redirect_to: Option<String>,
+    ) -> CsrfRedirectToForm {
         let csrf_token = issue_csrf_token(session, scope)
             .await
             .expect("Failed to issue CSRF token");
@@ -524,12 +528,14 @@ mod tests {
             State(state.clone()),
             session.clone(),
             Some(test_user_claims()),
-            Form(csrf_form(
-                &session,
-                &service_check_scope(Uuid::new_v4()),
-                Some("/test".to_string()),
-            )
-            .await),
+            Form(
+                csrf_form(
+                    &session,
+                    &service_check_scope(Uuid::new_v4()),
+                    Some("/test".to_string()),
+                )
+                .await,
+            ),
         )
         .await;
         assert!(res.is_err());
@@ -539,12 +545,14 @@ mod tests {
             State(state.clone()),
             session.clone(),
             Some(test_user_claims()),
-            Form(csrf_form(
-                &session,
-                &service_check_scope(Uuid::new_v4()),
-                Some("/test".to_string()),
-            )
-            .await),
+            Form(
+                csrf_form(
+                    &session,
+                    &service_check_scope(Uuid::new_v4()),
+                    Some("/test".to_string()),
+                )
+                .await,
+            ),
         )
         .await;
 

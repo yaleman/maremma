@@ -268,7 +268,9 @@ async fn main() -> Result<(), MaremmaError> {
 
     if let Err(err) = setup_logging(true, true, false) {
         eprintln!("Error setting up logging: {err:?}");
-        return Err(MaremmaError::Generic("Error setting up logging".to_string()));
+        return Err(MaremmaError::Generic(
+            "Error setting up logging".to_string(),
+        ));
     };
 
     debug!("Discovering namespaces");
