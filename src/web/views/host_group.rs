@@ -29,7 +29,6 @@ pub(crate) struct HostGroupsTemplate {
 pub(crate) struct HostGroupData {
     id: Uuid,
     name: String,
-    hosts: usize,
 }
 
 pub(crate) async fn host_groups(
@@ -39,7 +38,6 @@ pub(crate) async fn host_groups(
     let user = check_login(claims)?;
     let res = host_group::Entity::find()
         .order_by_asc(host_group::Column::Name)
-        .find_with_linked(host_group_members::GroupToHosts)
         .all(state.db.as_ref())
         .await
         .map_err(|e| {
@@ -49,10 +47,9 @@ pub(crate) async fn host_groups(
 
     let host_groups = res
         .into_iter()
-        .map(|(group, hosts)| HostGroupData {
+        .map(|group| HostGroupData {
             id: group.id,
             name: group.name,
-            hosts: hosts.len(),
         })
         .collect();
 
@@ -352,7 +349,25 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let response = res.into_response();
+        let template = res.expect("Failed to render host groups");
+        let first_group = template
+            .host_groups
+            .first()
+            .expect("No host groups found in test data");
+        let rendered = template.to_string();
+
+        assert!(rendered.contains("Host Groups"));
+        assert!(rendered.contains("app-table"));
+        assert!(rendered.contains("Host Group</th>"));
+        assert!(rendered.contains(&format!("{} host groups", template.host_groups.len())));
+        assert!(rendered.contains(&format!(
+            "href=\"{}/{}\"",
+            Urls::HostGroup,
+            first_group.id
+        )));
+        assert!(rendered.contains(&first_group.name));
+
+        let response = template.into_response();
 
         assert_eq!(response.status(), StatusCode::OK);
     }
