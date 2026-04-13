@@ -117,6 +117,8 @@ pub(crate) async fn hosts(
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
 ) -> Result<HostsTemplate, MaremmaError> {
     let user = check_login(claims)?;
+    let order_field = queries.queries.field.unwrap_or(OrderFields::Status);
+    let order = queries.queries.ord.unwrap_or(super::prelude::Order::Desc);
 
     let mut hosts = entities::host::Entity::find();
     if let Some(search_string) = &queries.search {
@@ -152,11 +154,7 @@ pub(crate) async fn hosts(
         })
         .collect::<Vec<HostListItem>>();
 
-    sort_host_list_items(
-        &mut hosts,
-        queries.queries.field.unwrap_or_default(),
-        queries.queries.ord.unwrap_or(super::prelude::Order::Asc),
-    );
+    sort_host_list_items(&mut hosts, order_field, order);
 
     Ok(HostsTemplate {
         title: "Hosts".to_string(),
@@ -197,11 +195,17 @@ fn sort_host_list_items(
     ord: crate::web::views::prelude::Order,
 ) {
     hosts.sort_by(|left, right| {
-        let ordering = match field {
-            OrderFields::Status => left
-                .status
-                .cmp(&right.status)
-                .then_with(|| left.host.hostname.cmp(&right.host.hostname)),
+        match field {
+            OrderFields::Status => {
+                let status_ordering = match ord {
+                    crate::web::views::prelude::Order::Asc => left.status.cmp(&right.status),
+                    crate::web::views::prelude::Order::Desc => right.status.cmp(&left.status),
+                };
+
+                status_ordering
+                    .then_with(|| left.host.hostname.cmp(&right.host.hostname))
+                    .then_with(|| left.host.name.cmp(&right.host.name))
+            }
             OrderFields::Host
             | OrderFields::Service
             | OrderFields::LastUpdated
@@ -210,14 +214,16 @@ fn sort_host_list_items(
                 .host
                 .hostname
                 .cmp(&right.host.hostname)
-                .then_with(|| left.host.name.cmp(&right.host.name)),
-        };
-
-        match ord {
-            crate::web::views::prelude::Order::Asc => ordering,
-            crate::web::views::prelude::Order::Desc => ordering.reverse(),
+                .then_with(|| left.host.name.cmp(&right.host.name))
+                .then_with(|| left.status.cmp(&right.status)),
         }
     });
+
+    if field != OrderFields::Status
+        && matches!(ord, crate::web::views::prelude::Order::Desc)
+    {
+        hosts.reverse();
+    }
 }
 
 pub(crate) async fn delete_host(
@@ -265,7 +271,6 @@ pub(crate) async fn delete_host(
 
 #[cfg(test)]
 mod tests {
-
     use crate::web::views::tools::test_user_claims;
 
     #[tokio::test]
@@ -402,6 +407,114 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_sort_host_list_items_status_tie_breaks_by_hostname() {
+        use super::*;
+
+        let mut hosts = vec![
+            HostListItem {
+                host: entities::host::Model {
+                    id: Uuid::new_v4(),
+                    name: "Zulu".to_string(),
+                    hostname: "zulu.example.test".to_string(),
+                    check: crate::host::HostCheck::None,
+                    config: serde_json::json!({}),
+                },
+                status: ServiceStatus::Critical,
+            },
+            HostListItem {
+                host: entities::host::Model {
+                    id: Uuid::new_v4(),
+                    name: "Alpha".to_string(),
+                    hostname: "alpha.example.test".to_string(),
+                    check: crate::host::HostCheck::None,
+                    config: serde_json::json!({}),
+                },
+                status: ServiceStatus::Critical,
+            },
+        ];
+
+        sort_host_list_items(
+            &mut hosts,
+            OrderFields::Status,
+            crate::web::views::prelude::Order::Desc,
+        );
+
+        assert_eq!(hosts[0].host.hostname, "alpha.example.test");
+        assert_eq!(hosts[1].host.hostname, "zulu.example.test");
+    }
+
+    #[tokio::test]
+    async fn test_view_hosts_defaults_to_status_desc() {
+        use super::*;
+
+        let _ = test_setup().await.expect("Failed to set up test");
+        let state = WebState::test().await;
+
+        let example_host = entities::host::Entity::find()
+            .filter(entities::host::Column::Name.eq("example.com"))
+            .one(state.db())
+            .await
+            .expect("Failed to search for example host")
+            .expect("Missing example host");
+        let local_host = entities::host::Entity::find()
+            .filter(entities::host::Column::Name.eq(crate::LOCAL_SERVICE_HOST_NAME))
+            .one(state.db())
+            .await
+            .expect("Failed to search for local host")
+            .expect("Missing local host");
+
+        for service_check in entities::service_check::Entity::find()
+            .filter(entities::service_check::Column::HostId.eq(example_host.id))
+            .all(state.db())
+            .await
+            .expect("Failed to load example host checks")
+        {
+            service_check
+                .set_status(ServiceStatus::Critical, state.db())
+                .await
+                .expect("Failed to set example host status");
+        }
+
+        for service_check in entities::service_check::Entity::find()
+            .filter(entities::service_check::Column::HostId.eq(local_host.id))
+            .all(state.db())
+            .await
+            .expect("Failed to load local host checks")
+        {
+            service_check
+                .set_status(ServiceStatus::Ok, state.db())
+                .await
+                .expect("Failed to set local host status");
+        }
+
+        let res = hosts(
+            State(state.clone()),
+            Query(HostsQuery {
+                search: None,
+                queries: SortQueries::default(),
+            }),
+            state.get_session(),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Failed to render hosts page");
+
+        let ordered_hosts = res
+            .hosts
+            .iter()
+            .map(|host| (host.host.name.clone(), host.status))
+            .collect::<Vec<(String, ServiceStatus)>>();
+
+        assert_eq!(
+            ordered_hosts,
+            vec![
+                ("example.com".to_string(), ServiceStatus::Critical),
+                (crate::LOCAL_SERVICE_HOST_NAME.to_string(), ServiceStatus::Ok),
+            ]
+        );
     }
 
     #[tokio::test]
