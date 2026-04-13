@@ -194,34 +194,30 @@ fn sort_host_list_items(
     field: OrderFields,
     ord: crate::web::views::prelude::Order,
 ) {
-    hosts.sort_by(|left, right| {
-        match field {
-            OrderFields::Status => {
-                let status_ordering = match ord {
-                    crate::web::views::prelude::Order::Asc => left.status.cmp(&right.status),
-                    crate::web::views::prelude::Order::Desc => right.status.cmp(&left.status),
-                };
+    hosts.sort_by(|left, right| match field {
+        OrderFields::Status => {
+            let status_ordering = match ord {
+                crate::web::views::prelude::Order::Asc => left.status.cmp(&right.status),
+                crate::web::views::prelude::Order::Desc => right.status.cmp(&left.status),
+            };
 
-                status_ordering
-                    .then_with(|| left.host.hostname.cmp(&right.host.hostname))
-                    .then_with(|| left.host.name.cmp(&right.host.name))
-            }
-            OrderFields::Host
-            | OrderFields::Service
-            | OrderFields::LastUpdated
-            | OrderFields::NextCheck
-            | OrderFields::Check => left
-                .host
-                .hostname
-                .cmp(&right.host.hostname)
+            status_ordering
+                .then_with(|| left.host.hostname.cmp(&right.host.hostname))
                 .then_with(|| left.host.name.cmp(&right.host.name))
-                .then_with(|| left.status.cmp(&right.status)),
         }
+        OrderFields::Host
+        | OrderFields::Service
+        | OrderFields::LastUpdated
+        | OrderFields::NextCheck
+        | OrderFields::Check => left
+            .host
+            .hostname
+            .cmp(&right.host.hostname)
+            .then_with(|| left.host.name.cmp(&right.host.name))
+            .then_with(|| left.status.cmp(&right.status)),
     });
 
-    if field != OrderFields::Status
-        && matches!(ord, crate::web::views::prelude::Order::Desc)
-    {
+    if field != OrderFields::Status && matches!(ord, crate::web::views::prelude::Order::Desc) {
         hosts.reverse();
     }
 }
@@ -512,7 +508,10 @@ mod tests {
             ordered_hosts,
             vec![
                 ("example.com".to_string(), ServiceStatus::Critical),
-                (crate::LOCAL_SERVICE_HOST_NAME.to_string(), ServiceStatus::Ok),
+                (
+                    crate::LOCAL_SERVICE_HOST_NAME.to_string(),
+                    ServiceStatus::Ok
+                ),
             ]
         );
     }

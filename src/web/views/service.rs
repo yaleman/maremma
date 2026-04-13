@@ -10,7 +10,10 @@ use crate::web::views::csrf::{
 use askama_web::WebTemplate;
 use axum::Form;
 use entities::service_check::FullServiceCheck;
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, EntityTrait, FromQueryResult, ModelTrait, QueryFilter, QueryOrder, QuerySelect,
+    TransactionTrait,
+};
 use uuid::Uuid;
 
 #[derive(Template, Debug, WebTemplate)]
@@ -107,7 +110,16 @@ pub(crate) async fn service_delete(
 pub(crate) struct ServicesTemplate {
     title: String,
     username: Option<String>,
-    services: Vec<entities::service::Model>,
+    services: Vec<ServiceListRow>,
+    search_string: String,
+    ord: Order,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(crate) struct ServiceListRow {
+    id: Uuid,
+    name: String,
+    check_count: i64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -123,15 +135,24 @@ pub(crate) async fn services(
 ) -> Result<ServicesTemplate, MaremmaError> {
     let user = check_login(claims)?;
 
-    let order = queries.ord.unwrap_or(Order::Desc);
+    let order = queries.ord.unwrap_or(Order::Asc);
+    let search_string = queries.search.unwrap_or_default().trim().to_string();
 
-    let mut services = entities::service::Entity::find();
-    if let Some(search) = queries.search {
-        services = services.filter(entities::service::Column::Name.contains(search));
+    let mut services = entities::service::Entity::find()
+        .select_only()
+        .column(entities::service::Column::Id)
+        .column(entities::service::Column::Name)
+        .column_as(entities::service_check::Column::Id.count(), "check_count")
+        .left_join(entities::service_check::Entity)
+        .group_by(entities::service::Column::Id)
+        .group_by(entities::service::Column::Name);
+    if !search_string.is_empty() {
+        services = services.filter(entities::service::Column::Name.contains(search_string.clone()));
     }
 
     let services = services
         .order_by(entities::service::Column::Name, order.into())
+        .into_model::<ServiceListRow>()
         .all(state.db())
         .await
         .map_err(MaremmaError::from)?;
@@ -139,6 +160,8 @@ pub(crate) async fn services(
     Ok(ServicesTemplate {
         title: "Services".to_string(),
         services,
+        search_string,
+        ord: order,
         username: Some(user.username()),
     })
 }
@@ -148,12 +171,28 @@ mod tests {
     use super::*;
     use crate::db::entities;
     use crate::errors::MaremmaError;
+    use crate::prelude::ServiceType;
     use crate::web::views::csrf::{issue_csrf_token, service_scope, CsrfTokenForm};
     use crate::web::views::tools::test_user_claims;
     use crate::web::WebState;
     use axum::extract::{Path, Query, State};
     use axum::http::StatusCode;
     use axum::Form;
+    use sea_orm::{ActiveModelTrait, Set};
+
+    async fn insert_service(state: &WebState, name: &str) -> entities::service::Model {
+        entities::service::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            name: Set(name.to_string()),
+            description: Set(None),
+            service_type: Set(ServiceType::Cli),
+            cron_schedule: Set("* * * * *".to_string()),
+            extra_config: Set(serde_json::json!({})),
+        }
+        .insert(state.db())
+        .await
+        .expect("Failed to insert test service")
+    }
 
     #[tokio::test]
     async fn test_view_service_with_auth() {
@@ -255,10 +294,156 @@ mod tests {
             dbg!(&res);
             assert!(res.is_ok());
 
-            let response = res.into_response();
-
-            assert_eq!(response.status(), StatusCode::OK);
+            let page = res.expect("Expected services template").to_string();
+            assert!(page.contains("Services"));
+            assert!(page.contains("Checks"));
         }
+    }
+
+    #[tokio::test]
+    async fn test_view_services_search_filters_by_name() {
+        let _ = crate::web::test_setup()
+            .await
+            .expect("failed to setup test");
+        let state = WebState::test().await;
+        let alpha_service = insert_service(&state, "service-filter-alpha").await;
+        let _ = insert_service(&state, "service-filter-zulu").await;
+
+        let res = super::services(
+            State(state),
+            Query(ServicesQuery {
+                search: Some(" alpha ".to_string()),
+                ord: None,
+            }),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Expected services response");
+
+        assert_eq!(res.search_string, "alpha");
+        assert_eq!(res.services.len(), 1);
+        assert_eq!(res.services[0].id, alpha_service.id);
+        assert_eq!(res.services[0].name, alpha_service.name);
+        assert!(res.to_string().contains("value=\"alpha\""));
+    }
+
+    #[tokio::test]
+    async fn test_view_services_shows_zero_check_count() {
+        let _ = crate::web::test_setup()
+            .await
+            .expect("failed to setup test");
+        let state = WebState::test().await;
+        let service = insert_service(&state, "service-zero-checks").await;
+
+        let res = super::services(
+            State(state),
+            Query(ServicesQuery {
+                search: Some(service.name.clone()),
+                ord: None,
+            }),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Expected services response");
+
+        assert_eq!(res.services.len(), 1);
+        assert_eq!(res.services[0].id, service.id);
+        assert_eq!(res.services[0].check_count, 0);
+        assert!(res.to_string().contains(">0</td>"));
+    }
+
+    #[tokio::test]
+    async fn test_view_services_shows_existing_check_count() {
+        let _ = crate::web::test_setup()
+            .await
+            .expect("failed to setup test");
+        let state = WebState::test().await;
+
+        let (service, checks) = entities::service::Entity::find()
+            .find_with_related(entities::service_check::Entity)
+            .all(state.db())
+            .await
+            .expect("Failed to load services with checks")
+            .into_iter()
+            .find(|(_, checks)| !checks.is_empty())
+            .expect("Expected seeded service with checks");
+
+        let res = super::services(
+            State(state),
+            Query(ServicesQuery {
+                search: Some(service.name.clone()),
+                ord: None,
+            }),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Expected services response");
+
+        assert_eq!(res.services.len(), 1);
+        assert_eq!(res.services[0].id, service.id);
+        assert_eq!(res.services[0].check_count, checks.len() as i64);
+        assert!(res.to_string().contains(&service.name));
+    }
+
+    #[tokio::test]
+    async fn test_view_services_default_order_is_alphabetical() {
+        let _ = crate::web::test_setup()
+            .await
+            .expect("failed to setup test");
+        let state = WebState::test().await;
+        let _ = insert_service(&state, "service-sort-zulu").await;
+        let _ = insert_service(&state, "service-sort-alpha").await;
+
+        let res = super::services(
+            State(state),
+            Query(ServicesQuery {
+                search: Some("service-sort-".to_string()),
+                ord: None,
+            }),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Expected services response");
+
+        let names = res
+            .services
+            .into_iter()
+            .map(|service| service.name)
+            .collect::<Vec<String>>();
+        assert_eq!(
+            names,
+            vec![
+                "service-sort-alpha".to_string(),
+                "service-sort-zulu".to_string()
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_view_services_blank_search_is_ignored() {
+        let _ = crate::web::test_setup()
+            .await
+            .expect("failed to setup test");
+        let state = WebState::test().await;
+        let service = insert_service(&state, "service-blank-search").await;
+
+        let res = super::services(
+            State(state),
+            Query(ServicesQuery {
+                search: Some("   ".to_string()),
+                ord: None,
+            }),
+            Some(test_user_claims()),
+        )
+        .await
+        .expect("Expected services response");
+
+        assert!(res
+            .services
+            .iter()
+            .any(|row| row.id == service.id && row.name == service.name));
+        assert!(res.search_string.is_empty());
+        assert!(res.to_string().contains("name=\"search\""));
     }
 
     #[tokio::test]
