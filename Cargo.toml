@@ -87,7 +87,7 @@ uuid = { version = "1.23.0", features = ["serde", "v4"] }
 webpki-roots = "1.0.6"
 x509-parser = "0.18.1"
 webpki = "0.22.4"
-rustls-webpki = { version = "0.103.11", features = ["aws-lc-rs"] }
+rustls-webpki = { version = "0.103.12", features = ["aws-lc-rs"] }
 futures = "0.3.32"
 sea-query = "0.32.7"
 which = { version = "8.0.2", features = ["tracing"] }
