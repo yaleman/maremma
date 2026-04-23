@@ -96,6 +96,6 @@ askama_web = { version = "0.15.2", features = ["axum-0.8"] }
 
 [dev-dependencies]
 openidconnect = { version = "3.5.0", default-features = false }
-openssl = { version = "0.10.76" }
+openssl = { version = "0.10.78" }
 tempfile = "3.27.0"
 testcontainers = { version = "0.27.2" }
