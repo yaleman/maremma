@@ -13,7 +13,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
 [dependencies]
 askama = { version = "0.15.6" }
 async-trait = "0.1.89"
-axum = { version = "0.8.8", features = [
+axum = { version = "0.8.9", features = [
   "http2",
   "macros",
   "tracing",
@@ -23,7 +23,7 @@ axum = { version = "0.8.8", features = [
 axum-oidc = "0.6.0"
 axum-server = { version = "0.8.0", features = ["rustls", "tls-rustls"] }
 chrono = "0.4.44"
-clap = { version = "4.6.0", features = ["derive", "env"] }
+clap = { version = "4.6.1", features = ["derive", "env"] }
 croner = "3.0.1"
 env_logger = { version = "0.11.10", features = ["color", "default"] }
 log = { version = "0.4.29", features = ["release_max_level_debug"] }
@@ -47,7 +47,7 @@ reqwest = { version = "0.13.2", features = [
   "json",
   "rustls",
 ], default-features = false }
-rustls = { version = "0.23.37", features = ["zlib"] }
+rustls = { version = "0.23.39", features = ["zlib"] }
 schemars = { version = "1.2.1", features = ["uuid1", "preserve_order"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
@@ -71,7 +71,7 @@ sqlx = { version = "0.8.6", default-features = false }
 ssh-rs = "0.5.0"
 surge-ping = "0.8.4"
 time = "0.3.47"
-tokio = { version = "1.51.1", features = [
+tokio = { version = "1.52.1", features = [
   "rt-multi-thread",
   "macros",
   "process",
@@ -83,8 +83,8 @@ tower = { version = "0.5.3", features = ["util"] }
 tower-http = { version = "0.6.8", features = ["fs", "trace"] }
 tower-sessions = "0.14.0"
 tracing = { version = "0.1.44", features = ["release_max_level_debug"] }
-uuid = { version = "1.23.0", features = ["serde", "v4"] }
-webpki-roots = "1.0.6"
+uuid = { version = "1.23.1", features = ["serde", "v4"] }
+webpki-roots = "1.0.7"
 x509-parser = "0.18.1"
 webpki = "0.22.4"
 rustls-webpki = { version = "0.103.13", features = ["aws-lc-rs"] }
@@ -95,7 +95,7 @@ console-subscriber = "0.5.0"
 askama_web = { version = "0.15.2", features = ["axum-0.8"] }
 
 [dev-dependencies]
-openidconnect = { version = "3.5.0", default-features = false }
+openidconnect = { version = "4.0.1", default-features = false }
 openssl = { version = "0.10.78" }
 tempfile = "3.27.0"
-testcontainers = { version = "0.27.2" }
+testcontainers = { version = "0.27.3" }
