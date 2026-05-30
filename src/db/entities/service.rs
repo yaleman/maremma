@@ -115,7 +115,7 @@ impl MaremmaEntity for Model {
                     }
                 }
                 Ok(None) => {
-                    info!("Didn't find service name='{}' will create it", service_name);
+                    debug!("Didn't find service name='{}' will create it", service_name);
                     let am = ActiveModel {
                         id: Set(service_id),
                         name: Set(service_name.clone()),

@@ -143,14 +143,16 @@ doc_check:
 	find . -type f  \
 		-not -path './target/*' \
 		-not -path './docs/*' \
-		-not -path '*/.venv/*' -not -path './vendor/*'\
+		-not -path '*/.venv/*' -not -path './vendor/*' \
+		-not -path './node_modules/*' \
 		-not -path '*/.*/*' \
 		-name \*.md \
 		-exec deno fmt --check --options-line-width=100 "{}" +
 
 # Fix docs formatting
 doc_fix:
-	find . -type f  -not -path './target/*' -not -path '*/.venv/*' -not -path './vendor/*'\
+	find . -type f  -not -path './target/*' -not -path '*/.venv/*' -not -path './vendor/*' \
+		-not -path './node_modules/*' \
 		-name \*.md \
 		-exec deno fmt --options-line-width=100 "{}" +
 

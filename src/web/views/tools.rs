@@ -103,7 +103,7 @@ async fn tools_reload_config(state: &WebState) -> Result<(), MaremmaError> {
     let new_config = Configuration::new(&state.config_filepath)
         .await
         .map_err(|e| {
-            error!("Failed to reload config: {:?}", e);
+            warn!("Failed to reload config: {:?}", e);
             e
         })?;
 
@@ -112,13 +112,13 @@ async fn tools_reload_config(state: &WebState) -> Result<(), MaremmaError> {
     let new_config = Configuration::new(&state.config_filepath)
         .await
         .map_err(|e| {
-            error!("Failed to reload config: {:?}", e);
+            warn!("Failed to reload config: {:?}", e);
             e
         })?;
     update_db_from_config(state.db(), Arc::new(RwLock::new(new_config)))
         .await
         .map_err(|e| {
-            error!("Failed to reload config: {:?}", e);
+            warn!("Failed to reload config: {:?}", e);
             e
         })?;
 

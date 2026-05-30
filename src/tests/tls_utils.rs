@@ -302,9 +302,9 @@ pub(crate) fn load_ca(
         error!(err = ?e, "Failed to convert PEM to key");
     })?;
 
-    check_privkey_minimums(&ca_key).map_err(|err| {
-        error!("{}", err);
-    })?;
+        check_privkey_minimums(&ca_key).map_err(|err| {
+            debug!("{}", err);
+        })?;
 
     let ca_cert = X509::from_pem(&ca_cert_pem).map_err(|e| {
         error!(err = ?e, "Failed to convert PEM to cert");

@@ -413,7 +413,7 @@ dependencies = [
  "axum-core",
  "futures-util",
  "http 1.4.0",
- "openidconnect 3.5.0",
+ "openidconnect",
  "reqwest 0.11.27",
  "serde",
  "thiserror 2.0.18",
@@ -2585,7 +2585,7 @@ dependencies = [
  "kube",
  "log",
  "num_cpus",
- "openidconnect 4.0.1",
+ "openidconnect",
  "openssl",
  "opentelemetry",
  "opentelemetry-stdout",
@@ -2598,7 +2598,6 @@ dependencies = [
  "schemars 1.2.1",
  "sea-orm",
  "sea-orm-migration",
- "sea-query 1.0.0",
  "serde",
  "serde_json",
  "sha256",
@@ -2861,25 +2860,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oauth2"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "getrandom 0.2.17",
- "http 1.4.0",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "sha2",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
 name = "oid-registry"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2914,7 +2894,7 @@ dependencies = [
  "http 0.2.12",
  "itertools 0.10.5",
  "log",
- "oauth2 4.4.2",
+ "oauth2",
  "p256",
  "p384",
  "rand 0.8.5",
@@ -2922,37 +2902,6 @@ dependencies = [
  "serde",
  "serde-value",
  "serde_derive",
- "serde_json",
- "serde_path_to_error",
- "serde_plain",
- "serde_with",
- "sha2",
- "subtle",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
-name = "openidconnect"
-version = "4.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d8c6709ba2ea764bbed26bce1adf3c10517113ddea6f2d4196e4851757ef2b2"
-dependencies = [
- "base64 0.21.7",
- "chrono",
- "dyn-clone",
- "ed25519-dalek",
- "hmac",
- "http 1.4.0",
- "itertools 0.10.5",
- "log",
- "oauth2 5.0.0",
- "p256",
- "p384",
- "rand 0.8.5",
- "rsa",
- "serde",
- "serde-value",
  "serde_json",
  "serde_path_to_error",
  "serde_plain",
@@ -4228,7 +4177,7 @@ dependencies = [
  "pgvector",
  "rust_decimal",
  "sea-orm-macros",
- "sea-query 0.32.7",
+ "sea-query",
  "sea-query-binder",
  "serde",
  "serde_json",
@@ -4296,20 +4245,10 @@ dependencies = [
  "inherent",
  "ordered-float 4.6.0",
  "rust_decimal",
- "sea-query-derive 0.4.3",
+ "sea-query-derive",
  "serde_json",
  "time",
  "uuid",
-]
-
-[[package]]
-name = "sea-query"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa60532b2ee9d8eee57580d6eb3a8106632426751b309bc9f2857aeda04b07b0"
-dependencies = [
- "itoa",
- "sea-query-derive 1.0.0",
 ]
 
 [[package]]
@@ -4321,7 +4260,7 @@ dependencies = [
  "bigdecimal",
  "chrono",
  "rust_decimal",
- "sea-query 0.32.7",
+ "sea-query",
  "serde_json",
  "sqlx 0.8.6",
  "time",
@@ -4343,27 +4282,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "sea-query-derive"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0b0f466921cdd3cf4b89d5c3ac2173dba89a873ab395b123a645de181ec7537"
-dependencies = [
- "darling 0.20.11",
- "heck 0.4.1",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "sea-schema"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2239ff574c04858ca77485f112afea1a15e53135d3097d0c86509cef1def1338"
 dependencies = [
  "futures",
- "sea-query 0.32.7",
+ "sea-query",
  "sea-query-binder",
  "sea-schema-derive",
  "sqlx 0.8.6",

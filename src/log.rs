@@ -13,12 +13,13 @@ pub fn setup_logging(
     tokio_console: bool,
 ) -> Result<(), log::SetLoggerError> {
     // check the env vars
-    #[cfg(not(any(debug_assertions, test)))]
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
     }
 
     let mut filters: Vec<(&str, LevelFilter)> = vec![
+        #[cfg(test)]
+        ("sea_orm_migration", LevelFilter::Warn),
         ("ssh::channel::local::channel", LevelFilter::Warn),
         ("h2", LevelFilter::Warn),
         ("tower_http::trace::on_request", LevelFilter::Warn),
@@ -53,8 +54,7 @@ pub fn setup_logging(
         false => {
             let mut builder = Builder::from_default_env();
             builder.filter_level(level);
-            builder.target(Target::Stderr);
-
+            builder.target(Target::Stdout);
             for (module, level) in filters {
                 builder.filter_module(module, level);
             }

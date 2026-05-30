@@ -233,10 +233,10 @@ impl MaremmaEntity for Model {
     ) -> Result<(), MaremmaError> {
         debug!("Starting update of service checks");
         // the easy ones are the locals.
-        info!("Starting local updates...");
+        debug!("Starting local updates...");
         update_local_services_from_db(db, config).await?;
 
-        info!("Starting remote updates...");
+        debug!("Starting remote updates...");
         // now we're doing the other services!
         let services: Vec<(service::Model, Vec<host_group::Model>)> = service::Entity::find()
             .find_with_linked(service_group_link::ServiceToGroups)

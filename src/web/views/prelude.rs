@@ -21,7 +21,7 @@ use serde::Serialize;
 use std::fmt::Display;
 pub(crate) use std::sync::Arc;
 pub(crate) use tower_sessions::Session;
-pub(crate) use tracing::{debug, error, info, instrument};
+pub(crate) use tracing::{debug, error, info, instrument, warn};
 pub(crate) use uuid::Uuid;
 
 #[derive(Default, Serialize, Deserialize, Debug, Copy, Clone, EnumIter)]
