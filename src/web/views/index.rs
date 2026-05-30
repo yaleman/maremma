@@ -75,7 +75,7 @@ pub(crate) async fn index(
     debug!("query done");
 
     if order_field == OrderFields::Status {
-        checks.sort_by(|a: &FullServiceCheck, b: &FullServiceCheck| a.status.cmp(&b.status));
+        checks.sort_by_key(|a: &FullServiceCheck| a.status);
         if sort_order == SeaOrmOrder::Desc {
             checks.reverse();
         }
