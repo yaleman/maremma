@@ -53,7 +53,8 @@ pub fn setup_logging(
         false => {
             let mut builder = Builder::from_default_env();
             builder.filter_level(level);
-            builder.target(Target::Stdout);
+            builder.target(Target::Stderr);
+
             for (module, level) in filters {
                 builder.filter_module(module, level);
             }
@@ -66,8 +67,7 @@ pub fn setup_logging(
             #[cfg(test)]
             {
                 if let Err(err) = builder.try_init() {
-                    use tracing::debug;
-                    debug!("Error init logging: {:?}", err);
+                    eprintln!("Error init logging: {:?}", err);
                 }
                 Ok(())
             }

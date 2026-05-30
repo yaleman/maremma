@@ -99,15 +99,15 @@ tailwind:
 
 # Ask the clip for the judgement
 clippy:
-    cargo clippy --all-features
+    cargo clippy --all-features --quiet
 
 test:
-    cargo test
+    cargo test --quiet
 
 # Things to do before a release
 release_prep: check schema doc semgrep
     cargo deny check
-    cargo build --release
+    cargo build --release --quiet
 
 # Semgrep things
 semgrep:
