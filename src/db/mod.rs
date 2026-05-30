@@ -71,7 +71,7 @@ pub async fn update_db_from_config(
         .inspect_err(|err| {
             error!("Failed to update host_groups DB from config: {:?}", err);
         })?;
-    info!("Updated host_groups");
+    debug!("Updated host_groups");
 
     entities::host_group_members::Model::update_db_from_config(db_writer, config.clone())
         .await
@@ -81,14 +81,14 @@ pub async fn update_db_from_config(
                 err
             );
         })?;
-    info!("Updated host_group_members");
+    debug!("Updated host_group_members");
 
     entities::service::Model::update_db_from_config(db_writer, config.clone())
         .await
         .inspect_err(|err| {
             error!("Failed to update services DB from config: {:?}", err);
         })?;
-    info!("Updated services");
+    debug!("Updated services");
 
     entities::service_group_link::Model::update_db_from_config(db_writer, config.clone())
         .await
