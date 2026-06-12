@@ -95,7 +95,7 @@ console-subscriber = "0.5.0"
 askama_web = { version = "0.16.0", features = ["axum-0.8"] }
 
 [dev-dependencies]
-openidconnect = { version = "3.5.0", default-features = false }
+openidconnect = { version = "4.0.1", default-features = false }
 openssl = { version = "0.10.80" }
 tempfile = "3.27.0"
 testcontainers = { version = "0.27.3" }
