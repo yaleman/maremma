@@ -56,7 +56,7 @@ struct K8sService {
 /// Check if the maremma annotations are in a set of annotations
 fn has_maremma_annotations(input: Option<&BTreeMap<String, String>>) -> bool {
     if let Some(annotations) = input {
-        for (key, _value) in annotations.iter() {
+        for key in annotations.keys() {
             if key.starts_with(MAREMMA_SERVICE_NAME) {
                 return true;
             }

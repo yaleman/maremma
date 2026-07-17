@@ -125,7 +125,7 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&*config.read().await)
-                    .unwrap_or(format!("Failed to serialize config: {:?}", &config))
+                    .unwrap_or(format!("Failed to serialize config: {:?}", config))
             );
         }
         Actions::OneShot(cmd) => match run_oneshot(cmd, config).await {

@@ -83,7 +83,7 @@ impl MaremmaEntity for Model {
             .collect();
 
         // add the group names to the known group list
-        for (_host_name, host) in config.read().await.hosts.iter() {
+        for host in config.read().await.hosts.values() {
             for group_name in &host.host_groups {
                 // if we already have the group name we don't need to add it to the db
                 if known_group_list.contains(group_name) {

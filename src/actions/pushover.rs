@@ -1,3 +1,4 @@
+#![allow(dead_code)] // because it's not used elsewhere in the codebase yet, but it is used in this file
 //! Pushover.net message action
 
 use reqwest::Url;
@@ -6,7 +7,6 @@ use sea_orm::Iterable;
 use super::Action;
 use crate::prelude::*;
 
-#[allow(dead_code)]
 // They request you make a request again after 5 seconds when a 5xx is returned, per <https://pushover.net/api#friendly>
 const DEFAULT_PUSHOVER_RETRY_SECONDS: u64 = 5;
 
@@ -59,7 +59,7 @@ impl Action for PushOver {
             return Ok(());
         }
 
-        let payload: PushoverMessage = PushoverMessage::from(self);
+        let payload = PushoverMessage::from(self);
 
         debug!("Sending pushover payload: {:?}", payload);
 
@@ -120,7 +120,8 @@ impl Action for PushOver {
 }
 
 #[derive(Serialize, Debug)]
-struct PushoverMessage {
+#[allow(dead_code)] // it's actually used in this actual file
+pub struct PushoverMessage {
     /// API Token
     pub token: String,
     /// Specific user token

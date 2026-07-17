@@ -195,7 +195,7 @@ pub(crate) async fn service_check_get(
     let csrf_token = issue_csrf_token(&session, &csrf_scope).await?;
 
     Ok(ServiceCheckTemplate {
-        title: format!("Service Check: {}", &service.name),
+        title: format!("Service Check: {}", service.name),
         username: Some(user.username()),
         message: None,
         status: ActionStatus::Unknown,
