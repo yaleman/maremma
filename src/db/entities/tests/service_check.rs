@@ -4,10 +4,7 @@ use crate::db::tests::test_setup;
 use crate::prelude::*;
 
 use core::panic;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait,
-    TryIntoModel,
-};
+use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait, TryIntoModel};
 
 #[tokio::test]
 async fn test_service_check_entity() {

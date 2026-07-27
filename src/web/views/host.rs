@@ -9,7 +9,9 @@ use crate::web::views::csrf::{
 };
 use axum::Form;
 use entities::host_group;
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, EntityTrait, ExprTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait,
+};
 
 #[derive(Template, Debug, WebTemplate)]
 #[template(path = "host.html")]

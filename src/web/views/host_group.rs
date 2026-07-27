@@ -13,7 +13,9 @@ use axum::extract::{Path, Query, State};
 use axum::response::Redirect;
 use axum::Form;
 use axum_oidc::{EmptyAdditionalClaims, OidcClaims};
-use sea_orm::{ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, EntityTrait, ExprTrait, ModelTrait, QueryFilter, QueryOrder, TransactionTrait,
+};
 use serde::Deserialize;
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -360,11 +362,7 @@ mod tests {
         assert!(rendered.contains("app-table"));
         assert!(rendered.contains("Host Group</th>"));
         assert!(rendered.contains(&format!("{} host groups", template.host_groups.len())));
-        assert!(rendered.contains(&format!(
-            "href=\"{}/{}\"",
-            Urls::HostGroup,
-            first_group.id
-        )));
+        assert!(rendered.contains(&format!("href=\"{}/{}\"", Urls::HostGroup, first_group.id)));
         assert!(rendered.contains(&first_group.name));
 
         let response = template.into_response();
