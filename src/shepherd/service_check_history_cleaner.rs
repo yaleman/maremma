@@ -89,7 +89,7 @@ mod tests {
     use crate::db::tests::test_setup_quieter;
     use crate::prelude::test_setup;
     use entities::service_check_history;
-    use sea_orm::{ActiveModelTrait, ConnectionTrait, QueryTrait, Set};
+    use sea_orm::{ActiveModelTrait, QueryTrait, Set};
     use uuid::Uuid;
 
     use super::*;

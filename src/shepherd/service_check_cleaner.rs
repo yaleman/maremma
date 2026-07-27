@@ -1,5 +1,7 @@
 //! Cleans up old service check histories
 
+use sea_orm::ExprTrait;
+
 use super::prelude::*;
 
 pub(crate) struct ServiceCheckCleanTask {}

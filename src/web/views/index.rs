@@ -1,6 +1,6 @@
 use askama_web::WebTemplate;
 use entities::service_check::FullServiceCheck;
-use sea_orm::{ColumnTrait, Order as SeaOrmOrder, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, ExprTrait, Order as SeaOrmOrder, QueryFilter, QueryOrder};
 
 use crate::errors::MaremmaError;
 

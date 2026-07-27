@@ -2,7 +2,7 @@
 
 use sea_orm::prelude::Expr;
 use sea_orm::sea_query::{self, ColumnDef, Table};
-use sea_orm::{ColumnTrait, DbErr, EntityTrait, Iden, QueryFilter};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, ExprTrait, Iden, QueryFilter};
 use sea_orm_migration::{MigrationName, MigrationTrait, SchemaManager};
 use tracing::debug;
 use uuid::Uuid;

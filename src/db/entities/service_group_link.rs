@@ -1,7 +1,7 @@
 //! Links services to groups
 
 use entities::{host_group, service};
-use sea_orm::Set;
+use sea_orm::{ExprTrait, Set};
 
 use crate::prelude::*;
 

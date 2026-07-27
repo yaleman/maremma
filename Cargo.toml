@@ -88,8 +88,8 @@ webpki-roots = "1.0.7"
 x509-parser = "0.18.1"
 webpki = "0.22.4"
 rustls-webpki = { version = "0.103.13", features = ["aws-lc-rs"] }
-    futures = "0.3.32"
-    which = { version = "8.0.2", features = ["tracing"] }
+futures = "0.3.32"
+which = { version = "8.0.2", features = ["tracing"] }
 
 console-subscriber = "0.5.0"
 askama_web = { version = "0.16.0", features = ["axum-0.8"] }
