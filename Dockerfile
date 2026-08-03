@@ -3,6 +3,8 @@ FROM debian:12 AS plugin_builder
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
     build-essential \
+    dnsutils \
+    iputils-ping \
     pkg-config \
     procps \
     snmp
@@ -56,6 +58,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     dnsutils \
     git \
     iproute2 \
+    iputils-ping \
     python3 \
     python3-click \
     python3-venv \
@@ -70,7 +73,7 @@ COPY --from=cargo_builder /maremma/target/release/check_splunk /usr/local/bin/
 COPY --from=plugin_builder /maremma/plugins/libexec/* /usr/local/bin/
 COPY ./static /static/
 RUN for plugin in check_disk check_dns check_http check_load check_ping check_procs check_snmp check_ssh check_swap check_tcp check_users; do \
-        test -x "/usr/local/bin/${plugin}"; \
+        test -x "/usr/local/bin/${plugin}" || exit 1; \
     done
 RUN useradd maremma
 RUN chown -R maremma /static
