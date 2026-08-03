@@ -4,7 +4,6 @@ use schemars::JsonSchema;
 
 use super::prelude::*;
 use crate::prelude::*;
-use std::os::unix::process::ExitStatusExt;
 use std::process::Stdio;
 
 #[derive(Debug, Deserialize, Serialize, clap::Parser, JsonSchema)]
@@ -60,28 +59,33 @@ impl ServiceTrait for CliService {
 
         let command_line = config.command_line.replace("#HOSTNAME#", &hostname);
 
-        let mut cmd_split = command_line.split(" ");
-        let cmd = match cmd_split.next() {
-            Some(c) => c,
-            None => return Err(MaremmaError::Generic("No command specified!".to_string())),
+        let mut command = if config.run_in_shell {
+            let mut command = tokio::process::Command::new("/bin/sh");
+            command.arg("-c").arg(&command_line);
+            command
+        } else {
+            let mut cmd_split = command_line.split_whitespace();
+            let cmd = cmd_split
+                .next()
+                .ok_or_else(|| MaremmaError::InvalidInput("No command specified".to_string()))?;
+
+            let which_cmd = which::which(cmd).map_err(|err| {
+                MaremmaError::CommandNotFound(format!("Couldn't find {cmd}, error: {err}"))
+            })?;
+
+            if !which_cmd.exists() {
+                return Err(MaremmaError::CommandNotFound(format!(
+                    "Command not found: {}",
+                    which_cmd.display()
+                )));
+            }
+
+            let mut command = tokio::process::Command::new(which_cmd);
+            command.args(cmd_split);
+            command
         };
 
-        let which_cmd = which::which(cmd).map_err(|err| {
-            MaremmaError::CommandNotFound(format!("Couldn't find {}, error: {}", cmd, err))
-        })?;
-
-        if !which_cmd.exists() {
-            // check if the command exists
-            return Err(MaremmaError::CommandNotFound(format!(
-                "Command not found: {}",
-                which_cmd.display()
-            )));
-        }
-
-        let args = cmd_split.collect::<Vec<&str>>();
-
-        let child = tokio::process::Command::new(cmd)
-            .args(args)
+        let child = command
             .kill_on_drop(true)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -95,25 +99,16 @@ impl ServiceTrait for CliService {
 
         let time_elapsed = chrono::Utc::now() - start_time;
 
-        if res.status != std::process::ExitStatus::from_raw(0) {
-            let mut combined = res.stderr.to_vec();
-            combined.extend(res.stdout);
-            return Ok(CheckResult {
-                timestamp: Utc::now(),
-                result_text: String::from_utf8_lossy(&combined)
-                    .to_string()
-                    .replace(r#"\\n"#, " "),
-                status: ServiceStatus::Critical,
-                time_elapsed,
-            });
-        }
+        let mut combined = res.stdout;
+        combined.extend(res.stderr);
+        let status = MonitoringPluginExit::from(res.status.code()).into();
 
         Ok(CheckResult {
             timestamp: Utc::now(),
-            result_text: String::from_utf8_lossy(&res.stdout)
+            result_text: String::from_utf8_lossy(&combined)
                 .to_string()
                 .replace(r#"\\n"#, " "),
-            status: ServiceStatus::Ok,
+            status,
             time_elapsed,
         })
     }
@@ -153,6 +148,47 @@ mod tests {
         let res = service.run(&host).await;
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn shell_service_preserves_quoting_hostname_and_warning_status() {
+        let service = super::CliService {
+            name: "shell".to_string(),
+            hostname: None,
+            command_line: "printf '%s' '#HOSTNAME# quoted value'; exit 1".to_string(),
+            run_in_shell: true,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            jitter: None,
+        };
+        let host = entities::host::Model {
+            check: crate::host::HostCheck::None,
+            ..test_host()
+        };
+
+        let result = service.run(&host).await.expect("Shell check failed to run");
+        assert_eq!(result.status, ServiceStatus::Warning);
+        assert_eq!(result.result_text, "test_host_hostname quoted value");
+    }
+
+    #[tokio::test]
+    async fn shell_service_preserves_stdout_stderr_and_performance_data() {
+        let service = super::CliService {
+            name: "shell-output".to_string(),
+            hostname: None,
+            command_line: "printf 'CRITICAL | value=7'; printf ' diagnostic' >&2; exit 2"
+                .to_string(),
+            run_in_shell: true,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            jitter: None,
+        };
+
+        let result = service
+            .run(&test_host())
+            .await
+            .expect("Shell check failed to run");
+
+        assert_eq!(result.status, ServiceStatus::Critical);
+        assert_eq!(result.result_text, "CRITICAL | value=7 diagnostic");
     }
 
     #[test]

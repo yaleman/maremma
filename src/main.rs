@@ -52,6 +52,22 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
 
     let config = Arc::new(RwLock::new(config));
 
+    match &cli.action {
+        Actions::CheckConfig(_) => {
+            info!("Configuration is valid");
+            return Ok(());
+        }
+        Actions::ShowConfig(_) => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&*config.read().await)
+                    .unwrap_or(format!("Failed to serialize config: {:?}", config))
+            );
+            return Ok(());
+        }
+        _ => {}
+    }
+
     // in case we need it, get the connect string
     let connect_string = get_connect_string(config.clone()).await;
     let db = Arc::new(maremma::db::connect(config.clone()).await.map_err(|err| {
@@ -118,16 +134,7 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
 
             }
         }
-        Actions::CheckConfig(_show_config) => {
-            todo!("Check config CLI hasn't been implemented")
-        }
-        Actions::ShowConfig(_show_config) => {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&*config.read().await)
-                    .unwrap_or(format!("Failed to serialize config: {:?}", config))
-            );
-        }
+        Actions::CheckConfig(_) | Actions::ShowConfig(_) => unreachable!(),
         Actions::OneShot(cmd) => match run_oneshot(cmd, config).await {
             Err(maremma::errors::MaremmaError::OneShotFailed) => return Err(ExitCode::from(1)),
             Err(err) => error!("Failed to run oneshot: {:?}", err),

@@ -8,7 +8,9 @@ pub(crate) use crate::db::tests::test_setup;
 pub(crate) use crate::errors::MaremmaError;
 pub(crate) use crate::host::GenericHost;
 pub(crate) use crate::host::Host;
-pub(crate) use crate::services::{Service, ServiceStatus, ServiceTrait, ServiceType};
+pub(crate) use crate::services::{
+    MonitoringPluginExit, Service, ServiceStatus, ServiceTrait, ServiceType,
+};
 pub(crate) use crate::web::urls::Urls;
 pub(crate) use crate::LOCAL_SERVICE_HOST_NAME;
 pub(crate) use async_trait::async_trait;

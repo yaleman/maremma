@@ -69,6 +69,45 @@ pub enum ServiceStatus {
     Disabled,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+/// The standard exit states returned by monitoring plugins.
+pub enum MonitoringPluginExit {
+    /// Exit code 0.
+    Ok,
+    /// Exit code 1.
+    Warning,
+    /// Exit code 2.
+    Critical,
+    /// Exit code 3.
+    Unknown,
+    /// The process exited with a non-standard code or was terminated by a signal.
+    Error(Option<i32>),
+}
+
+impl From<Option<i32>> for MonitoringPluginExit {
+    fn from(value: Option<i32>) -> Self {
+        match value {
+            Some(0) => Self::Ok,
+            Some(1) => Self::Warning,
+            Some(2) => Self::Critical,
+            Some(3) => Self::Unknown,
+            value => Self::Error(value),
+        }
+    }
+}
+
+impl From<MonitoringPluginExit> for ServiceStatus {
+    fn from(value: MonitoringPluginExit) -> Self {
+        match value {
+            MonitoringPluginExit::Ok => Self::Ok,
+            MonitoringPluginExit::Warning => Self::Warning,
+            MonitoringPluginExit::Critical => Self::Critical,
+            MonitoringPluginExit::Unknown => Self::Unknown,
+            MonitoringPluginExit::Error(_) => Self::Error,
+        }
+    }
+}
+
 impl From<ServiceStatus> for i8 {
     fn from(value: ServiceStatus) -> i8 {
         match value {
@@ -311,6 +350,10 @@ pub(crate) fn service_config_parse(
             tls::TlsService::from_config(value)
                 .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
         ) as Box<dyn ServiceTrait>,
+        ServiceType::Kubernetes => Box::new(
+            kubernetes::KubernetesService::from_config(value)
+                .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
+        ) as Box<dyn ServiceTrait>,
     };
 
     res.validate()?;
@@ -424,7 +467,7 @@ impl Service {
     ValueEnum,
 )]
 #[serde(rename_all = "lowercase")]
-#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(5))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(10))")]
 /// The type of service
 pub enum ServiceType {
     /// CLI service
@@ -442,6 +485,9 @@ pub enum ServiceType {
     /// TLS service
     #[sea_orm(string_value = "tls")]
     Tls,
+    /// Kubernetes service
+    #[sea_orm(string_value = "kubernetes")]
+    Kubernetes,
 }
 
 impl Display for ServiceType {
@@ -452,6 +498,7 @@ impl Display for ServiceType {
             Self::Ping => write!(f, "Ping"),
             Self::Http => write!(f, "HTTP"),
             Self::Tls => write!(f, "TLS"),
+            Self::Kubernetes => write!(f, "Kubernetes"),
         }
     }
 }
@@ -555,6 +602,24 @@ mod tests {
         assert_eq!(format!("{}", ServiceType::Ping), "Ping");
         assert_eq!(format!("{}", ServiceType::Http), "HTTP");
         assert_eq!(format!("{}", ServiceType::Tls), "TLS");
+        assert_eq!(format!("{}", ServiceType::Kubernetes), "Kubernetes");
+    }
+
+    #[test]
+    fn monitoring_plugin_exit_codes_preserve_status() {
+        for (code, expected) in [
+            (Some(0), ServiceStatus::Ok),
+            (Some(1), ServiceStatus::Warning),
+            (Some(2), ServiceStatus::Critical),
+            (Some(3), ServiceStatus::Unknown),
+            (Some(4), ServiceStatus::Error),
+            (None, ServiceStatus::Error),
+        ] {
+            assert_eq!(
+                ServiceStatus::from(MonitoringPluginExit::from(code)),
+                expected
+            );
+        }
     }
 
     #[test]

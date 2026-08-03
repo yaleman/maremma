@@ -89,6 +89,9 @@ pub struct HttpService {
     /// Name of the check
     pub name: String,
 
+    /// Hostname used for the request URL and TLS server name. Defaults to the target host address.
+    pub hostname: Option<String>,
+
     #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     /// Cron schedule for the service
@@ -117,6 +120,9 @@ pub struct HttpService {
 
     /// Ensure the body has a certain string
     pub contains_string: Option<String>,
+
+    /// Ensure the response headers contain a case-insensitive string
+    pub contains_header: Option<String>,
 
     /// CA cert file to use
     pub ca_file: Option<PathBuf>,
@@ -167,6 +173,20 @@ impl HttpService {
             ));
         };
 
+        if let Some(expected_header) = client_config.contains_header.as_ref() {
+            let expected_header = expected_header.to_ascii_lowercase();
+            let header_found = response.headers().iter().any(|(name, value)| {
+                let header = format!("{name}: {}", String::from_utf8_lossy(value.as_bytes()));
+                header.to_ascii_lowercase().contains(&expected_header)
+            });
+            if !header_found {
+                return Ok((
+                    format!("Expected header string '{expected_header}' not found"),
+                    ServiceStatus::Critical,
+                ));
+            }
+        }
+
         let mut body: String = String::new();
 
         // if we're looking for a string, we need to read the body and check for it
@@ -195,6 +215,7 @@ async fn test_overlay_host_config() {
 
     let service = HttpService {
         name: "test".to_string(),
+        hostname: None,
         cron_schedule: std::str::FromStr::from_str("@hourly").expect("Failed to parse @hourly"),
         http_method: HttpMethod::Get,
         http_uri: None,
@@ -204,6 +225,7 @@ async fn test_overlay_host_config() {
         port: None,
         use_http: None,
         contains_string: None,
+        contains_header: None,
         ca_file: None,
         jitter: None,
     };
@@ -256,6 +278,7 @@ impl ConfigOverlay for HttpService {
 
         Ok(Box::new(Self {
             name,
+            hostname: self.extract_value(value, "hostname", &self.hostname)?,
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
             http_method: self.extract_value(value, "http_method", &self.http_method)?,
             http_uri: self.extract_value(value, "http_uri", &self.http_uri)?,
@@ -264,6 +287,7 @@ impl ConfigOverlay for HttpService {
             connect_timeout: self.extract_value(value, "connect_timeout", &self.connect_timeout)?,
             port: self.extract_value(value, "port", &self.port)?,
             contains_string: self.extract_value(value, "contains_string", &self.contains_string)?,
+            contains_header: self.extract_value(value, "contains_header", &self.contains_header)?,
             ca_file: self.extract_value(value, "ca_file", &self.ca_file)?,
             use_http: self.extract_value(value, "use_http", &self.use_http)?,
             jitter: self.extract_value(value, "jitter", &self.jitter)?,
@@ -298,10 +322,12 @@ impl ServiceTrait for HttpService {
             "https"
         };
 
+        let hostname = config.hostname.as_ref().unwrap_or(&host.hostname);
+
         let url = format!(
             "{}://{}{}{}",
             scheme,
-            host.hostname,
+            hostname,
             config
                 .port
                 .map(|p| format!(":{p}"))
@@ -422,6 +448,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             validate_tls: false,
@@ -429,6 +456,7 @@ mod tests {
             port: Some(NonZeroU16::new(test_server.port).expect("Failed to parse local test port")),
             http_uri: None,
             contains_string: None,
+            contains_header: None,
             http_status: None,
             ca_file: None,
             jitter: None,
@@ -459,6 +487,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_response_contains_header() {
+        let test_server = spawn_http_server(Router::new().route(
+            "/",
+            get(|| async {
+                (
+                    AxumStatusCode::OK,
+                    [("X-Frame-Options", "SAMEORIGIN")],
+                    Body::empty(),
+                )
+                    .into_response()
+            }),
+        ))
+        .await;
+
+        let mut service = super::HttpService {
+            name: "test".to_string(),
+            hostname: None,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            http_method: HttpMethod::Get,
+            http_uri: None,
+            http_status: None,
+            validate_tls: false,
+            connect_timeout: Some(5),
+            port: Some(NonZeroU16::new(test_server.port).expect("Failed to parse local test port")),
+            contains_string: None,
+            contains_header: Some("x-frame-options".to_string()),
+            ca_file: None,
+            use_http: Some(true),
+            jitter: None,
+        };
+        let host = entities::host::Model {
+            id: Uuid::new_v4(),
+            name: "test".to_string(),
+            hostname: "127.0.0.1".to_string(),
+            check: crate::host::HostCheck::None,
+            config: json!({}),
+        };
+
+        let result = service.run(&host).await.expect("HTTP check failed");
+        assert_eq!(result.status, ServiceStatus::Ok);
+
+        service.contains_header = Some("missing-header".to_string());
+        let result = service.run(&host).await.expect("HTTP check failed");
+        assert_eq!(result.status, ServiceStatus::Critical);
+    }
+
+    #[tokio::test]
     async fn test_site_contains_string() {
         if !crate::tests::require_live_tests("test_site_contains_string") {
             return;
@@ -476,6 +551,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: Some(Urls::Index.to_string()),
@@ -486,6 +562,7 @@ mod tests {
                 NonZeroU16::new(test_container.published_port).expect("Failed to parse port"),
             ),
             contains_string: Some("Welcome to nginx!".to_string()),
+            contains_header: None,
             ca_file: Some(PathBuf::from(certs.ca_file.as_ref())),
             jitter: None,
             use_http: None,
@@ -540,6 +617,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_status: Some(NonZeroU16::new(301).expect("failed to parse 301 as non-zero u16")),
             http_method: HttpMethod::Get,
@@ -548,6 +626,7 @@ mod tests {
             connect_timeout: None,
             port: Some(NonZeroU16::new(test_server.port).expect("Failed to parse local test port")),
             contains_string: None,
+            contains_header: None,
             ca_file: None,
             jitter: None,
             use_http: Some(true),
@@ -602,6 +681,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "localhost".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
@@ -610,6 +690,7 @@ mod tests {
             connect_timeout: Some(15),
             port: NonZeroU16::new(test_container.published_port),
             contains_string: None,
+            contains_header: None,
             ca_file: None,
             jitter: None,
             use_http: None,
@@ -640,6 +721,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "localhost".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
@@ -648,6 +730,7 @@ mod tests {
             connect_timeout: Some(15),
             port: NonZeroU16::new(test_container.published_port),
             contains_string: None,
+            contains_header: None,
             ca_file: None,
             jitter: None,
             use_http: None,
@@ -670,6 +753,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
@@ -678,6 +762,7 @@ mod tests {
             connect_timeout: Some(5),
             port: None,
             contains_string: None,
+            contains_header: None,
             ca_file: None,
             jitter: None,
             use_http: None,
@@ -772,6 +857,7 @@ mod tests {
 
         let service = HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: HttpMethod::Get,
             http_uri: None,
@@ -780,6 +866,7 @@ mod tests {
             connect_timeout: Some(5),
             port: None,
             contains_string: None,
+            contains_header: None,
             ca_file: None,
             jitter: None,
             use_http: None,

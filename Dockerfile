@@ -3,6 +3,8 @@ FROM debian:12 AS plugin_builder
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     curl \
     build-essential \
+    dnsutils \
+    iputils-ping \
     pkg-config \
     procps \
     snmp
@@ -52,12 +54,27 @@ FROM debian:12-slim AS maremma
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     ca-certificates \
-    snmp snmpd libsnmp-base && rm -rf /var/lib/apt/ /var/cache/apt/
+    curl \
+    dnsutils \
+    git \
+    iproute2 \
+    iputils-ping \
+    python3 \
+    python3-click \
+    python3-venv \
+    snmp snmpd libsnmp-base \
+    && python3 -m venv /opt/check_goodwe \
+    && /opt/check_goodwe/bin/pip install --no-cache-dir \
+        "git+https://github.com/yaleman/check_goodwe.git@d33d3357707e86826de64106f0617ec994260983" \
+    && rm -rf /var/lib/apt/ /var/cache/apt/
 
 COPY --from=cargo_builder /maremma/target/release/maremma /maremma
 COPY --from=cargo_builder /maremma/target/release/check_splunk /usr/local/bin/
 COPY --from=plugin_builder /maremma/plugins/libexec/* /usr/local/bin/
 COPY ./static /static/
+RUN for plugin in check_disk check_dns check_http check_load check_ping check_procs check_snmp check_ssh check_swap check_tcp check_users; do \
+        test -x "/usr/local/bin/${plugin}" || exit 1; \
+    done
 RUN useradd maremma
 RUN chown -R maremma /static
 RUN chgrp -R maremma /static

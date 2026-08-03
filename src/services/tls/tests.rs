@@ -32,6 +32,7 @@ async fn test_working_tls_service() {
 
     let service = crate::services::tls::TlsService {
         name: "test".to_string(),
+        hostname: None,
         cron_schedule: "0 0 * * * * *".parse().expect("Failed to parse cron"),
         port: test_container
             .published_port
@@ -81,6 +82,7 @@ async fn test_expired_tls_service() {
 
     let service = crate::services::tls::TlsService {
         name: "localhost".to_string(),
+        hostname: None,
         cron_schedule: "0 0 * * * * *".parse().expect("Failed to parse cron"),
         port: test_container
             .published_port
@@ -335,6 +337,7 @@ async fn test_service_parser() {
         extra_config,
         config: Some(Box::new(TlsService {
             name: "tls_service".to_string(),
+            hostname: None,
             cron_schedule: croner::Cron::from_str("* * * * *").expect("Failed to parse cron"),
             port: 1234.try_into().expect("Failed to convert port"),
             expiry_critical: Some(1),
@@ -370,6 +373,7 @@ fn test_failed_service_parser() {
         extra_config: std::collections::HashMap::new(),
         config: Some(Box::new(TlsService {
             name: "tls_service".to_string(),
+            hostname: None,
             cron_schedule: croner::Cron::from_str("* * * * *").expect("Failed to parse cron"),
             port: 1234.try_into().expect("Failed to convert port"),
             expiry_critical: Some(1),

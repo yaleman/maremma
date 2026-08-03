@@ -163,9 +163,10 @@ impl ServiceTrait for SshService {
 
         let time_elapsed = chrono::Utc::now() - start_time;
 
-        let status = match exit_status == config.exit_code.unwrap_or(0) {
-            false => ServiceStatus::Critical,
-            true => ServiceStatus::Ok,
+        let status = match config.exit_code {
+            Some(expected) if exit_status == expected => ServiceStatus::Ok,
+            Some(_) => ServiceStatus::Critical,
+            None => MonitoringPluginExit::from(i32::try_from(exit_status).ok()).into(),
         };
 
         Ok(CheckResult {
