@@ -205,6 +205,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn kubernetes_service_type_round_trips_through_database() {
+        let (db, _config) = test_setup().await.expect("Failed to start test harness");
+        let service = Model {
+            id: Uuid::new_v4(),
+            name: "Kubernetes API".to_string(),
+            description: Some("Kubernetes API".to_string()),
+            service_type: ServiceType::Kubernetes,
+            cron_schedule: "*/10 * * * *".to_string(),
+            extra_config: json!({"check": "api_available", "jitter": 30}),
+        };
+
+        Entity::insert(service.clone().into_active_model())
+            .exec(db.as_ref())
+            .await
+            .expect("Failed to insert Kubernetes service");
+        let stored = Entity::find_by_id(service.id)
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query Kubernetes service")
+            .expect("Kubernetes service was not stored");
+
+        assert_eq!(stored.service_type, ServiceType::Kubernetes);
+        assert_eq!(stored.extra_config["check"], "api_available");
+    }
+
+    #[tokio::test]
     async fn test_service_update_db_from_config() {
         let (db, _config) = test_setup().await.expect("Failed to start test harness");
 

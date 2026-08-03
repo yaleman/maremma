@@ -89,6 +89,9 @@ pub struct HttpService {
     /// Name of the check
     pub name: String,
 
+    /// Hostname used for the request URL and TLS server name. Defaults to the target host address.
+    pub hostname: Option<String>,
+
     #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     /// Cron schedule for the service
@@ -195,6 +198,7 @@ async fn test_overlay_host_config() {
 
     let service = HttpService {
         name: "test".to_string(),
+        hostname: None,
         cron_schedule: std::str::FromStr::from_str("@hourly").expect("Failed to parse @hourly"),
         http_method: HttpMethod::Get,
         http_uri: None,
@@ -256,6 +260,7 @@ impl ConfigOverlay for HttpService {
 
         Ok(Box::new(Self {
             name,
+            hostname: self.extract_value(value, "hostname", &self.hostname)?,
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
             http_method: self.extract_value(value, "http_method", &self.http_method)?,
             http_uri: self.extract_value(value, "http_uri", &self.http_uri)?,
@@ -298,10 +303,12 @@ impl ServiceTrait for HttpService {
             "https"
         };
 
+        let hostname = config.hostname.as_ref().unwrap_or(&host.hostname);
+
         let url = format!(
             "{}://{}{}{}",
             scheme,
-            host.hostname,
+            hostname,
             config
                 .port
                 .map(|p| format!(":{p}"))
@@ -422,6 +429,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             validate_tls: false,
@@ -476,6 +484,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: Some(Urls::Index.to_string()),
@@ -540,6 +549,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_status: Some(NonZeroU16::new(301).expect("failed to parse 301 as non-zero u16")),
             http_method: HttpMethod::Get,
@@ -602,6 +612,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "localhost".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
@@ -640,6 +651,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "localhost".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
@@ -670,6 +682,7 @@ mod tests {
 
         let service = super::HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: crate::services::http::HttpMethod::Get,
             http_uri: None,
@@ -772,6 +785,7 @@ mod tests {
 
         let service = HttpService {
             name: "test".to_string(),
+            hostname: None,
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             http_method: HttpMethod::Get,
             http_uri: None,

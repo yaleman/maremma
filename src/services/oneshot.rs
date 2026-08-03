@@ -6,6 +6,7 @@ use crate::cli::OneShotCmd;
 use crate::prelude::*;
 use crate::services::cli::CliService;
 use crate::services::http::HttpService;
+use crate::services::kubernetes::KubernetesService;
 use crate::services::ping::PingService;
 use crate::services::service_config_parse;
 use crate::services::ssh::SshService;
@@ -25,6 +26,7 @@ fn export_config(cmd: &OneShotCmd) -> (String, String) {
         ServiceType::Ping => schema_for!(PingService),
         ServiceType::Http => schema_for!(HttpService),
         ServiceType::Tls => schema_for!(TlsService),
+        ServiceType::Kubernetes => schema_for!(KubernetesService),
     };
     (
         format!("Dumping schema for {:?}", cmd.check),

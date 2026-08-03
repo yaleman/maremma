@@ -32,6 +32,8 @@ pub struct TlsService {
     // TODO: sni/hostname to check
     /// Name of the service
     pub name: String,
+    /// Hostname used for the TCP connection and TLS server name. Defaults to the target host address.
+    pub hostname: Option<String>,
     #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     /// Schedule to run the check on
@@ -56,6 +58,7 @@ impl ConfigOverlay for TlsService {
     fn overlay_host_config(&self, value: &Map<String, Json>) -> Result<Box<Self>, MaremmaError> {
         Ok(Box::new(Self {
             name: self.extract_string(value, "name", &self.name),
+            hostname: self.extract_value(value, "hostname", &self.hostname)?,
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
             port: self.extract_value(value, "port", &self.port)?,
             expiry_critical: self.extract_value(value, "expiry_critical", &self.expiry_critical)?,
@@ -74,6 +77,7 @@ impl ServiceTrait for TlsService {
     timeout=self.timeout))]
     async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
+        let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 
         // this comes from the rustls example here: https://github.com/rustls/tokio-rustls/blob/HEAD/examples/client.rs
         let root_store = RootCertStore {
@@ -91,27 +95,29 @@ impl ServiceTrait for TlsService {
             .set_certificate_verifier(tls_verifier);
 
         let connector = TlsConnector::from(Arc::new(client_config));
-        let dnsname = match ServerName::try_from(host.hostname.clone()) {
+        let hostname = config.hostname.as_ref().unwrap_or(&host.hostname).clone();
+        let dnsname = match ServerName::try_from(hostname.clone()) {
             Ok(val) => val,
             Err(_err) => {
                 debug!(
                     "Invalid hostname specified for TLS check hostname={}",
-                    host.hostname
+                    hostname
                 );
                 let timestamp = chrono::Utc::now();
                 return Ok(CheckResult {
                     time_elapsed: start_time - timestamp,
                     timestamp: Utc::now(),
                     status: ServiceStatus::Critical,
-                    result_text: format!("Invalid hostname '{}'", host.hostname),
+                    result_text: format!("Invalid hostname '{hostname}'"),
                 });
             }
         };
 
-        let timeout_duration = tokio::time::Duration::from_secs(self.timeout.unwrap_or(10) as u64);
+        let timeout_duration =
+            tokio::time::Duration::from_secs(config.timeout.unwrap_or(10) as u64);
         let stream = match tokio::time::timeout(
             timeout_duration,
-            TcpStream::connect(format!("{}:{}", host.hostname, self.port)),
+            TcpStream::connect(format!("{}:{}", hostname, config.port)),
         )
         .await
         {
@@ -120,7 +126,7 @@ impl ServiceTrait for TlsService {
                 Err(err) => {
                     debug!(
                         "Failed to TcpStream::connect to hostname=\"{}\" error=\"{}\"",
-                        host.hostname, err
+                        hostname, err
                     );
                     let timestamp = chrono::Utc::now();
                     return Ok(CheckResult {
@@ -129,7 +135,7 @@ impl ServiceTrait for TlsService {
                         status: ServiceStatus::Critical,
                         result_text: format!(
                             "Failed to connect to hostname=\"{}\" error=\"{}\"",
-                            host.hostname, err
+                            hostname, err
                         ),
                     });
                 }
@@ -161,8 +167,8 @@ impl ServiceTrait for TlsService {
         let mut result_strings = Vec::new();
 
         let expiry_critical_seconds =
-            self.expiry_critical.unwrap_or(DEFAULT_CRITICAL_DAYS) as i64 * 86400;
-        let expiry_warn_seconds = self.expiry_warn.unwrap_or(DEFAULT_WARNING_DAYS) as i64 * 86400;
+            config.expiry_critical.unwrap_or(DEFAULT_CRITICAL_DAYS) as i64 * 86400;
+        let expiry_warn_seconds = config.expiry_warn.unwrap_or(DEFAULT_WARNING_DAYS) as i64 * 86400;
 
         if result.cert_expired() {
             status = ServiceStatus::Critical;
