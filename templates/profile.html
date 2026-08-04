@@ -17,6 +17,73 @@
       </div>
     </div>
   </div>
+
+  <div class="app-card max-w-2xl">
+    <div class="app-card-header">
+      <h2 class="app-card-title">API tokens</h2>
+    </div>
+    <div class="app-card-body app-stack">
+      {% if let Some(error_message) = error_message %}
+      <div class="app-alert app-alert-danger" role="alert">{{ error_message }}</div>
+      {% endif %}
+
+      {% if let Some(issued_token) = issued_token %}
+      <div class="app-alert app-alert-info" role="alert">
+        Copy this token now. It will not be shown again.
+      </div>
+      <textarea class="app-input w-full" rows="5" readonly>{{ issued_token }}</textarea>
+      {% endif %}
+
+      <form method="POST" action="{{Urls::ProfileTokens}}" class="grid gap-3 sm:grid-cols-3">
+        <label class="app-field sm:col-span-2">
+          <span class="app-label">Token name</span>
+          <input class="app-input" type="text" name="name" maxlength="64" required />
+        </label>
+        <label class="app-field">
+          <span class="app-label">Lifetime (hours)</span>
+          <input class="app-input" type="number" name="expires_in_hours" min="1" max="2160" value="720" required />
+        </label>
+        <input type="hidden" name="csrf_token" value="{{csrf_token}}" />
+        <input type="hidden" name="csrf_scope" value="{{csrf_scope}}" />
+        <input type="submit" value="Create token" class="app-button app-button-primary sm:col-span-3" />
+      </form>
+
+      {% if api_tokens.is_empty() %}
+      <p class="text-slate-600">No active API tokens.</p>
+      {% else %}
+      <div class="app-table-wrap">
+        <div class="overflow-x-auto">
+          <table class="app-table">
+            <thead class="app-table-head">
+              <tr>
+                <th class="app-th">Name</th>
+                <th class="app-th">Created</th>
+                <th class="app-th">Expires</th>
+                <th class="app-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 bg-white">
+          {% for token in api_tokens %}
+              <tr class="app-row">
+                <td class="app-td">{{ token.name }}</td>
+                <td class="app-td">{{ token.issued_at }}</td>
+                <td class="app-td">{{ token.expires_at }}</td>
+                <td class="app-td">
+                <form method="POST" action="{{Urls::ProfileTokens}}/{{token.id}}/revoke">
+                  <input type="hidden" name="csrf_token" value="{{csrf_token}}" />
+                  <input type="hidden" name="csrf_scope" value="{{csrf_scope}}" />
+                  <input type="submit" value="Revoke" class="app-button app-button-destructive" />
+                </form>
+                </td>
+              </tr>
+          {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 </section>
 
 {% endblock content %}

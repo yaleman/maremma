@@ -19,6 +19,7 @@ impl MigratorTrait for Migrator {
             Box::new(super::migrations::m20240827_add_host_config_column::Migration),
             Box::new(super::migrations::m20240827_add_fk_host_group_members::Migration),
             Box::new(super::migrations::m20241202_add_sch_index::Migration),
+            Box::new(super::migrations::m20260804_create_api_token_table::Migration),
         ]
     }
 }

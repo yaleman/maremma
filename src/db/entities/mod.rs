@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use sea_orm::prelude::*;
 
+pub mod api_token;
 pub mod host;
 pub mod host_group;
 pub mod host_group_members;

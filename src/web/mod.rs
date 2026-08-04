@@ -1,6 +1,8 @@
 //! Web server related functionality
 //!
 
+pub(crate) mod api;
+pub(crate) mod auth;
 pub mod controller;
 pub(crate) mod middleware;
 pub(crate) mod oidc;
@@ -14,9 +16,9 @@ use axum::error_handling::HandleErrorLayer;
 use axum::extract::Request;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri};
-use axum::middleware::from_fn;
 #[cfg(test)]
 use axum::middleware::Next;
+use axum::middleware::{from_fn, from_fn_with_state};
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::Router;
@@ -42,6 +44,8 @@ use tower_sessions::{
     Expiry, SessionManagerLayer,
 };
 use urls::Urls;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 use views::handler_404;
 use views::host_group::{host_group, host_group_delete, host_group_member_delete, host_groups};
 use views::service::{service, service_delete};
@@ -54,6 +58,7 @@ pub(crate) struct WebState {
     registry: Option<Arc<Registry>>,
     pub web_tx: Option<Sender<WebServerControl>>,
     pub config_filepath: PathBuf,
+    auth: Option<Arc<auth::JwtAuth>>,
 }
 
 impl WebState {
@@ -70,6 +75,7 @@ impl WebState {
             registry,
             web_tx,
             config_filepath,
+            auth: None,
         }
     }
 
@@ -77,12 +83,24 @@ impl WebState {
         self.db.as_ref()
     }
 
+    fn with_auth(mut self, auth: Arc<auth::JwtAuth>) -> Self {
+        self.auth = Some(auth);
+        self
+    }
+
+    pub(crate) fn auth(&self) -> Result<&auth::JwtAuth, MaremmaError> {
+        self.auth.as_deref().ok_or_else(|| {
+            MaremmaError::Configuration("JWT authentication is not configured".to_string())
+        })
+    }
+
     #[cfg(test)]
     pub async fn test() -> Self {
         let (db, config) = crate::db::tests::test_setup()
             .await
             .expect("Failed to set up test");
-        Self::new(db, config, None, None, PathBuf::new())
+        let auth = auth::test_auth().expect("Failed to set up test JWT authentication");
+        Self::new(db, config, None, None, PathBuf::new()).with_auth(Arc::new(auth))
     }
 
     #[cfg(test)]
@@ -156,7 +174,20 @@ impl OidcErrorHandler {
 
 #[cfg(not(tarpaulin_include))]
 pub(crate) async fn build_app(state: WebState) -> Result<Router, MaremmaError> {
-    build_app_inner(state, true).await
+    let auth = auth::JwtAuth::from_environment().map_err(|error| match error {
+        auth::JwtAuthError::MissingSigningSecret => MaremmaError::Configuration(format!(
+            "{} is required for JWT bearer authentication",
+            auth::JWT_SIGNING_SECRET_ENV
+        )),
+        auth::JwtAuthError::InvalidSigningSecret => MaremmaError::Configuration(format!(
+            "{} must be between 32 and 64 bytes",
+            auth::JWT_SIGNING_SECRET_ENV
+        )),
+        auth::JwtAuthError::InvalidToken | auth::JwtAuthError::ExpiredToken => {
+            MaremmaError::Configuration("Failed to initialize JWT authentication".to_string())
+        }
+    })?;
+    build_app_inner(state.with_auth(Arc::new(auth)), true).await
 }
 
 async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, MaremmaError> {
@@ -178,6 +209,14 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
 
     let protected_routes = Router::new()
         .route(Urls::Profile.as_ref(), get(views::profile::profile))
+        .route(
+            Urls::ProfileTokens.as_ref(),
+            post(views::profile::create_api_token),
+        )
+        .route(
+            &format!("{}/{{token_id}}/revoke", Urls::ProfileTokens),
+            post(views::profile::revoke_api_token),
+        )
         .route(Urls::Services.as_ref(), get(views::service::services))
         .route(
             &format!("{}/{{service_check_id}}/urgent", Urls::ServiceCheck),
@@ -244,6 +283,10 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
             ServeDir::new(static_path).precompressed_br(),
         )
         .fallback(handler_404);
+    let api_routes =
+        api::routes().route_layer(from_fn_with_state(state.clone(), api::require_bearer));
+    let swagger_ui =
+        SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api::ApiDoc::openapi());
 
     let app = if enable_oidc {
         let config_reader = state.configuration.read().await;
@@ -310,6 +353,8 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
 
     Ok(app
         .merge(public_routes)
+        .merge(api_routes)
+        .merge(swagger_ui)
         .layer(TraceLayer::new_for_http())
         .layer(session_layer)
         .with_state(state))
@@ -326,7 +371,10 @@ fn oidc_application_base_uri(frontend_url: &str) -> Result<Uri, MaremmaError> {
 #[cfg(test)]
 /// Builds the web app without performing OIDC discovery.
 pub(crate) async fn build_test_app(state: WebState) -> Result<Router, MaremmaError> {
-    build_app_inner(state, false).await
+    let auth = auth::test_auth().map_err(|_| {
+        MaremmaError::Configuration("Failed to initialize test JWT authentication".to_string())
+    })?;
+    build_app_inner(state.with_auth(Arc::new(auth)), false).await
 }
 
 #[cfg(test)]
