@@ -94,6 +94,10 @@ pub(crate) fn tools_scope() -> &'static str {
     "tools"
 }
 
+pub(crate) fn api_tokens_scope() -> &'static str {
+    "api-tokens"
+}
+
 pub(crate) async fn check_csrf_token(
     csrf_token: &str,
     submitted_scope: &str,

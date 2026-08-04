@@ -2,6 +2,7 @@
 # Maremma
 
 - [Welcome](README.md)
+- [Automation API](api.md)
 
 # Services
 

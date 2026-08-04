@@ -27,6 +27,7 @@ use clap::ValueEnum;
 use sea_orm::{sea_query, DeriveActiveEnum, EnumIter, Iden};
 use serde::de::DeserializeOwned;
 use serde_json::Map;
+use utoipa::ToSchema;
 
 use crate::errors::MaremmaError;
 #[derive(
@@ -41,6 +42,7 @@ use crate::errors::MaremmaError;
     DeriveActiveEnum,
     EnumIter,
     Iden,
+    ToSchema,
 )]
 #[serde(rename_all = "lowercase")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
@@ -464,6 +466,7 @@ impl Service {
     EnumIter,
     Iden,
     JsonSchema,
+    ToSchema,
     ValueEnum,
 )]
 #[serde(rename_all = "lowercase")]

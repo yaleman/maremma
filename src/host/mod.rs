@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query;
 use std::fmt::Display;
+use utoipa::ToSchema;
 
 use crate::prelude::*;
 
@@ -84,6 +85,7 @@ impl From<crate::db::entities::host::Model> for Host {
     EnumIter,
     Iden,
     JsonSchema,
+    ToSchema,
 )]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(1))")]
 #[serde(rename_all = "lowercase")]

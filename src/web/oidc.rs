@@ -71,10 +71,15 @@ pub async fn rp_logout(
 
 #[derive(Debug)]
 pub(crate) struct User {
+    subject: String,
     username: String,
 }
 
 impl User {
+    pub(crate) fn subject(&self) -> &str {
+        &self.subject
+    }
+
     pub fn username(&self) -> String {
         self.username.to_owned()
     }
@@ -85,12 +90,13 @@ where
     AC: AdditionalClaims,
 {
     fn from(value: OidcClaims<AC>) -> Self {
+        let subject = value.subject().as_str().to_string();
         let username = match value.preferred_username() {
             Some(username) => username.as_str().to_string(),
-            None => value.subject().as_str().to_string(),
+            None => subject.clone(),
         };
 
-        Self { username }
+        Self { subject, username }
     }
 }
 

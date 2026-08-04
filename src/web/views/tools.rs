@@ -260,12 +260,17 @@ pub(crate) async fn export_db(
 #[cfg(test)]
 /// Use this when you want to be "authenticated"
 pub(crate) fn test_user_claims() -> OidcClaims<EmptyAdditionalClaims> {
+    test_user_claims_for("testuser@example.com")
+}
+
+#[cfg(test)]
+pub(crate) fn test_user_claims_for(subject: &str) -> OidcClaims<EmptyAdditionalClaims> {
     OidcClaims::<EmptyAdditionalClaims>(openidconnect::IdTokenClaims::new(
         IssuerUrl::from_url(Url::from_str("https://example.com").expect("Failed to parse URL")),
         vec![],
         chrono::Utc::now() + chrono::Duration::hours(1),
         chrono::Utc::now(),
-        StandardClaims::new(SubjectIdentifier::new("testuser@example.com".to_string())),
+        StandardClaims::new(SubjectIdentifier::new(subject.to_string())),
         EmptyAdditionalClaims {},
     ))
 }

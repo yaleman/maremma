@@ -11,3 +11,4 @@ pub(crate) mod m20240825_drop_service_host_groups;
 pub(crate) mod m20240827_add_fk_host_group_members;
 pub(crate) mod m20240827_add_host_config_column;
 pub(crate) mod m20241202_add_sch_index;
+pub(crate) mod m20260804_create_api_token_table;
