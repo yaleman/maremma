@@ -10,9 +10,30 @@ use axum::response::Redirect;
 use axum_oidc::{AdditionalClaims, OidcClaims, OidcRpInitiatedLogout};
 use tower_sessions::Session;
 
-/// login redirect
-pub async fn login() -> Redirect {
-    Redirect::to(Urls::Index.as_ref())
+pub(crate) const POST_LOGIN_RETURN_PATH: &str = "maremma-post-login-return-path";
+
+/// Return an application-local redirect target, rejecting absolute and scheme-relative URLs.
+pub(crate) fn valid_return_path(candidate: &str) -> Option<String> {
+    let uri: Uri = candidate.parse().ok()?;
+    let path_and_query = uri.path_and_query()?;
+
+    (uri.scheme().is_none()
+        && uri.authority().is_none()
+        && path_and_query.as_str() == candidate
+        && uri.path().starts_with('/')
+        && !uri.path().starts_with("//"))
+    .then(|| candidate.to_string())
+}
+
+/// Complete login by returning the visitor to their original in-app destination.
+pub(crate) async fn login(session: Session) -> Result<Redirect, MaremmaError> {
+    let return_path: Option<String> = session.remove(POST_LOGIN_RETURN_PATH).await?;
+    let target = return_path
+        .as_deref()
+        .and_then(valid_return_path)
+        .unwrap_or_else(|| Urls::Index.as_ref().to_string());
+
+    Ok(Redirect::to(&target))
 }
 
 /// Logs the user out
@@ -112,10 +133,79 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_login_view() {
-        let res = login().await.into_response();
+    async fn test_login_view_defaults_to_index() {
+        use tower_sessions::MemoryStore;
+
+        let session = tower_sessions::Session::new(None, Arc::new(MemoryStore::default()), None);
+        let res = login(session)
+            .await
+            .expect("Failed to complete login")
+            .into_response();
 
         assert_eq!(res.status(), axum::http::StatusCode::SEE_OTHER);
+        assert_eq!(
+            res.headers()
+                .get("location")
+                .expect("Failed to get location header"),
+            Urls::Index.as_ref()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_login_view_returns_to_saved_path_once() {
+        use tower_sessions::MemoryStore;
+
+        let session = tower_sessions::Session::new(None, Arc::new(MemoryStore::default()), None);
+        session
+            .insert(POST_LOGIN_RETURN_PATH, "/hosts?search=maremma")
+            .await
+            .expect("Failed to save return path");
+
+        let res = login(session.clone())
+            .await
+            .expect("Failed to complete login")
+            .into_response();
+
+        assert_eq!(
+            res.headers()
+                .get("location")
+                .expect("Failed to get location header"),
+            "/hosts?search=maremma"
+        );
+        assert_eq!(
+            session
+                .get::<String>(POST_LOGIN_RETURN_PATH)
+                .await
+                .expect("Failed to load return path"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_valid_return_path_rejects_external_urls() {
+        assert_eq!(
+            valid_return_path("/hosts?search=maremma"),
+            Some("/hosts?search=maremma".to_string())
+        );
+        assert_eq!(valid_return_path("https://example.com"), None);
+        assert_eq!(valid_return_path("//example.com"), None);
+    }
+
+    #[tokio::test]
+    async fn test_login_view_rejects_unsafe_saved_path() {
+        use tower_sessions::MemoryStore;
+
+        let session = tower_sessions::Session::new(None, Arc::new(MemoryStore::default()), None);
+        session
+            .insert(POST_LOGIN_RETURN_PATH, "https://example.com")
+            .await
+            .expect("Failed to save return path");
+
+        let res = login(session)
+            .await
+            .expect("Failed to complete login")
+            .into_response();
+
         assert_eq!(
             res.headers()
                 .get("location")

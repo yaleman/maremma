@@ -14,12 +14,15 @@ use axum::error_handling::HandleErrorLayer;
 use axum::extract::Request;
 use axum::extract::State;
 use axum::http::{StatusCode, Uri};
+use axum::middleware::from_fn;
 #[cfg(test)]
-use axum::middleware::{from_fn, Next};
+use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::Router;
 use axum_oidc::error::MiddlewareError;
+#[cfg(test)]
+use axum_oidc::OidcAccessToken;
 use axum_oidc::{EmptyAdditionalClaims, OidcAuthLayer, OidcLoginLayer};
 use axum_server::bind_rustls;
 use axum_server::tls_rustls::RustlsConfig;
@@ -228,7 +231,8 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
             get(views::tools::tools).post(views::tools::tools),
         )
         .route(Urls::ToolsExportDb.as_ref(), post(views::tools::export_db))
-        .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout));
+        .route(Urls::RpLogout.as_ref(), get(oidc::rp_logout))
+        .route_layer(from_fn(middleware::require_login));
     let auth_optional_routes = Router::new().route(Urls::Index.as_ref(), get(views::index::index));
     let login_routes = Router::new().route(Urls::Login.as_ref(), get(oidc::login));
     let public_routes = Router::new()
@@ -253,8 +257,6 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
         debug!("Frontend URL: {:?}", frontend_url);
         debug!("OIDC application base URL: {:?}", oidc_application_base_url);
         let oidc_error_handler = OidcErrorHandler::new(state.web_tx.clone());
-        let login_required_routes = protected_routes.merge(login_routes);
-
         let oidc_login_service = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: MiddlewareError| async {
                 error!("Failed to start OIDC login flow: {:?}", e);
@@ -286,8 +288,8 @@ async fn build_app_inner(state: WebState, enable_oidc: bool) -> Result<Router, M
             }))
             .layer(oidc_auth_layer);
 
-        login_required_routes
-            .layer(oidc_login_service)
+        protected_routes
+            .merge(login_routes.layer(oidc_login_service))
             .merge(auth_optional_routes)
             .layer(oidc_auth_service)
     } else {
@@ -339,6 +341,9 @@ async fn test_auth_middleware(mut request: Request, next: Next) -> axum::respons
                 request
                     .extensions_mut()
                     .insert(crate::web::views::tools::test_user_claims());
+                request
+                    .extensions_mut()
+                    .insert(OidcAccessToken("test-access-token".to_string()));
             }
             Ok(None) => {}
             Err(err) => error!("Failed to load test auth session: {:?}", err),
@@ -515,9 +520,74 @@ mod tests {
     use crate::tests::tls_utils::TestCertificateBuilder;
     use axum::body::Body;
     use axum::http::header;
+    use axum::Json;
     use entities::host;
+    use serde_json::json;
+    use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
     use tower::util::ServiceExt;
     use urls::Urls;
+
+    struct TestOidcDiscoveryServer {
+        issuer: String,
+        task: JoinHandle<()>,
+    }
+
+    impl Drop for TestOidcDiscoveryServer {
+        fn drop(&mut self) {
+            self.task.abort();
+        }
+    }
+
+    async fn spawn_oidc_discovery_server() -> TestOidcDiscoveryServer {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("Failed to bind OIDC discovery listener");
+        let issuer = format!(
+            "http://{}",
+            listener
+                .local_addr()
+                .expect("Failed to read OIDC discovery address")
+        );
+        let discovery_document = json!({
+            "issuer": issuer,
+            "authorization_endpoint": format!("{issuer}/authorize"),
+            "token_endpoint": format!("{issuer}/token"),
+            "jwks_uri": format!("{issuer}/jwks"),
+            "response_types_supported": ["code"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["RS256"]
+        });
+        let app = Router::new()
+            .route(
+                "/.well-known/openid-configuration",
+                get(move || {
+                    let discovery_document = discovery_document.clone();
+                    async move { Json(discovery_document) }
+                }),
+            )
+            .route("/jwks", get(|| async { Json(json!({ "keys": [] })) }));
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("OIDC discovery server stopped unexpectedly");
+        });
+
+        TestOidcDiscoveryServer { issuer, task }
+    }
+
+    fn session_cookie(response: &axum::response::Response) -> String {
+        response
+            .headers()
+            .get(header::SET_COOKIE)
+            .expect("Missing session cookie")
+            .to_str()
+            .expect("Session cookie was not valid UTF-8")
+            .split(';')
+            .next()
+            .expect("Session cookie was empty")
+            .to_string()
+    }
 
     #[tokio::test]
     async fn test_app_requests() {
@@ -574,6 +644,111 @@ mod tests {
             .await
             .unwrap_or_else(|err| panic!("Failed to get {url} {err:?}"));
         assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_unauthenticated_protected_route_returns_via_login() {
+        let (db, config) = test_setup().await.expect("Failed to set up test");
+        let state = WebState::new(db, config, None, None, PathBuf::new());
+        let app = build_test_app(state).await.expect("Failed to build app");
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::get("/hosts?search=maremma")
+                    .body(Body::empty())
+                    .expect("Failed to build protected request"),
+            )
+            .await
+            .expect("Failed to call protected route");
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::LOCATION)
+                .expect("Missing login redirect"),
+            Urls::Login.as_ref()
+        );
+        let cookie = session_cookie(&response);
+
+        let response = app
+            .oneshot(
+                axum::http::Request::get(Urls::Login.as_ref())
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .expect("Failed to build login request"),
+            )
+            .await
+            .expect("Failed to call login route");
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::LOCATION)
+                .expect("Missing post-login redirect"),
+            "/hosts?search=maremma"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_oidc_authorization_uses_fixed_login_callback() {
+        let oidc_server = spawn_oidc_discovery_server().await;
+        let (db, config) = test_setup().await.expect("Failed to set up test");
+        let mut config_writer = config.write().await;
+        config_writer.oidc_issuer = oidc_server.issuer.clone();
+        config_writer.frontend_url = "https://maremma.example.test".to_string();
+        drop(config_writer);
+        let state = WebState::new(db, config, None, None, PathBuf::new());
+        let app = build_app_inner(state, true)
+            .await
+            .expect("Failed to build OIDC app");
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::get("/hosts?search=maremma")
+                    .body(Body::empty())
+                    .expect("Failed to build protected request"),
+            )
+            .await
+            .expect("Failed to call protected route");
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::LOCATION)
+                .expect("Missing login redirect"),
+            Urls::Login.as_ref()
+        );
+        let cookie = session_cookie(&response);
+
+        let response = app
+            .oneshot(
+                axum::http::Request::get(Urls::Login.as_ref())
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .expect("Failed to build login request"),
+            )
+            .await
+            .expect("Failed to call login route");
+
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        let authorization_url = response
+            .headers()
+            .get(header::LOCATION)
+            .expect("Missing authorization redirect")
+            .to_str()
+            .expect("Authorization URL was not valid UTF-8");
+        assert!(authorization_url.starts_with(&format!("{}/authorize?", oidc_server.issuer)));
+        assert!(
+            authorization_url
+                .contains("redirect_uri=https%3A%2F%2Fmaremma.example.test%2Fauth%2Flogin"),
+            "unexpected authorization URL: {authorization_url}"
+        );
+        assert!(!authorization_url.contains("%2Fhosts"));
     }
 
     // #[tokio::test]
