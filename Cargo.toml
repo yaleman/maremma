@@ -101,4 +101,4 @@ utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
 openidconnect = { version = "3.5.0", default-features = false }
 openssl = { version = "0.10.80" }
 tempfile = "3.27.0"
-testcontainers = { version = "0.27.3" }
+testcontainers = { version = "0.28.0" }
