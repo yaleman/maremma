@@ -127,6 +127,7 @@ async fn tools_reload_config(state: &WebState) -> Result<(), MaremmaError> {
 }
 
 /// Seen at `/tools`
+#[allow(clippy::result_large_err)]
 pub(crate) async fn tools(
     State(state): State<WebState>,
     claims: Option<OidcClaims<EmptyAdditionalClaims>>,
