@@ -14,22 +14,30 @@ use std::process::ExitCode;
 #[cfg(not(tarpaulin_include))] // ignore for code coverage
 fn main() -> Result<(), ExitCode> {
     let cli = CliOpts::parse();
-    if let Err(err) = setup_logging(cli.debug(), cli.db_debug(), cli.tokio_console()) {
-        eprintln!("Failed to setup logging: {err:?}");
-        return Err(ExitCode::from(1));
-    };
-
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+    let telemetry = match setup_logging(cli.debug(), cli.db_debug(), cli.tokio_console()) {
+        Ok(telemetry) => telemetry,
+        Err(error) => {
+            eprintln!("Failed to setup logging: {error}");
+            return Err(ExitCode::from(1));
+        }
+    };
 
     let num_cpus = num_cpus::get();
     let threads = std::cmp::min(4, num_cpus);
     debug!("Starting {} threads", threads);
-    tokio::runtime::Builder::new_multi_thread()
+    let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(threads)
         .enable_all()
         .build()
-        .unwrap()
-        .block_on(async_main(cli))
+        .map_err(|error| {
+            error!("Failed to build Tokio runtime: {error}");
+            ExitCode::FAILURE
+        })?;
+    let result = runtime.block_on(async_main(cli));
+    telemetry.shutdown();
+    result
 }
 
 #[cfg(not(tarpaulin_include))] // ignore for code coverage

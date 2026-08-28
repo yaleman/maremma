@@ -35,7 +35,63 @@ impl Default for CheckResult {
     }
 }
 
-#[instrument(level = "INFO", skip_all, fields(service_check_id=%service_check.id, service_id=%service.id))]
+fn record_check_result(result: &CheckResult) {
+    let span = tracing::Span::current();
+    span.record("check.status", result.status.to_string());
+    span.record("check.duration_ms", result.time_elapsed.num_milliseconds());
+
+    match result.status {
+        ServiceStatus::Critical | ServiceStatus::Error | ServiceStatus::Unknown => {
+            span.record("otel.status_code", "ERROR");
+            span.record("otel.status_description", result.result_text.as_str());
+            warn!(
+                check.status = %result.status,
+                check.duration_ms = result.time_elapsed.num_milliseconds(),
+                check.result = %result.result_text,
+                "Service check failed"
+            );
+        }
+        ServiceStatus::Warning => {
+            warn!(
+                check.status = %result.status,
+                check.duration_ms = result.time_elapsed.num_milliseconds(),
+                check.result = %result.result_text,
+                "Service check completed with a warning"
+            );
+        }
+        ServiceStatus::Ok
+        | ServiceStatus::Pending
+        | ServiceStatus::Checking
+        | ServiceStatus::Urgent
+        | ServiceStatus::Disabled => {
+            info!(
+                check.status = %result.status,
+                check.duration_ms = result.time_elapsed.num_milliseconds(),
+                check.result = %result.result_text,
+                "Service check completed"
+            );
+        }
+    }
+}
+
+#[instrument(
+    name = "check.execute",
+    level = "info",
+    skip_all,
+    fields(
+        check.id = %service_check.id,
+        service.id = %service.id,
+        service.name = %service.name,
+        service.type = %service.service_type,
+        host.id = tracing::field::Empty,
+        host.name = tracing::field::Empty,
+        host.hostname = tracing::field::Empty,
+        check.status = tracing::field::Empty,
+        check.duration_ms = tracing::field::Empty,
+        otel.status_code = tracing::field::Empty,
+        otel.status_description = tracing::field::Empty,
+    )
+)]
 /// Does what it says on the tin
 pub(crate) async fn run_service_check(
     db: Arc<DatabaseConnection>,
@@ -57,6 +113,7 @@ pub(crate) async fn run_service_check(
                 result_text: errmsg,
                 ..Default::default()
             };
+            record_check_result(&result);
             entities::service_check_history::Model::from_service_check_result(
                 service_check.id,
                 &result,
@@ -95,6 +152,7 @@ pub(crate) async fn run_service_check(
                 result_text: errmsg,
                 ..Default::default()
             };
+            record_check_result(&result);
             entities::service_check_history::Model::from_service_check_result(
                 service_check.id,
                 &result,
@@ -114,6 +172,10 @@ pub(crate) async fn run_service_check(
             return Ok(result);
         }
     };
+    let span = tracing::Span::current();
+    span.record("host.id", host.id.to_string());
+    span.record("host.name", host.name.as_str());
+    span.record("host.hostname", host.hostname.as_str());
 
     #[cfg(not(tarpaulin_include))]
     let service_to_run = check.config().ok_or_else(|| {
@@ -135,6 +197,7 @@ pub(crate) async fn run_service_check(
             ..Default::default()
         },
     };
+    record_check_result(&result);
     debug!(
         "Completed service_check={:?} result={:?}",
         service_check, result.status
@@ -197,6 +260,20 @@ struct CheckTaskOutcome {
     status: ServiceStatus,
 }
 
+#[instrument(
+    name = "check",
+    level = "info",
+    skip_all,
+    fields(
+        check.id = %service_check.id,
+        service.id = %service.id,
+        service.name = %service.name,
+        service.type = %service.service_type,
+        check.status = tracing::field::Empty,
+        otel.status_code = tracing::field::Empty,
+        otel.status_description = tracing::field::Empty,
+    )
+)]
 async fn run_supervised_check(
     db: Arc<DatabaseConnection>,
     service_check: entities::service_check::Model,
@@ -214,11 +291,25 @@ async fn run_supervised_check(
     .catch_unwind()
     .await
     {
-        Ok(Ok(status)) => CheckTaskOutcome {
-            service_check_id,
-            status,
-        },
+        Ok(Ok(status)) => {
+            let span = tracing::Span::current();
+            span.record("check.status", status.to_string());
+            if matches!(
+                status,
+                ServiceStatus::Critical | ServiceStatus::Error | ServiceStatus::Unknown
+            ) {
+                span.record("otel.status_code", "ERROR");
+            }
+            CheckTaskOutcome {
+                service_check_id,
+                status,
+            }
+        }
         Ok(Err(err)) => {
+            let span = tracing::Span::current();
+            span.record("check.status", ServiceStatus::Error.to_string());
+            span.record("otel.status_code", "ERROR");
+            span.record("otel.status_description", format!("{err:?}"));
             error!(
                 "Failed to supervise service_check {} error={:?}",
                 service_check_id, err
@@ -238,6 +329,10 @@ async fn run_supervised_check(
             }
         }
         Err(_panic) => {
+            let span = tracing::Span::current();
+            span.record("check.status", ServiceStatus::Error.to_string());
+            span.record("otel.status_code", "ERROR");
+            span.record("otel.status_description", "service check task panicked");
             error!("Service check task panicked for {}", service_check_id);
             if let Err(set_status_err) = service_check
                 .set_status(ServiceStatus::Error, db.as_ref())
@@ -346,12 +441,65 @@ pub async fn run_check_loop(
 mod tests {
     use entities::service_check;
     use opentelemetry::metrics::MeterProvider;
+    use opentelemetry::trace::{Status, TracerProvider as _};
+    use opentelemetry::Value;
+    use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
     use sea_orm::sea_query::Expr;
     use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, Set};
+    use tracing_subscriber::layer::SubscriberExt;
 
     use super::*;
     use crate::db::entities::{host, service};
     use crate::db::tests::test_setup;
+
+    #[test]
+    fn failed_check_result_is_exported_with_diagnostic_context() {
+        let exporter = InMemorySpanExporter::default();
+        let provider = SdkTracerProvider::builder()
+            .with_simple_exporter(exporter.clone())
+            .build();
+        let subscriber = tracing_subscriber::Registry::default()
+            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("check-result-test")));
+        let result = CheckResult {
+            timestamp: Utc::now(),
+            time_elapsed: Duration::milliseconds(12),
+            status: ServiceStatus::Critical,
+            result_text: "connection refused".to_string(),
+        };
+
+        tracing::subscriber::with_default(subscriber, || {
+            let span = tracing::info_span!(
+                "check.execute",
+                check.status = tracing::field::Empty,
+                check.duration_ms = tracing::field::Empty,
+                otel.status_code = tracing::field::Empty,
+                otel.status_description = tracing::field::Empty,
+            );
+            let _entered = span.enter();
+            record_check_result(&result);
+        });
+        provider.force_flush().expect("Failed to flush test spans");
+
+        let spans = exporter
+            .get_finished_spans()
+            .expect("Failed to read exported test spans");
+        let span = spans.first().expect("No check span was exported");
+        assert_eq!(span.status, Status::error("connection refused".to_string()));
+        assert!(span.attributes.contains(&KeyValue::new(
+            "check.status",
+            Value::String("Critical".into())
+        )));
+        assert!(span
+            .attributes
+            .contains(&KeyValue::new("check.duration_ms", Value::I64(12))));
+        assert!(span
+            .events
+            .iter()
+            .any(|event| event.attributes.contains(&KeyValue::new(
+                "check.result",
+                Value::String("connection refused".into())
+            ))));
+    }
 
     #[tokio::test]
     async fn test_run_service_check() {

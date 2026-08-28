@@ -110,7 +110,8 @@ impl MaremmaEntity for Model {
                         config: json!(host.config.clone()),
                     }
                     .into_active_model();
-                    info!("Creating Host {:?}", new_host.insert(db).await?);
+                    let inserted_host = new_host.insert(db).await?;
+                    info!("Created Host {:?}", inserted_host);
                 }
             };
         }
