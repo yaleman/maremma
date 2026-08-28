@@ -21,6 +21,7 @@ use crate::errors::MaremmaError;
 use crate::host::HostCheck;
 use crate::prelude::*;
 use crate::services::{ServiceStatus, ServiceType};
+use crate::web::views::tools::tools_reload_config;
 use crate::web::WebState;
 
 #[derive(Serialize, ToSchema)]
@@ -520,6 +521,17 @@ async fn delete_service_check(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/config/reload",
+    tag = "Configuration",
+    responses((status = 204), (status = 401, body = ApiErrorResponse), (status = 500, body = ApiErrorResponse))
+)]
+async fn reload_config(State(state): State<WebState>) -> Result<StatusCode, ApiError> {
+    tools_reload_config(&state).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub(crate) async fn require_bearer(
     State(state): State<WebState>,
     mut request: Request,
@@ -558,6 +570,7 @@ fn parse_bearer_header(value: &str) -> Option<&str> {
 
 pub(crate) fn routes() -> Router<WebState> {
     Router::new()
+        .route("/api/v1/config/reload", post(reload_config))
         .route("/api/v1/hosts", get(list_hosts))
         .route("/api/v1/hosts/{id}", get(get_host))
         .route("/api/v1/host-groups", get(list_host_groups))
@@ -618,6 +631,7 @@ impl Modify for SecurityAddon {
         enable_service_check,
         disable_service_check,
         delete_service_check,
+        reload_config,
     ),
     components(schemas(
         ApiErrorCode,
@@ -636,6 +650,7 @@ impl Modify for SecurityAddon {
         (name = "Host groups", description = "Host-group inventory"),
         (name = "Services", description = "Service inventory"),
         (name = "Service checks", description = "Service-check status and controls"),
+        (name = "Configuration", description = "Runtime configuration controls"),
     ),
     security(("bearerAuth" = [])),
     modifiers(&SecurityAddon)
@@ -693,6 +708,7 @@ mod tests {
             .pointer("/components/securitySchemes/bearerAuth")
             .is_some());
         for path in [
+            "/paths/~1api~1v1~1config~1reload",
             "/paths/~1api~1v1~1hosts",
             "/paths/~1api~1v1~1hosts~1{id}",
             "/paths/~1api~1v1~1host-groups",
@@ -857,6 +873,87 @@ mod tests {
             .await
             .expect("Failed to call API");
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn bearer_api_reloads_configuration() {
+        use std::io::Write;
+
+        use tempfile::NamedTempFile;
+
+        use crate::config::Configuration;
+
+        let (db, config) = test_setup().await.expect("Failed to set up test state");
+        let reload_config = Configuration::load_test_config_bare().await;
+        let mut config_file = NamedTempFile::new().expect("Failed to create config file");
+        config_file
+            .write_all(
+                serde_json::to_string(&reload_config)
+                    .expect("Failed to serialize reload config")
+                    .as_bytes(),
+            )
+            .expect("Failed to write reload config");
+
+        let state = WebState::new(db, config, None, None, config_file.path().to_path_buf());
+        let app = build_test_app(state.clone())
+            .await
+            .expect("Failed to build test app");
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/api/v1/config/reload")
+                    .body(Body::empty())
+                    .expect("Failed to build request"),
+            )
+            .await
+            .expect("Failed to call API");
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let token = issue_test_token(
+            &state,
+            "test-subject",
+            Utc::now() + Duration::hours(1),
+            None,
+        )
+        .await;
+        let response = app
+            .oneshot(
+                Request::post("/api/v1/config/reload")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .expect("Failed to build request"),
+            )
+            .await
+            .expect("Failed to call API");
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn bearer_api_reports_reload_failure() {
+        let (db, config) = test_setup().await.expect("Failed to set up test state");
+        let state = WebState::new(db, config, None, None, std::path::PathBuf::new());
+        let app = build_test_app(state.clone())
+            .await
+            .expect("Failed to build test app");
+        let token = issue_test_token(
+            &state,
+            "test-subject",
+            Utc::now() + Duration::hours(1),
+            None,
+        )
+        .await;
+
+        let response = app
+            .oneshot(
+                Request::post("/api/v1/config/reload")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .expect("Failed to build request"),
+            )
+            .await
+            .expect("Failed to call API");
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[tokio::test]
