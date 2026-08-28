@@ -97,7 +97,7 @@ pub(crate) struct ToolsQuery {
 }
 
 #[instrument(level = "info", skip_all)]
-async fn tools_reload_config(state: &WebState) -> Result<(), MaremmaError> {
+pub(crate) async fn tools_reload_config(state: &WebState) -> Result<(), MaremmaError> {
     info!("Asked to reload config");
 
     let new_config = Configuration::new(&state.config_filepath)
