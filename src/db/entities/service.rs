@@ -59,10 +59,10 @@ impl ActiveModelBehavior for ActiveModel {}
 #[async_trait]
 impl MaremmaEntity for Model {
     #[instrument(level = "debug", skip(_db))]
-    async fn find_by_name(
-        name: &str,
-        _db: &DatabaseConnection,
-    ) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name<C>(name: &str, _db: &C) -> Result<Option<Model>, MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         Entity::find()
             .filter(Column::Name.eq(name))
             .one(_db)
@@ -71,10 +71,10 @@ impl MaremmaEntity for Model {
     }
 
     #[instrument(level = "debug", skip_all)]
-    async fn update_db_from_config(
-        db: &DatabaseConnection,
-        config: SendableConfig,
-    ) -> Result<(), MaremmaError> {
+    async fn update_db_from_config<C>(db: &C, config: SendableConfig) -> Result<(), MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         for (service_name, service) in &config.read().await.services {
             let extra_config: Json = serde_json::to_value(service.extra_config.clone())
                 .inspect_err(|err| {

@@ -131,3 +131,135 @@ async fn test_failing_update_db_from_config() {
     dbg!(&res);
     assert!(res.is_err());
 }
+
+#[tokio::test]
+async fn update_db_from_config_prunes_removed_configuration() {
+    let (db, config) = test_setup().await.expect("Failed to start test harness");
+
+    let example_host = entities::host::Entity::find()
+        .filter(entities::host::Column::Name.eq("example.com"))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query example host")
+        .expect("Failed to find example host");
+    let tls_service = entities::service::Entity::find()
+        .filter(entities::service::Column::Name.eq("check_tls"))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query TLS service")
+        .expect("Failed to find TLS service");
+    let ping_service = entities::service::Entity::find()
+        .filter(entities::service::Column::Name.eq("ping_check"))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query ping service")
+        .expect("Failed to find ping service");
+    let tls_group = entities::host_group::Entity::find()
+        .filter(entities::host_group::Column::Name.eq("check_tls"))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query TLS group")
+        .expect("Failed to find TLS group");
+    let ntp_group = entities::host_group::Entity::find()
+        .filter(entities::host_group::Column::Name.eq("check_ntp_time"))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query NTP group")
+        .expect("Failed to find NTP group");
+    let local_service = entities::service::Entity::find()
+        .filter(entities::service::Column::Name.eq("local_lslah"))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query local service")
+        .expect("Failed to find local service");
+    let local_check_id = entities::service_check::Entity::find()
+        .filter(entities::service_check::Column::ServiceId.eq(local_service.id))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query local service check")
+        .expect("Failed to find local service check")
+        .id;
+
+    {
+        let mut config = config.write().await;
+        config
+            .services
+            .get_mut("ping_check")
+            .expect("Failed to find ping service configuration")
+            .host_groups = vec!["check_tls".to_string()];
+        config
+            .hosts
+            .get_mut("example.com")
+            .expect("Failed to find example host configuration")
+            .host_groups
+            .retain(|group| group != "check_tls");
+    }
+    update_db_from_config(db.as_ref(), config.clone())
+        .await
+        .expect("Failed to reconcile changed configuration");
+
+    assert!(entities::host_group_members::Entity::find()
+        .filter(entities::host_group_members::Column::HostId.eq(example_host.id))
+        .filter(entities::host_group_members::Column::GroupId.eq(tls_group.id))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query removed host-group membership")
+        .is_none());
+    assert!(entities::service_group_link::Entity::find()
+        .filter(entities::service_group_link::Column::ServiceId.eq(ping_service.id))
+        .filter(entities::service_group_link::Column::GroupId.eq(ntp_group.id))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query removed service-group link")
+        .is_none());
+    assert!(entities::service_group_link::Entity::find()
+        .filter(entities::service_group_link::Column::ServiceId.eq(ping_service.id))
+        .filter(entities::service_group_link::Column::GroupId.eq(tls_group.id))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query replacement service-group link")
+        .is_some());
+    assert!(entities::service_check::Entity::find()
+        .filter(entities::service_check::Column::HostId.eq(example_host.id))
+        .filter(entities::service_check::Column::ServiceId.eq(tls_service.id))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query removed TLS check")
+        .is_none());
+    assert_eq!(
+        entities::service_check::Entity::find()
+            .filter(entities::service_check::Column::ServiceId.eq(local_service.id))
+            .one(db.as_ref())
+            .await
+            .expect("Failed to query preserved local check")
+            .expect("Failed to find preserved local check")
+            .id,
+        local_check_id
+    );
+
+    {
+        let mut config = config.write().await;
+        config.services.remove("ping_check");
+        config.hosts.remove("example.com");
+    }
+    update_db_from_config(db.as_ref(), config.clone())
+        .await
+        .expect("Failed to reconcile removed host");
+
+    assert!(entities::host::Entity::find_by_id(example_host.id)
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query removed host")
+        .is_none());
+    assert!(entities::service::Entity::find_by_id(ping_service.id)
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query removed service")
+        .is_none());
+    assert!(entities::service_check::Entity::find()
+        .filter(entities::service_check::Column::HostId.eq(example_host.id))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query checks for removed host")
+        .is_none());
+}

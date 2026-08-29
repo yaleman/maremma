@@ -25,8 +25,9 @@ pub(crate) use sea_orm::entity::prelude::{
 pub(crate) use sea_orm::DatabaseConnection;
 pub(crate) use sea_orm::DeriveEntityModel;
 pub(crate) use sea_orm::{
-    prelude::StringLen, DerivePrimaryKey, EnumIter, FromQueryResult, IntoActiveModel, Order,
-    PrimaryKeyTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef, Select,
+    prelude::StringLen, ConnectionTrait, DerivePrimaryKey, EnumIter, FromQueryResult,
+    IntoActiveModel, Order, PrimaryKeyTrait, QueryFilter, QueryOrder, QuerySelect, RelationDef,
+    Select,
 };
 pub use serde::{Deserialize, Serialize};
 pub use serde_json::{json, Map, Value};

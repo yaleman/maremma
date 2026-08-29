@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use sea_orm::prelude::*;
+use sea_orm::ConnectionTrait;
 
 pub mod api_token;
 pub mod host;
@@ -17,15 +17,12 @@ pub mod user;
 
 #[async_trait]
 pub trait MaremmaEntity {
-    async fn update_db_from_config(
-        db: &DatabaseConnection,
-        config: SendableConfig,
-    ) -> Result<(), MaremmaError>;
-
-    async fn find_by_name(
-        name: &str,
-        db: &DatabaseConnection,
-    ) -> Result<Option<Self>, MaremmaError>
+    async fn update_db_from_config<C>(db: &C, config: SendableConfig) -> Result<(), MaremmaError>
     where
+        C: ConnectionTrait + Sync;
+
+    async fn find_by_name<C>(name: &str, db: &C) -> Result<Option<Self>, MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
         Self: Sized;
 }

@@ -71,11 +71,10 @@ impl Linked for GroupToHosts {
 impl ActiveModelBehavior for ActiveModel {}
 
 impl Entity {
-    pub async fn upsert(
-        db: &DatabaseConnection,
-        host_id: &Uuid,
-        group_id: &Uuid,
-    ) -> Result<Model, MaremmaError> {
+    pub async fn upsert<C>(db: &C, host_id: &Uuid, group_id: &Uuid) -> Result<Model, MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         let existing = Entity::find()
             .filter(Column::HostId.eq(*host_id))
             .filter(Column::GroupId.eq(*group_id))
@@ -103,17 +102,17 @@ impl Entity {
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(
-        _name: &str,
-        _db: &DatabaseConnection,
-    ) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name<C>(_name: &str, _db: &C) -> Result<Option<Model>, MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         Err(MaremmaError::NotImplemented)
     }
 
-    async fn update_db_from_config(
-        db: &DatabaseConnection,
-        config: SendableConfig,
-    ) -> Result<(), MaremmaError> {
+    async fn update_db_from_config<C>(db: &C, config: SendableConfig) -> Result<(), MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         // group -> (group def, host ids)
         let mut inverted_group_list: HashMap<String, (super::host_group::Model, Vec<Uuid>)> =
             HashMap::new();
