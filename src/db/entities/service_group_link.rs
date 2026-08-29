@@ -75,17 +75,17 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(
-        _name: &str,
-        _db: &DatabaseConnection,
-    ) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name<C>(_name: &str, _db: &C) -> Result<Option<Model>, MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         Err(MaremmaError::NotImplemented)
     }
 
-    async fn update_db_from_config(
-        db: &DatabaseConnection,
-        config: SendableConfig,
-    ) -> Result<(), MaremmaError> {
+    async fn update_db_from_config<C>(db: &C, config: SendableConfig) -> Result<(), MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         for (service_name, service) in &config.read().await.services {
             let service_model = service::Model::find_by_name(service_name, db)
                 .await?

@@ -141,10 +141,13 @@ pub async fn set_check_result(
     Ok(())
 }
 
-async fn update_local_services_from_db(
-    db: &DatabaseConnection,
+async fn update_local_services_from_db<C>(
+    db: &C,
     config: SendableConfig,
-) -> Result<(), MaremmaError> {
+) -> Result<(), MaremmaError>
+where
+    C: ConnectionTrait + Sync,
+{
     let local_host_id = match host::Entity::find()
         .filter(host::Column::Hostname.eq(crate::LOCAL_SERVICE_HOST_NAME))
         .one(db)
@@ -217,20 +220,20 @@ async fn update_local_services_from_db(
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(
-        _name: &str,
-        _db: &DatabaseConnection,
-    ) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name<C>(_name: &str, _db: &C) -> Result<Option<Model>, MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         Err(MaremmaError::NotImplemented)
     }
 
     /// This updates all the service checks.
     ///
     /// It needs to be run AFTER you've added all the hosts and services and host_groups!
-    async fn update_db_from_config(
-        db: &DatabaseConnection,
-        config: SendableConfig,
-    ) -> Result<(), MaremmaError> {
+    async fn update_db_from_config<C>(db: &C, config: SendableConfig) -> Result<(), MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         debug!("Starting update of service checks");
         // the easy ones are the locals.
         debug!("Starting local updates...");

@@ -60,10 +60,10 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[async_trait]
 impl MaremmaEntity for Model {
-    async fn find_by_name(
-        name: &str,
-        db: &DatabaseConnection,
-    ) -> Result<Option<Model>, MaremmaError> {
+    async fn find_by_name<C>(name: &str, db: &C) -> Result<Option<Model>, MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         Entity::find()
             .filter(Column::Name.eq(name))
             .one(db)
@@ -71,10 +71,10 @@ impl MaremmaEntity for Model {
             .map_err(MaremmaError::from)
     }
 
-    async fn update_db_from_config(
-        db: &DatabaseConnection,
-        config: SendableConfig,
-    ) -> Result<(), MaremmaError> {
+    async fn update_db_from_config<C>(db: &C, config: SendableConfig) -> Result<(), MaremmaError>
+    where
+        C: ConnectionTrait + Sync,
+    {
         let mut known_group_list: Vec<String> = Entity::find()
             .all(db)
             .await?

@@ -9,6 +9,7 @@ use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderValue};
 use axum::Form;
 use sea_orm::prelude::Expr;
+use sea_orm::TransactionTrait;
 use tokio::sync::RwLock;
 
 #[cfg(test)]
@@ -100,27 +101,32 @@ pub(crate) struct ToolsQuery {
 pub(crate) async fn tools_reload_config(state: &WebState) -> Result<(), MaremmaError> {
     info!("Asked to reload config");
 
-    let new_config = Configuration::new(&state.config_filepath)
-        .await
-        .map_err(|e| {
-            warn!("Failed to reload config: {:?}", e);
-            e
-        })?;
+    let new_config = Arc::new(RwLock::new(
+        Configuration::new(&state.config_filepath)
+            .await
+            .map_err(|e| {
+                warn!("Failed to reload config: {:?}", e);
+                e
+            })?,
+    ));
 
-    *state.configuration.write().await = new_config;
+    let mut current_config = state.configuration.write().await;
+    let transaction = state.db().begin().await.map_err(MaremmaError::from)?;
+    if let Err(error) = update_db_from_config(&transaction, new_config.clone()).await {
+        transaction.rollback().await.map_err(MaremmaError::from)?;
+        warn!("Failed to reload config: {:?}", error);
+        return Err(error);
+    }
 
-    let new_config = Configuration::new(&state.config_filepath)
-        .await
-        .map_err(|e| {
-            warn!("Failed to reload config: {:?}", e);
-            e
-        })?;
-    update_db_from_config(state.db(), Arc::new(RwLock::new(new_config)))
-        .await
-        .map_err(|e| {
-            warn!("Failed to reload config: {:?}", e);
-            e
-        })?;
+    let new_config = Arc::try_unwrap(new_config)
+        .map_err(|_| {
+            MaremmaError::Configuration(
+                "Reloaded configuration remained in use during reconciliation".to_string(),
+            )
+        })?
+        .into_inner();
+    transaction.commit().await.map_err(MaremmaError::from)?;
+    *current_config = new_config;
 
     info!("Reloaded config");
     Ok(())
@@ -466,6 +472,57 @@ mod tests {
         .expect("Failed to render service check after reload")
         .to_string();
         assert!(rendered.contains("echo updated"));
+    }
+
+    #[tokio::test]
+    async fn test_tools_reload_config_rolls_back_database_and_memory() {
+        let mut state = WebState::test().await;
+        let mut config = Configuration::load_test_config_bare().await;
+
+        config
+            .services
+            .get_mut("local_lslah")
+            .expect("Failed to find local_lslah in test config")
+            .extra_config
+            .insert("command_line".to_string(), json!("echo should-roll-back"));
+        config
+            .local_services
+            .services
+            .push("missing_service".to_string());
+
+        let mut tempfile = NamedTempFile::new().expect("Failed to create tempfile");
+        tempfile
+            .write_all(
+                serde_json::to_string(&config)
+                    .expect("Failed to serialize failing test config")
+                    .as_bytes(),
+            )
+            .expect("Failed to write failing test config");
+        state.config_filepath = tempfile.path().to_path_buf();
+
+        assert!(tools_reload_config(&state).await.is_err());
+
+        let stored_service = entities::service::Entity::find()
+            .filter(entities::service::Column::Name.eq("local_lslah"))
+            .one(state.db())
+            .await
+            .expect("Failed to query rolled-back service")
+            .expect("Failed to find rolled-back service");
+        assert_eq!(
+            stored_service.extra_config["command_line"],
+            json!("ls -lah /tmp")
+        );
+        assert_eq!(
+            state
+                .configuration
+                .read()
+                .await
+                .services
+                .get("local_lslah")
+                .expect("Failed to find current local_lslah configuration")
+                .extra_config["command_line"],
+            json!("ls -lah /tmp")
+        );
     }
 
     #[tokio::test]
