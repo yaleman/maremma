@@ -121,7 +121,7 @@ async fn async_main(cli: CliOpts) -> Result<(), ExitCode> {
                 }
                 check_loop_result = run_check_loop(
                     db.clone(),
-                    config.read().await.max_concurrent_checks,
+                    config.clone(),
                     metrics_meter.clone()
                 ) => {
                     error!("Check loop bailed: {:?}", check_loop_result);

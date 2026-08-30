@@ -308,7 +308,11 @@ impl ServiceTrait for HttpService {
         Ok(())
     }
 
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
+    async fn run(
+        &self,
+        host: &entities::host::Model,
+        _context: &CheckExecutionContext,
+    ) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
 
         // get the client config
@@ -471,7 +475,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         assert_eq!(service.name, "test".to_string());
         dbg!(&res);
         assert!(res.is_ok());
@@ -525,11 +529,17 @@ mod tests {
             config: json!({}),
         };
 
-        let result = service.run(&host).await.expect("HTTP check failed");
+        let result = service
+            .run(&host, &CheckExecutionContext::default())
+            .await
+            .expect("HTTP check failed");
         assert_eq!(result.status, ServiceStatus::Ok);
 
         service.contains_header = Some("missing-header".to_string());
-        let result = service.run(&host).await.expect("HTTP check failed");
+        let result = service
+            .run(&host, &CheckExecutionContext::default())
+            .await
+            .expect("HTTP check failed");
         assert_eq!(result.status, ServiceStatus::Critical);
     }
 
@@ -575,7 +585,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
@@ -590,7 +600,7 @@ mod tests {
 
         dbg!(&host);
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
 
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
@@ -639,7 +649,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
         println!("{res:?}");
@@ -655,7 +665,7 @@ mod tests {
 
         dbg!(&host);
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
 
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
@@ -703,7 +713,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
         assert!(res.is_ok());
@@ -743,7 +753,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         assert_eq!(service.name, "localhost".to_string());
         dbg!(&res);
         assert!(res.is_ok());
@@ -776,7 +786,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         dbg!(&res);
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());

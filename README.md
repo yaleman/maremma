@@ -24,6 +24,25 @@ The exporter honours the standard trace-specific or general OTLP endpoint, timeo
 environment variables. For OTLP/HTTP, a trace-specific endpoint is used exactly as configured and
 must include the trace ingestion path; a general endpoint has `/v1/traces` appended automatically.
 
+## Additional SNMP MIB directories
+
+Maremma can expose administrator-managed MIB directories to CLI checks through Net-SNMP's `MIBDIRS`
+environment variable. Mount and maintain the directories separately, then list them in the global
+configuration:
+
+```json
+{
+  "mib_include_paths": [
+    "/config/mibs",
+    "/config/vendor-mibs/tplink"
+  ]
+}
+```
+
+Every configured path must exist and be a directory when the configuration is loaded. Maremma adds
+the paths to Net-SNMP's normal search directories; it does not download, extract, or update MIB
+bundles.
+
 ## Docker-container specific notes
 
 - the monitoring-plugins.org plugins end up in `/usr/local/bin/` and so does `check_splunk` - so

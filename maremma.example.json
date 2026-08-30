@@ -1,4 +1,5 @@
 {
+    "mib_include_paths": [],
     "hosts": {
         "example.com": {
             "host_groups": [

@@ -20,7 +20,9 @@ pub mod tls;
 use crate::check_loop::CheckResult;
 use crate::db::entities::{self, host};
 use crate::prelude::*;
+use std::ffi::OsString;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::ValueEnum;
@@ -30,6 +32,60 @@ use serde_json::Map;
 use utoipa::ToSchema;
 
 use crate::errors::MaremmaError;
+
+#[derive(Clone, Debug, Default)]
+/// Global settings supplied when a service check is executed.
+pub struct CheckExecutionContext {
+    mib_include_paths: Vec<PathBuf>,
+}
+
+impl CheckExecutionContext {
+    /// Build an execution context from configured MIB include paths.
+    pub fn new(mib_include_paths: Vec<PathBuf>) -> Self {
+        Self { mib_include_paths }
+    }
+
+    /// Validate configured paths and their `MIBDIRS` representation.
+    pub fn validate(&self) -> Result<(), MaremmaError> {
+        for path in &self.mib_include_paths {
+            if !path.exists() {
+                return Err(MaremmaError::Configuration(format!(
+                    "MIB include path does not exist: {}",
+                    path.display()
+                )));
+            }
+            if !path.is_dir() {
+                return Err(MaremmaError::Configuration(format!(
+                    "MIB include path is not a directory: {}",
+                    path.display()
+                )));
+            }
+        }
+
+        self.mibdirs().map(|_| ())
+    }
+
+    /// Return the Net-SNMP `MIBDIRS` value, if include paths are configured.
+    pub fn mibdirs(&self) -> Result<Option<OsString>, MaremmaError> {
+        if self.mib_include_paths.is_empty() {
+            return Ok(None);
+        }
+
+        let joined = std::env::join_paths(&self.mib_include_paths).map_err(|error| {
+            MaremmaError::Configuration(format!("Failed to join MIB include paths: {error}"))
+        })?;
+        let mut value = OsString::from("+");
+        value.push(joined);
+        Ok(Some(value))
+    }
+}
+
+impl From<&Configuration> for CheckExecutionContext {
+    fn from(configuration: &Configuration) -> Self {
+        Self::new(configuration.mib_include_paths.clone())
+    }
+}
+
 #[derive(
     Default,
     Deserialize,
@@ -170,7 +226,11 @@ impl ServiceStatus {
 /// The base trait for a service
 pub trait ServiceTrait: Debug + Sync + Send {
     /// Run the service check
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError>;
+    async fn run(
+        &self,
+        host: &entities::host::Model,
+        context: &CheckExecutionContext,
+    ) -> Result<CheckResult, MaremmaError>;
 
     /// Validate the configuration against some extra rules
     fn validate(&self) -> Result<(), MaremmaError> {

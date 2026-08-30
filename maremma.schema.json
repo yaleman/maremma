@@ -16,6 +16,14 @@
         "null"
       ]
     },
+    "mib_include_paths": {
+      "description": "Additional directories exposed to Net-SNMP-based CLI checks.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "listen_address": {
       "description": "The listen address, eg `0.0.0.0` or `127.0.0.1``",
       "type": "string",

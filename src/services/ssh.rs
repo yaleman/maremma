@@ -100,7 +100,11 @@ impl ConfigOverlay for SshService {
 #[async_trait]
 impl ServiceTrait for SshService {
     /// ssh to the target host and run the command
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
+    async fn run(
+        &self,
+        host: &entities::host::Model,
+        _context: &CheckExecutionContext,
+    ) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
@@ -253,7 +257,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         dbg!(&res);
         assert_eq!(service.name, hostname);
         assert!(res.is_ok());
@@ -308,7 +312,7 @@ mod tests {
             config: json!({}),
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
 
         dbg!(&res);
         assert_eq!(service.name, hostname);
