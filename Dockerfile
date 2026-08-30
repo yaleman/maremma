@@ -15,7 +15,12 @@ WORKDIR /maremma
 RUN ./scripts/build_plugins.sh
 RUN cd plugins/monitoring-plugins && make install
 
-# MIBS path usr/share/snmp/mibs/
+FROM debian:12 AS mib_downloader
+
+RUN sed -i 's/Components: main/Components: main non-free/' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends snmp-mibs-downloader \
+    && rm -rf /var/lib/apt/lists/ /var/cache/apt/
 
 FROM debian:12 AS cargo_builder
 
@@ -68,6 +73,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         "git+https://github.com/yaleman/check_goodwe.git@d33d3357707e86826de64106f0617ec994260983" \
     && rm -rf /var/lib/apt/ /var/cache/apt/
 
+COPY --from=mib_downloader /usr/share/snmp/mibs/ /usr/share/snmp/mibs/
+COPY --from=mib_downloader /var/lib/mibs/ /var/lib/mibs/
 COPY --from=cargo_builder /maremma/target/release/maremma /maremma
 COPY --from=cargo_builder /maremma/target/release/check_splunk /usr/local/bin/
 COPY --from=plugin_builder /maremma/plugins/libexec/* /usr/local/bin/
