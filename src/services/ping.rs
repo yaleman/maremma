@@ -68,7 +68,11 @@ impl ConfigOverlay for PingService {
 
 #[async_trait]
 impl ServiceTrait for PingService {
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
+    async fn run(
+        &self,
+        host: &entities::host::Model,
+        _context: &CheckExecutionContext,
+    ) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
 
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
@@ -173,7 +177,9 @@ mod tests {
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
-        let res = test_service.run(&host).await;
+        let res = test_service
+            .run(&host, &CheckExecutionContext::default())
+            .await;
         dbg!(&res);
         assert!(res.is_ok());
     }
@@ -199,7 +205,9 @@ mod tests {
             check: crate::host::HostCheck::None,
             config: json!({}),
         };
-        let res = test_service.run(&host).await;
+        let res = test_service
+            .run(&host, &CheckExecutionContext::default())
+            .await;
         dbg!(&res);
         assert!(res.is_ok());
     }

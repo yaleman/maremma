@@ -103,7 +103,11 @@ impl KubernetesService {
 
 #[async_trait]
 impl ServiceTrait for KubernetesService {
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
+    async fn run(
+        &self,
+        host: &entities::host::Model,
+        _context: &CheckExecutionContext,
+    ) -> Result<CheckResult, MaremmaError> {
         let start_time = Utc::now();
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 

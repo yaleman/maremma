@@ -38,7 +38,7 @@ fn export_config(cmd: &OneShotCmd) -> (String, String) {
 }
 
 /// Runs a single check and exits
-pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(), MaremmaError> {
+pub async fn run_oneshot(cmd: OneShotCmd, config: SendableConfig) -> Result<(), MaremmaError> {
     if cmd.show_config {
         let (msg, config) = export_config(&cmd);
         eprintln!("{msg}");
@@ -74,8 +74,9 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(),
         check: crate::host::HostCheck::None,
         config: json!({}),
     };
+    let execution_context = CheckExecutionContext::from(&*config.read().await);
     #[cfg(not(test))]
-    match service.run(&host).await {
+    match service.run(&host, &execution_context).await {
         Ok(res) => {
             info!("Result: {:#?}", res);
             Ok(())
@@ -88,7 +89,11 @@ pub async fn run_oneshot(cmd: OneShotCmd, _config: SendableConfig) -> Result<(),
     #[cfg(test)]
     {
         debug!("Host: {:#?}", host);
-        Ok(())
+        debug!("Execution context: {:#?}", execution_context);
+        match cmd.check {
+            ServiceType::Cli => service.run(&host, &execution_context).await.map(|_| ()),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -204,5 +209,33 @@ mod tests {
                 "No SSH key or password provided, auth is going to fail!".to_string()
             ))
         );
+    }
+
+    #[tokio::test]
+    async fn cli_oneshot_receives_execution_context() {
+        let (_, config) = test_setup().await.expect("Failed to set up test");
+        let tempdir = tempfile::tempdir().expect("Failed to create temporary directory");
+        config.write().await.mib_include_paths = vec![tempdir.path().to_path_buf()];
+        let output_path = tempdir.path().join("mibdirs.txt");
+        let service_config = json!({
+            "command_line": format!("printf '%s' \"$MIBDIRS\" > '{}'", output_path.display()),
+            "run_in_shell": true
+        })
+        .to_string();
+        let cmd = OneShotCmd {
+            sharedopts: SharedOpts::default(),
+            check: ServiceType::Cli,
+            hostname: "localhost".to_string(),
+            service_config,
+            show_config: false,
+        };
+
+        run_oneshot(cmd, config)
+            .await
+            .expect("Failed to run CLI one-shot check");
+
+        let mibdirs = std::fs::read_to_string(output_path)
+            .expect("CLI one-shot did not write its MIBDIRS value");
+        assert_eq!(mibdirs, format!("+{}", tempdir.path().to_string_lossy()));
     }
 }

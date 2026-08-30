@@ -75,7 +75,11 @@ impl ServiceTrait for TlsService {
     expiry_critical=self.expiry_critical,
     expiry_warn=self.expiry_warn,
     timeout=self.timeout))]
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
+    async fn run(
+        &self,
+        host: &entities::host::Model,
+        _context: &CheckExecutionContext,
+    ) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
         let config = self.overlay_host_config(&self.get_host_config(&self.name, host)?)?;
 

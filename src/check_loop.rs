@@ -97,6 +97,7 @@ pub(crate) async fn run_service_check(
     db: Arc<DatabaseConnection>,
     service_check: &entities::service_check::Model,
     service: entities::service::Model,
+    execution_context: &CheckExecutionContext,
 ) -> Result<CheckResult, MaremmaError> {
     let start_time = Utc::now();
     let check = match Service::try_from_service_model(&service, db.as_ref()).await {
@@ -188,7 +189,7 @@ pub(crate) async fn run_service_check(
 
     debug!("Starting service_check={:?}", service_check);
     // Here we actually run the check
-    let result = match service_to_run.run(&host).await {
+    let result = match service_to_run.run(&host, execution_context).await {
         Ok(val) => val,
         Err(err) => CheckResult {
             status: ServiceStatus::Error,
@@ -227,9 +228,10 @@ async fn run_inner(
     service_check: entities::service_check::Model,
     service: entities::service::Model,
     checks_run_since_startup: Arc<Counter<u64>>,
+    execution_context: CheckExecutionContext,
 ) -> Result<ServiceStatus, MaremmaError> {
     let sc_id = service_check.id.hyphenated().to_string();
-    match run_service_check(db, &service_check, service).await {
+    match run_service_check(db, &service_check, service, &execution_context).await {
         Err(err) => {
             error!("Failed to run service_check {} error={:?}", sc_id, err);
             checks_run_since_startup.add(
@@ -279,6 +281,7 @@ async fn run_supervised_check(
     service_check: entities::service_check::Model,
     service: entities::service::Model,
     checks_run_since_startup: Arc<Counter<u64>>,
+    execution_context: CheckExecutionContext,
 ) -> CheckTaskOutcome {
     let service_check_id = service_check.id;
 
@@ -287,6 +290,7 @@ async fn run_supervised_check(
         service_check.clone(),
         service,
         checks_run_since_startup,
+        execution_context,
     ))
     .catch_unwind()
     .await
@@ -355,12 +359,12 @@ async fn run_supervised_check(
 /// Loop around and do the checks, keeping it to a limit based on `max_permits`
 pub async fn run_check_loop(
     db: Arc<DatabaseConnection>,
-    max_permits: usize,
+    configuration: SendableConfig,
     metrics_meter: Arc<Meter>,
 ) -> Result<(), MaremmaError> {
     // Create a Counter Instrument.
 
-    let max_permits = max(max_permits, 1);
+    let max_permits = max(configuration.read().await.max_concurrent_checks, 1);
     let checks_run_since_startup = metrics_meter
         .u64_counter("checks_run_since_startup")
         .build();
@@ -401,6 +405,7 @@ pub async fn run_check_loop(
 
         match get_next_service_check(db.as_ref()).await? {
             Some((service_check, service)) => {
+                let execution_context = CheckExecutionContext::from(&*configuration.read().await);
                 service_check
                     .set_status(ServiceStatus::Checking, db.as_ref())
                     .await?;
@@ -409,6 +414,7 @@ pub async fn run_check_loop(
                     service_check,
                     service,
                     checks_run_since_startup.clone(),
+                    execution_context,
                 ));
                 backoff = DEFAULT_BACKOFF;
             }
@@ -520,9 +526,14 @@ mod tests {
             .expect("Failed to find service check");
         let initial_last_updated = service_check.last_updated;
 
-        let result = run_service_check(db.clone(), &service_check, service)
-            .await
-            .expect("Failed to run service check");
+        let result = run_service_check(
+            db.clone(),
+            &service_check,
+            service,
+            &CheckExecutionContext::default(),
+        )
+        .await
+        .expect("Failed to run service check");
 
         let updated_check = service_check::Entity::find_by_id(service_check.id)
             .one(db.as_ref())
@@ -571,9 +582,14 @@ mod tests {
 
         dbg!(&service, &service_check);
 
-        run_service_check(db.clone(), &service_check, service)
-            .await
-            .expect("Failed to run service check");
+        run_service_check(
+            db.clone(),
+            &service_check,
+            service,
+            &CheckExecutionContext::default(),
+        )
+        .await
+        .expect("Failed to run service check");
     }
 
     #[tokio::test]
@@ -583,13 +599,21 @@ mod tests {
                 .await
                 .expect("Failed to connect to test DB"),
         );
+        let tempdir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let mibdirs_output = tempdir.path().join("mibdirs.txt");
         let sleep_service = service::Model {
             id: Uuid::new_v4(),
             name: "sleep-check".to_string(),
             description: None,
             service_type: ServiceType::Cli,
             cron_schedule: "* * * * *".to_string(),
-            extra_config: json!({"command_line": "sleep 1"}),
+            extra_config: json!({
+                "command_line": format!(
+                    "printf '%s' \"$MIBDIRS\" > '{}'; sleep 1",
+                    mibdirs_output.display()
+                ),
+                "run_in_shell": true
+            }),
         };
         let first_host = host::Model {
             id: Uuid::new_v4(),
@@ -635,9 +659,14 @@ mod tests {
         }
 
         let (provider, _registry) = crate::metrics::new().expect("Failed to create metrics");
+        let configuration = Arc::new(RwLock::new(Configuration {
+            max_concurrent_checks: 1,
+            mib_include_paths: vec![tempdir.path().to_path_buf()],
+            ..Default::default()
+        }));
         let runner = tokio::spawn(run_check_loop(
             db.clone(),
-            1,
+            configuration,
             Arc::new(provider.meter("maremma-test")),
         ));
 
@@ -654,5 +683,10 @@ mod tests {
         let _ = runner.await;
 
         assert_eq!(checking_count, 1);
+        assert_eq!(
+            std::fs::read_to_string(mibdirs_output)
+                .expect("Scheduled CLI check did not receive MIBDIRS"),
+            format!("+{}", tempdir.path().to_string_lossy())
+        );
     }
 }

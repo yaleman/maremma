@@ -39,6 +39,10 @@ pub struct ConfigurationParser {
     /// The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]
     pub static_path: Option<PathBuf>,
 
+    #[serde(default)]
+    /// Additional directories exposed to Net-SNMP-based CLI checks.
+    pub mib_include_paths: Vec<PathBuf>,
+
     #[serde(default = "default_listen_address")]
     /// The listen address, eg `0.0.0.0` or `127.0.0.1`
     pub listen_address: String,
@@ -96,6 +100,10 @@ pub struct Configuration {
     /// The path to the web server's static files, defaults to [crate::constants::WEB_SERVER_DEFAULT_STATIC_PATH]
     pub static_path: Option<PathBuf>,
 
+    #[serde(default)]
+    /// Additional directories exposed to Net-SNMP-based CLI checks.
+    pub mib_include_paths: Vec<PathBuf>,
+
     #[serde(default = "default_listen_address")]
     /// The listen address, eg `0.0.0.0` or `127.0.0.1``
     pub listen_address: String,
@@ -150,6 +158,9 @@ impl TryFrom<ConfigurationParser> for Configuration {
                 Ok((name.clone(), service))
             })
             .collect::<Result<HashMap<String, Service>, MaremmaError>>()?;
+
+        let execution_context = CheckExecutionContext::new(value.mib_include_paths.clone());
+        execution_context.validate()?;
 
         let static_path = match value.static_path {
             Some(static_path) => {
@@ -224,6 +235,7 @@ impl TryFrom<ConfigurationParser> for Configuration {
             cert_key: value.cert_key,
             max_concurrent_checks: value.max_concurrent_checks,
             static_path,
+            mib_include_paths: value.mib_include_paths,
             max_history_entries_per_check: value
                 .max_history_entries_per_check
                 .unwrap_or(DEFAULT_SERVICE_CHECK_HISTORY_STORAGE),
@@ -397,6 +409,7 @@ mod tests {
             .await
             .expect("Failed to parse config");
         assert_eq!(config.hosts.len(), 1);
+        assert!(config.mib_include_paths.is_empty());
 
         assert_eq!(config.listen_addr(), "127.0.0.1:8888");
     }
@@ -433,6 +446,42 @@ mod tests {
             ..Default::default()
         };
         assert!(Configuration::try_from(cfg).is_err());
+    }
+
+    #[test]
+    fn test_config_accepts_multiple_mib_include_paths() {
+        let tempdir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let vendor_dir = tempdir.path().join("vendor");
+        std::fs::create_dir(&vendor_dir).expect("Failed to create vendor MIB directory");
+        let configured_paths = vec![tempdir.path().to_path_buf(), vendor_dir];
+        let cfg = ConfigurationParser {
+            mib_include_paths: configured_paths.clone(),
+            frontend_url: Some("https://maremma.example.test".to_string()),
+            oidc_issuer: Some("https://idm.example.test".to_string()),
+            oidc_client_id: Some("maremma".to_string()),
+            ..Default::default()
+        };
+
+        let config = Configuration::try_from(cfg).expect("Failed to parse MIB include paths");
+        assert_eq!(config.mib_include_paths, configured_paths);
+    }
+
+    #[test]
+    fn test_config_rejects_invalid_mib_include_paths() {
+        let tempdir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let file_path = tempdir.path().join("not-a-directory");
+        std::fs::write(&file_path, "not a MIB directory").expect("Failed to create test file");
+
+        for invalid_path in [tempdir.path().join("missing"), file_path] {
+            let cfg = ConfigurationParser {
+                mib_include_paths: vec![invalid_path],
+                frontend_url: Some("https://maremma.example.test".to_string()),
+                oidc_issuer: Some("https://idm.example.test".to_string()),
+                oidc_client_id: Some("maremma".to_string()),
+                ..Default::default()
+            };
+            assert!(Configuration::try_from(cfg).is_err());
+        }
     }
 
     #[tokio::test]

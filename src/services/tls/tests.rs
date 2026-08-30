@@ -56,7 +56,7 @@ async fn test_working_tls_service() {
     };
 
     dbg!(&host);
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_ok());
     assert!(result.expect("failed to run").status == ServiceStatus::Ok);
@@ -99,7 +99,7 @@ async fn test_expired_tls_service() {
         hostname: "localhost".to_string(),
         ..test_host()
     };
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_ok());
     assert!(result.expect("failed to run").status == ServiceStatus::Critical);
@@ -137,7 +137,7 @@ async fn test_wrong_cert_host_name() {
         hostname: "localhost".to_string(),
         config: json!({}),
     };
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_ok());
     assert!(result.expect("failed to run").status == ServiceStatus::Critical);
@@ -164,7 +164,7 @@ async fn test_nxdomain() {
         hostname: bad_hostname,
         config: json!({}),
     };
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_ok());
     assert!(result.expect("failed to run").status == ServiceStatus::Critical);
@@ -191,7 +191,7 @@ async fn test_invalid_hostname() {
         hostname: bad_hostname,
         config: json!({}),
     };
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_ok());
     assert!(result.expect("failed to run").status == ServiceStatus::Critical);
@@ -231,7 +231,7 @@ async fn test_tls_sha1_intermediate() {
         hostname: bad_hostname,
         config: json!({}),
     };
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_ok());
     // TODO: one day work out how to check for a sha1 intermediate
@@ -272,7 +272,7 @@ async fn test_tls_no_subject() {
         hostname: bad_hostname,
         config: json!({}),
     };
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_ok());
     assert!(result.expect("Failed to run").status == ServiceStatus::Critical);
@@ -316,7 +316,7 @@ async fn test_timeout() {
         hostname: bad_hostname,
         config: json!({}),
     };
-    let result = service.run(&host).await;
+    let result = service.run(&host, &CheckExecutionContext::default()).await;
     dbg!(&result);
     assert!(result.is_err());
 }

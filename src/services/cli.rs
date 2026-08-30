@@ -46,7 +46,11 @@ impl ConfigOverlay for CliService {
 
 #[async_trait]
 impl ServiceTrait for CliService {
-    async fn run(&self, host: &entities::host::Model) -> Result<CheckResult, MaremmaError> {
+    async fn run(
+        &self,
+        host: &entities::host::Model,
+        context: &CheckExecutionContext,
+    ) -> Result<CheckResult, MaremmaError> {
         let start_time = chrono::Utc::now();
         // run the command line and capture the exit code and stdout
 
@@ -84,6 +88,10 @@ impl ServiceTrait for CliService {
             command.args(cmd_split);
             command
         };
+
+        if let Some(mibdirs) = context.mibdirs()? {
+            command.env("MIBDIRS", mibdirs);
+        }
 
         let child = command
             .kill_on_drop(true)
@@ -126,6 +134,7 @@ impl ServiceTrait for CliService {
 #[cfg(test)]
 mod tests {
     use entities::host::test_host;
+    use std::ffi::OsString;
     use std::str::FromStr;
 
     use crate::prelude::*;
@@ -145,7 +154,7 @@ mod tests {
             ..test_host()
         };
 
-        let res = service.run(&host).await;
+        let res = service.run(&host, &CheckExecutionContext::default()).await;
         assert_eq!(service.name, "test".to_string());
         assert!(res.is_ok());
     }
@@ -165,7 +174,10 @@ mod tests {
             ..test_host()
         };
 
-        let result = service.run(&host).await.expect("Shell check failed to run");
+        let result = service
+            .run(&host, &CheckExecutionContext::default())
+            .await
+            .expect("Shell check failed to run");
         assert_eq!(result.status, ServiceStatus::Warning);
         assert_eq!(result.result_text, "test_host_hostname quoted value");
     }
@@ -183,12 +195,60 @@ mod tests {
         };
 
         let result = service
-            .run(&test_host())
+            .run(&test_host(), &CheckExecutionContext::default())
             .await
             .expect("Shell check failed to run");
 
         assert_eq!(result.status, ServiceStatus::Critical);
         assert_eq!(result.result_text, "CRITICAL | value=7 diagnostic");
+    }
+
+    #[tokio::test]
+    async fn cli_service_sets_augmented_mibdirs() {
+        let tempdir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let vendor_dir = tempdir.path().join("vendor");
+        std::fs::create_dir(&vendor_dir).expect("Failed to create vendor MIB directory");
+        let context = CheckExecutionContext::new(vec![tempdir.path().to_path_buf(), vendor_dir]);
+        let service = super::CliService {
+            name: "mibdirs".to_string(),
+            hostname: None,
+            command_line: "printf '%s' \"$MIBDIRS\"".to_string(),
+            run_in_shell: true,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            jitter: None,
+        };
+
+        let result = service
+            .run(&test_host(), &context)
+            .await
+            .expect("MIBDIRS check failed to run");
+        let expected = context
+            .mibdirs()
+            .expect("Failed to build MIBDIRS")
+            .expect("MIBDIRS was not configured");
+
+        assert_eq!(result.result_text, expected.to_string_lossy());
+        assert!(result.result_text.starts_with('+'));
+    }
+
+    #[tokio::test]
+    async fn cli_service_leaves_mibdirs_unmodified_without_include_paths() {
+        let service = super::CliService {
+            name: "inherited-mibdirs".to_string(),
+            hostname: None,
+            command_line: "printf '%s' \"${MIBDIRS-}\"".to_string(),
+            run_in_shell: true,
+            cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
+            jitter: None,
+        };
+        let inherited = std::env::var_os("MIBDIRS").unwrap_or_else(OsString::new);
+
+        let result = service
+            .run(&test_host(), &CheckExecutionContext::default())
+            .await
+            .expect("Inherited MIBDIRS check failed to run");
+
+        assert_eq!(result.result_text, inherited.to_string_lossy());
     }
 
     #[test]
