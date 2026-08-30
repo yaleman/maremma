@@ -97,6 +97,7 @@ pub(crate) async fn index(
 mod tests {
 
     use crate::web::views::tools::test_user_claims;
+    use sea_orm::{IntoActiveModel, Set};
 
     use super::*;
 
@@ -161,5 +162,32 @@ mod tests {
 
         assert!(page_content.contains("example.com"));
         assert!(!page_content.contains("local_lslah"));
+    }
+
+    #[tokio::test]
+    async fn index_renders_host_display_name() {
+        let state = WebState::test().await;
+        let host = entities::host::Entity::find()
+            .filter(entities::host::Column::Name.eq("example.com"))
+            .one(state.db())
+            .await
+            .expect("Failed to query host")
+            .expect("Failed to find host");
+        let connection_hostname = "10.1.0.6";
+
+        let mut host_update = host.into_active_model();
+        host_update.hostname = Set(connection_hostname.to_string());
+        host_update
+            .update(state.db())
+            .await
+            .expect("Failed to update host hostname");
+
+        let page_content = index(Query(SortQueries::default()), State(state), None)
+            .await
+            .expect("Failed to render index")
+            .to_string();
+
+        assert!(page_content.contains(">example.com</a>"));
+        assert!(!page_content.contains(connection_hostname));
     }
 }

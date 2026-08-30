@@ -4,7 +4,9 @@ use crate::db::tests::test_setup;
 use crate::prelude::*;
 
 use core::panic;
-use sea_orm::{ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait, TryIntoModel};
+use sea_orm::{
+    ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QueryTrait, Set, TryIntoModel,
+};
 
 #[tokio::test]
 async fn test_service_check_entity() {
@@ -218,6 +220,35 @@ async fn test_full_service_check() {
     info!("found service check {:?}", service_check);
 
     assert!(!service_check.is_empty());
+}
+
+#[tokio::test]
+async fn full_service_check_uses_host_display_name() {
+    let (db, _config) = test_setup().await.expect("Failed to set up test config");
+    let host = host::Entity::find()
+        .filter(host::Column::Name.eq("example.com"))
+        .one(db.as_ref())
+        .await
+        .expect("Failed to query host")
+        .expect("Failed to find host");
+    let connection_hostname = "10.1.0.6";
+
+    let mut host_update = host.clone().into_active_model();
+    host_update.hostname = Set(connection_hostname.to_string());
+    host_update
+        .update(db.as_ref())
+        .await
+        .expect("Failed to update host hostname");
+
+    let service_check = entities::service_check::FullServiceCheck::all(db.as_ref())
+        .await
+        .expect("Failed to query full service checks")
+        .into_iter()
+        .find(|check| check.host_id == host.id)
+        .expect("Failed to find service check for host");
+
+    assert_eq!(service_check.host_name, host.name);
+    assert_ne!(service_check.host_name, connection_hostname);
 }
 
 #[tokio::test]
