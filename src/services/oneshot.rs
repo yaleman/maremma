@@ -7,6 +7,7 @@ use crate::prelude::*;
 use crate::services::cli::CliService;
 use crate::services::http::HttpService;
 use crate::services::kubernetes::KubernetesService;
+use crate::services::otel_collector::OtelCollectorService;
 use crate::services::ping::PingService;
 use crate::services::service_config_parse;
 use crate::services::ssh::SshService;
@@ -27,6 +28,7 @@ fn export_config(cmd: &OneShotCmd) -> (String, String) {
         ServiceType::Http => schema_for!(HttpService),
         ServiceType::Tls => schema_for!(TlsService),
         ServiceType::Kubernetes => schema_for!(KubernetesService),
+        ServiceType::OtelCollector => schema_for!(OtelCollectorService),
     };
     (
         format!("Dumping schema for {:?}", cmd.check),
@@ -145,7 +147,9 @@ mod tests {
             "username" : "test",
             "password" : "test",
             "command_line" : "echo",
-            "port" : 22
+            "port" : 22,
+            "namespace": "default",
+            "service_name": "otel-collector"
         }}
         .to_string();
 

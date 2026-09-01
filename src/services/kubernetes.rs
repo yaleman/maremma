@@ -16,6 +16,8 @@ pub enum KubernetesCheck {
     ApiAvailable,
     /// Report pods that are neither running nor completed successfully.
     UnhealthyPods,
+    /// Report active pods that are not in the Ready condition.
+    UnreadyPods,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
@@ -26,6 +28,8 @@ pub struct KubernetesService {
     /// The Kubernetes operation to perform.
     #[serde(default)]
     pub check: KubernetesCheck,
+    /// Limit pod checks to this namespace.
+    pub namespace: Option<String>,
     #[serde(with = "crate::serde::cron")]
     #[schemars(with = "String")]
     /// Schedule for the service.
@@ -39,6 +43,7 @@ impl ConfigOverlay for KubernetesService {
         Ok(Box::new(Self {
             name: self.extract_string(value, "name", &self.name),
             check: self.extract_value(value, "check", &self.check)?,
+            namespace: self.extract_value(value, "namespace", &self.namespace)?,
             cron_schedule: self.extract_cron(value, "cron_schedule", &self.cron_schedule)?,
             jitter: self.extract_value(value, "jitter", &self.jitter)?,
         }))
@@ -63,6 +68,57 @@ fn unhealthy_pods(pods: &[Pod]) -> Vec<String> {
         .collect()
 }
 
+fn unready_pods(pods: &[Pod]) -> Vec<String> {
+    pods.iter()
+        .filter_map(|pod| {
+            let status = pod.status.as_ref();
+            let phase = status.and_then(|status| status.phase.as_deref());
+            if phase == Some("Succeeded") {
+                return None;
+            }
+
+            let namespace = pod.metadata.namespace.as_deref().unwrap_or("default");
+            let name = pod.metadata.name.as_deref().unwrap_or("unknown");
+            if phase != Some("Running") {
+                return Some(format!(
+                    "{namespace}/{name} phase={}",
+                    phase.unwrap_or("Unknown")
+                ));
+            }
+
+            let ready = status
+                .and_then(|status| status.conditions.as_ref())
+                .and_then(|conditions| {
+                    conditions
+                        .iter()
+                        .find(|condition| condition.type_ == "Ready")
+                })
+                .is_some_and(|condition| condition.status == "True");
+            if ready {
+                return None;
+            }
+
+            let container_statuses = status
+                .and_then(|status| status.container_statuses.as_ref())
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let unready = container_statuses
+                .iter()
+                .filter(|container| !container.ready)
+                .map(|container| container.name.as_str())
+                .collect::<Vec<_>>();
+            let restarts = container_statuses
+                .iter()
+                .map(|container| container.restart_count)
+                .sum::<i32>();
+            Some(format!(
+                "{namespace}/{name} ready=false unready=[{}] restarts={restarts}",
+                unready.join(",")
+            ))
+        })
+        .collect()
+}
+
 impl KubernetesService {
     async fn run_check(&self, client: Client) -> (String, ServiceStatus) {
         match self.check {
@@ -74,7 +130,10 @@ impl KubernetesService {
                 Err(err) => (format!("CRITICAL: {err}"), ServiceStatus::Critical),
             },
             KubernetesCheck::UnhealthyPods => {
-                let pods: Api<Pod> = Api::all(client);
+                let pods: Api<Pod> = match self.namespace.as_deref() {
+                    Some(namespace) => Api::namespaced(client, namespace),
+                    None => Api::all(client),
+                };
                 match pods.list(&Default::default()).await {
                     Ok(pods) => {
                         let unhealthy = unhealthy_pods(&pods.items);
@@ -89,6 +148,44 @@ impl KubernetesService {
                                     "CRITICAL: {} pods are not running or succeeded {}",
                                     unhealthy.len(),
                                     unhealthy.join(" ")
+                                ),
+                                ServiceStatus::Critical,
+                            )
+                        }
+                    }
+                    Err(err) => (format!("CRITICAL: {err}"), ServiceStatus::Critical),
+                }
+            }
+            KubernetesCheck::UnreadyPods => {
+                let pods: Api<Pod> = match self.namespace.as_deref() {
+                    Some(namespace) => Api::namespaced(client, namespace),
+                    None => Api::all(client),
+                };
+                match pods.list(&Default::default()).await {
+                    Ok(pods) => {
+                        let unready = unready_pods(&pods.items);
+                        if unready.is_empty() {
+                            let restart_count = pods
+                                .items
+                                .iter()
+                                .filter_map(|pod| pod.status.as_ref())
+                                .filter_map(|status| status.container_statuses.as_ref())
+                                .flatten()
+                                .map(|container| container.restart_count)
+                                .sum::<i32>();
+                            (
+                                format!(
+                                    "OK: {} pods are ready or completed; restarts={restart_count}",
+                                    pods.items.len()
+                                ),
+                                ServiceStatus::Ok,
+                            )
+                        } else {
+                            (
+                                format!(
+                                    "CRITICAL: {} pods are not ready: {}",
+                                    unready.len(),
+                                    unready.join(" ")
                                 ),
                                 ServiceStatus::Critical,
                             )
@@ -145,6 +242,7 @@ impl ServiceTrait for KubernetesService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use k8s_openapi::api::core::v1::{ContainerStatus, PodCondition};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
     fn pod(name: &str, namespace: &str, phase: Option<&str>) -> Pod {
@@ -160,6 +258,38 @@ mod tests {
             }),
             ..Default::default()
         }
+    }
+
+    fn ready_pod(name: &str, phase: &str, ready: bool, restarts: i32) -> Pod {
+        let mut pod = pod(name, "clickstack", Some(phase));
+        let status = pod.status.as_mut().expect("pod status should exist");
+        status.conditions = Some(vec![PodCondition {
+            last_probe_time: None,
+            last_transition_time: None,
+            message: None,
+            observed_generation: None,
+            reason: None,
+            status: if ready { "True" } else { "False" }.to_string(),
+            type_: "Ready".to_string(),
+        }]);
+        status.container_statuses = Some(vec![ContainerStatus {
+            allocated_resources: None,
+            allocated_resources_status: None,
+            container_id: None,
+            image: "example.invalid/image".to_string(),
+            image_id: "example.invalid/image@sha256:test".to_string(),
+            last_state: None,
+            name: "app".to_string(),
+            ready,
+            resources: None,
+            restart_count: restarts,
+            started: Some(true),
+            state: None,
+            stop_signal: None,
+            user: None,
+            volume_mounts: None,
+        }]);
+        pod
     }
 
     #[test]
@@ -183,12 +313,33 @@ mod tests {
     }
 
     #[test]
+    fn filters_unready_pods_and_ignores_old_restarts() {
+        let pods = vec![
+            ready_pod("ready", "Running", true, 3),
+            ready_pod("unready", "Running", false, 2),
+            ready_pod("completed", "Succeeded", false, 0),
+            pod("pending", "clickstack", Some("Pending")),
+            pod("failed", "clickstack", Some("Failed")),
+        ];
+
+        assert_eq!(
+            unready_pods(&pods),
+            vec![
+                "clickstack/unready ready=false unready=[app] restarts=2",
+                "clickstack/pending phase=Pending",
+                "clickstack/failed phase=Failed",
+            ]
+        );
+    }
+
+    #[test]
     fn parses_public_service_configuration() {
         let value = json!({
             "name": "pods",
             "service_type": "kubernetes",
             "host_groups": ["k8s_leader"],
             "check": "unhealthy_pods",
+            "namespace": "clickstack",
             "cron_schedule": "*/10 * * * *"
         });
 

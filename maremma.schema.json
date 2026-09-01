@@ -264,6 +264,11 @@
           "description": "Kubernetes service",
           "type": "string",
           "const": "kubernetes"
+        },
+        {
+          "description": "OpenTelemetry collector service",
+          "type": "string",
+          "const": "otel_collector"
         }
       ]
     }
