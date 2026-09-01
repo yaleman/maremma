@@ -7,11 +7,13 @@
 //! - [tls::TlsService]
 //! - [ping::PingService]
 //! - [kubernetes::KubernetesService]
+//! - [otel_collector::OtelCollectorService]
 
 pub mod cli;
 pub mod http;
 pub mod kubernetes;
 pub mod oneshot;
+pub mod otel_collector;
 pub mod ping;
 mod prelude;
 pub mod ssh;
@@ -416,6 +418,10 @@ pub(crate) fn service_config_parse(
             kubernetes::KubernetesService::from_config(value)
                 .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
         ) as Box<dyn ServiceTrait>,
+        ServiceType::OtelCollector => Box::new(
+            otel_collector::OtelCollectorService::from_config(value)
+                .inspect_err(|_| error!("Failed to parse config for {}", service_identifier))?,
+        ) as Box<dyn ServiceTrait>,
     };
 
     res.validate()?;
@@ -530,7 +536,7 @@ impl Service {
     ValueEnum,
 )]
 #[serde(rename_all = "lowercase")]
-#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(10))")]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
 /// The type of service
 pub enum ServiceType {
     /// CLI service
@@ -551,6 +557,10 @@ pub enum ServiceType {
     /// Kubernetes service
     #[sea_orm(string_value = "kubernetes")]
     Kubernetes,
+    /// OpenTelemetry collector service
+    #[serde(rename = "otel_collector")]
+    #[sea_orm(string_value = "otel_collector")]
+    OtelCollector,
 }
 
 impl Display for ServiceType {
@@ -562,6 +572,7 @@ impl Display for ServiceType {
             Self::Http => write!(f, "HTTP"),
             Self::Tls => write!(f, "TLS"),
             Self::Kubernetes => write!(f, "Kubernetes"),
+            Self::OtelCollector => write!(f, "OpenTelemetry Collector"),
         }
     }
 }
@@ -666,6 +677,10 @@ mod tests {
         assert_eq!(format!("{}", ServiceType::Http), "HTTP");
         assert_eq!(format!("{}", ServiceType::Tls), "TLS");
         assert_eq!(format!("{}", ServiceType::Kubernetes), "Kubernetes");
+        assert_eq!(
+            format!("{}", ServiceType::OtelCollector),
+            "OpenTelemetry Collector"
+        );
     }
 
     #[test]
