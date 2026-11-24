@@ -11,3 +11,29 @@ run = "pnpm run build:css"
 [tasks.start]
 depends = ["frontend-build", "build-check-splunk"]
 run = "cargo run run"
+
+
+[tasks.codespell]
+run = """
+    codespell -c \
+    --ignore-words .codespell_ignore \
+    --skip='./target' \
+    --skip='./Cargo.lock' \
+    --skip='./tarpaulin-report.html' \
+    --skip='./static/*' \
+    --skip='./docs/*,./.git' \
+    --skip='./plugins/*'
+    """
+
+[tasks.tailwind]
+run = "pnpm build:css"
+
+[tasks.clippy]
+run = "cargo clippy --all-targets --all-features -- -D warnings"
+
+[tasks.test]
+depends = ["tailwind"]
+run = "cargo test --quiet"
+
+[tasks.check]
+depends = ["codespell", "clippy", "test"]
