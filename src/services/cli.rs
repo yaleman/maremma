@@ -134,7 +134,6 @@ impl ServiceTrait for CliService {
 #[cfg(test)]
 mod tests {
     use entities::host::test_host;
-    use std::ffi::OsString;
     use std::str::FromStr;
 
     use crate::prelude::*;
@@ -241,7 +240,7 @@ mod tests {
             cron_schedule: "@hourly".parse().expect("Failed to parse cron schedule"),
             jitter: None,
         };
-        let inherited = std::env::var_os("MIBDIRS").unwrap_or_else(OsString::new);
+        let inherited = std::env::var_os("MIBDIRS").unwrap_or_default();
 
         let result = service
             .run(&test_host(), &CheckExecutionContext::default())
