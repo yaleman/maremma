@@ -649,7 +649,7 @@ dependencies = [
  "axum-core",
  "futures-util",
  "http 1.5.0",
- "openidconnect",
+ "openidconnect 3.5.0",
  "reqwest 0.11.27",
  "serde",
  "thiserror 2.0.18",
@@ -1032,9 +1032,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.8"
+version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac230478587d0269d8d6998b82ae69ea51509d55df66d9e92edd1f986904cd4a"
+checksum = "844c5c0b65be192cb68d570cca1b21a6444431d24e39c084dc0336177015337c"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1054,9 +1054,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.8"
+version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "895c9d8d2ac2dd8b8a29f3724a14e72aaaa6debcf8c38c82f97305c6a172767a"
+checksum = "b4c174f11f949b9ca8c60580925e282b9cbd5454750e506f08648b2038080cd7"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -1236,13 +1236,13 @@ dependencies = [
 
 [[package]]
 name = "croner"
-version = "4.0.3"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0097e28936e948e8f759478e1b5ec2e5ca70ab62cf38aaa9bd3aa660023e3fca"
+checksum = "5c0d18af839fad650d1673db4e2e40cfad3288dcb84a13670a9014e8d0978008"
 dependencies = [
  "chrono",
- "derive_builder",
- "strum 0.27.2",
+ "jiff 1.0.3",
+ "serde",
 ]
 
 [[package]]
@@ -1421,7 +1421,6 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim",
  "syn 2.0.117",
 ]
 
@@ -1521,37 +1520,6 @@ checksum = "d08b3a0bcc0d079199cd476b2cae8435016ec11d1c0986c6901c5ac223041534"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "derive_builder"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "507dfb09ea8b7fa618fcf76e953f4f5e192547945816d5358edffe39f6f94947"
-dependencies = [
- "derive_builder_macro",
-]
-
-[[package]]
-name = "derive_builder_core"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d5bcf7b024d6835cfb3d473887cd966994907effbe9227e8c8219824d06c4e8"
-dependencies = [
- "darling 0.20.11",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "derive_builder_macro"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab63b0e2bf4d5928aff72e83a7dace85d7bba5fe12dcc3c5a572d78caffd3f3c"
-dependencies = [
- "derive_builder_core",
  "syn 2.0.117",
 ]
 
@@ -2717,11 +2685,34 @@ version = "0.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a3546dc96b6d42c5f24902af9e2538e82e39ad350b0c766eb3fbf2d8f3d8359"
 dependencies = [
- "jiff-static",
+ "jiff-static 0.2.23",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
+]
+
+[[package]]
+name = "jiff"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "107f2e89536b6818514025f6787b0d94d819e54fe3b40365275fc753de485b3f"
+dependencies = [
+ "jiff-core",
+ "jiff-static 1.0.3",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+]
+
+[[package]]
+name = "jiff-core"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d44c923edf2bf456a982253f1a9ee1f6e89e421dffd0065d9b9a581da0def58f"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -2733,6 +2724,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "jiff-static"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4996f71e569e3a3e32b925c28ef8f0027dc30bb1d594b33eeda409eea185f5c8"
+dependencies = [
+ "jiff-core",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -2826,7 +2829,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab0d13801242174b1f3966907c3f32039f2d6b36c7ce82c61225d66ed5d1eb70"
 dependencies = [
  "base64 0.22.1",
- "jiff",
+ "jiff 0.2.23",
  "serde",
  "serde_json",
 ]
@@ -2879,7 +2882,7 @@ dependencies = [
  "hyper-rustls 0.27.8",
  "hyper-timeout",
  "hyper-util",
- "jiff",
+ "jiff 0.2.23",
  "jsonpath-rust",
  "k8s-openapi",
  "kube-core",
@@ -2908,7 +2911,7 @@ dependencies = [
  "derive_more",
  "form_urlencoded",
  "http 1.5.0",
- "jiff",
+ "jiff 0.2.23",
  "k8s-openapi",
  "serde",
  "serde-value",
@@ -2990,9 +2993,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.184"
+version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48f5d2a454e16a5ea0f4ced81bd44e4cfc7bd3a507b61887c99fd3538b28e4af"
+checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
 name = "libm"
@@ -3088,7 +3091,7 @@ dependencies = [
  "kube",
  "log",
  "num_cpus",
- "openidconnect",
+ "openidconnect 4.0.1",
  "openssl",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -3381,6 +3384,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "oauth2"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "getrandom 0.2.17",
+ "http 1.5.0",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "sha2 0.10.9",
+ "thiserror 1.0.69",
+ "url",
+]
+
+[[package]]
+name = "objc2-core-foundation"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
+dependencies = [
+ "bitflags 2.11.0",
+]
+
+[[package]]
+name = "objc2-system-configuration"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7216bd11cbda54ccabcab84d523dc93b858ec75ecfb3a7d89513fa22464da396"
+dependencies = [
+ "objc2-core-foundation",
+]
+
+[[package]]
 name = "oid-registry"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3421,7 +3461,7 @@ dependencies = [
  "http 0.2.12",
  "itertools 0.10.5",
  "log",
- "oauth2",
+ "oauth2 4.4.2",
  "p256",
  "p384",
  "rand 0.8.5",
@@ -3429,6 +3469,37 @@ dependencies = [
  "serde",
  "serde-value",
  "serde_derive",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_plain",
+ "serde_with",
+ "sha2 0.10.9",
+ "subtle",
+ "thiserror 1.0.69",
+ "url",
+]
+
+[[package]]
+name = "openidconnect"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d8c6709ba2ea764bbed26bce1adf3c10517113ddea6f2d4196e4851757ef2b2"
+dependencies = [
+ "base64 0.21.7",
+ "chrono",
+ "dyn-clone",
+ "ed25519-dalek",
+ "hmac 0.12.1",
+ "http 1.5.0",
+ "itertools 0.10.5",
+ "log",
+ "oauth2 5.0.0",
+ "p256",
+ "p384",
+ "rand 0.8.5",
+ "rsa",
+ "serde",
+ "serde-value",
  "serde_json",
  "serde_path_to_error",
  "serde_plain",
@@ -5358,9 +5429,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "378620ccc25c62c89d8be1c819e76a88d59bdcc3304733330788948e619bfd71"
+checksum = "edb1dddfbdfe5fb99dba0541a87b2edb8adbd59e45815db22d32d4fbbb8813dd"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -5371,9 +5442,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-core"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05b44e85bf579a8eeb4ceaa77a3a523baf2bf0e9bac7e40f405d537b5d2d5ccb"
+checksum = "c08f9787cc5aff062567dea2205f8ae37a617b04342633ab4f74944858ea6072"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -5397,7 +5468,7 @@ dependencies = [
  "rustls 0.23.46",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "smallvec",
  "thiserror 2.0.18",
  "time",
@@ -5411,9 +5482,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-macros"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd2b84f2bc39a5705ef27ec785a11c934a41bbd4a24941e257927cddc26b60bf"
+checksum = "bf62c58a1e7fd6031ee684eee21d07572f5aebe71c273a01ae4f04eeeba47c47"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5424,9 +5495,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-macros-core"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb8d96de5fdc85a5c4ec813432b523ec637e80ba98f046555f75f7908ddac7c3"
+checksum = "c1ff75c9d609ac84aa8a3e0d92b5c0c54bf541a7f70db492fb40c9a4bea792c8"
 dependencies = [
  "cfg-if",
  "dotenvy",
@@ -5437,7 +5508,7 @@ dependencies = [
  "quote",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "sqlx-core",
  "sqlx-mysql",
  "sqlx-postgres",
@@ -5449,9 +5520,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-mysql"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90b8020fe17c5f2c245bfa2505d7ef59c5604839527c740266ad2214acebea27"
+checksum = "19eeb93b96eb10a3a59dfb436f3daf87d2fc41168ed9e9dc153ec8257dd6a761"
 dependencies = [
  "bitflags 2.11.0",
  "byteorder",
@@ -5479,9 +5550,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-postgres"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87a2bdd6e83f6b3ea525ca9fee568030508b58355a43d0b2c1674d5f79dcd65e"
+checksum = "b0e9e02f764a1fe640eeefc8eb33eeddd274204654ec9f2db8ff851a1dee2364"
 dependencies = [
  "atoi",
  "base64 0.22.1",
@@ -5518,9 +5589,9 @@ dependencies = [
 
 [[package]]
 name = "sqlx-sqlite"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488e99c397a62007e4229aec669a179816339afc6d2620ca6fa420dbee2e982c"
+checksum = "88b6b78a34ddcb1db4046d462db8f79cee811019d7297b99fca8fac5de26672e"
 dependencies = [
  "atoi",
  "chrono",
@@ -5603,7 +5674,7 @@ dependencies = [
  "signature",
  "ssh-key",
  "strum 0.25.0",
- "strum_macros 0.25.3",
+ "strum_macros",
  "thiserror 1.0.69",
  "tracing",
 ]
@@ -5668,15 +5739,6 @@ checksum = "290d54ea6f91c969195bdbcd7442c8c2a2ba87da8bf60a7ee86a235d4bc1e125"
 
 [[package]]
 name = "strum"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
-dependencies = [
- "strum_macros 0.27.2",
-]
-
-[[package]]
-name = "strum"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
@@ -5691,18 +5753,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
-dependencies = [
- "heck 0.5.0",
- "proc-macro2",
- "quote",
  "syn 2.0.117",
 ]
 
@@ -6775,6 +6825,12 @@ name = "whoami"
 version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "998767ef88740d1f5b0682a9c53c24431453923962269c2db68ee43788c5a40d"
+dependencies = [
+ "libc",
+ "libredox",
+ "objc2-system-configuration",
+ "web-sys",
+]
 
 [[package]]
 name = "winapi"
