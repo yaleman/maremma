@@ -649,7 +649,7 @@ dependencies = [
  "axum-core",
  "futures-util",
  "http 1.5.0",
- "openidconnect 3.5.0",
+ "openidconnect",
  "reqwest 0.11.27",
  "serde",
  "thiserror 2.0.18",
@@ -3091,7 +3091,7 @@ dependencies = [
  "kube",
  "log",
  "num_cpus",
- "openidconnect 4.0.1",
+ "openidconnect",
  "openssl",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -3384,25 +3384,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oauth2"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "getrandom 0.2.17",
- "http 1.5.0",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "sha2 0.10.9",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
 name = "objc2-core-foundation"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3461,7 +3442,7 @@ dependencies = [
  "http 0.2.12",
  "itertools 0.10.5",
  "log",
- "oauth2 4.4.2",
+ "oauth2",
  "p256",
  "p384",
  "rand 0.8.5",
@@ -3469,37 +3450,6 @@ dependencies = [
  "serde",
  "serde-value",
  "serde_derive",
- "serde_json",
- "serde_path_to_error",
- "serde_plain",
- "serde_with",
- "sha2 0.10.9",
- "subtle",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
-name = "openidconnect"
-version = "4.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d8c6709ba2ea764bbed26bce1adf3c10517113ddea6f2d4196e4851757ef2b2"
-dependencies = [
- "base64 0.21.7",
- "chrono",
- "dyn-clone",
- "ed25519-dalek",
- "hmac 0.12.1",
- "http 1.5.0",
- "itertools 0.10.5",
- "log",
- "oauth2 5.0.0",
- "p256",
- "p384",
- "rand 0.8.5",
- "rsa",
- "serde",
- "serde-value",
  "serde_json",
  "serde_path_to_error",
  "serde_plain",
